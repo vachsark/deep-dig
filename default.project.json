@@ -1,0 +1,15 @@
+{
+  "name": "Deep Dig",
+  "tree": {
+    "$className": "DataModel",
+    "ServerScriptService": {
+      "$path": "src/ServerScriptService"
+    },
+    "ReplicatedStorage": {
+      "$path": "src/ReplicatedStorage"
+    },
+    "StarterGui": {
+      "$path": "src/StarterGui"
+    }
+  }
+}

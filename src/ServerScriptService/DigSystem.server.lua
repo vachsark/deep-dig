@@ -127,7 +127,7 @@ local function generateInitialTerrain()
 end
 
 -- ═══════════════════════════════════════════════════════════════════
--- Block Breaking (via ClickDetector or ProximityPrompt)
+-- Block Breaking
 -- ═══════════════════════════════════════════════════════════════════
 
 -- Reveal blocks below when a block is broken
@@ -146,16 +146,13 @@ end
 local function breakBlock(player, block)
 	if not block then return end
 	if not block:GetAttribute("Depth") then return end
+	if not block:IsDescendantOf(digSiteFolder) then return end
 
 	local gridX = block:GetAttribute("GridX")
 	local gridZ = block:GetAttribute("GridZ")
 	local depthBlock = block:GetAttribute("Depth")
 
-	-- Fire server event for loot/stats
-	local Remotes = ReplicatedStorage:WaitForChild("Remotes")
-	Remotes.DigBlock:FireClient(player) -- Client doesn't fire this; we handle it here
-
-	-- Actually break the block
+	-- Break effect
 	local breakEffect = Instance.new("Part")
 	breakEffect.Size = Vector3.new(0.5, 0.5, 0.5)
 	breakEffect.Position = block.Position
@@ -165,8 +162,6 @@ local function breakBlock(player, block)
 	breakEffect.Color = block.Color
 	breakEffect.Transparency = 0.5
 	breakEffect.Parent = workspace
-
-	-- Quick particle burst
 	game:GetService("Debris"):AddItem(breakEffect, 0.3)
 
 	-- Remove block from grid
@@ -179,9 +174,9 @@ local function breakBlock(player, block)
 	-- Reveal the block below
 	revealBelow(gridX, gridZ, depthBlock)
 
-	-- Fire the dig event to GameManager for loot processing
-	local Remotes = ReplicatedStorage:WaitForChild("Remotes")
-	Remotes.DigBlock:Fire(player, Vector3.new(gridX, -depthBlock * Config.BLOCK_SIZE, gridZ))
+	-- Fire DigBlock to GameManager for loot processing (server→server via BindableEvent)
+	local ServerEvents = ReplicatedStorage:WaitForChild("ServerEvents")
+	ServerEvents.BlockBroken:Fire(player, Vector3.new(gridX, -depthBlock * Config.BLOCK_SIZE, gridZ))
 end
 
 -- ═══════════════════════════════════════════════════════════════════
@@ -205,19 +200,24 @@ local function giveTool(player)
 	handle.Parent = tool
 
 	tool.Parent = player.Backpack
+end
 
-	-- Dig on activation (click)
-	tool.Activated:Connect(function()
-		local mouse = player:GetMouse()
-		if not mouse then return end
+-- Listen for dig requests from client
+local function setupDigRemote()
+	local Remotes = ReplicatedStorage:WaitForChild("Remotes")
 
-		local target = mouse.Target
-		if target and target:IsDescendantOf(digSiteFolder) and target:GetAttribute("Depth") ~= nil then
-			-- Fire to server for processing
-			local Remotes = ReplicatedStorage:WaitForChild("Remotes")
-			-- Note: In actual implementation, client fires DigBlock and server processes
-			breakBlock(player, target)
-		end
+	-- Create the DigRequest remote for client→server block targeting
+	local digRequest = Instance.new("RemoteEvent")
+	digRequest.Name = "DigRequest"
+	digRequest.Parent = Remotes
+
+	digRequest.OnServerEvent:Connect(function(player, block)
+		-- Validate the block is a real dig site block
+		if not block or not block:IsA("BasePart") then return end
+		if not block:GetAttribute("Depth") then return end
+		if not block:IsDescendantOf(digSiteFolder) then return end
+
+		breakBlock(player, block)
 	end)
 end
 
@@ -233,4 +233,5 @@ end)
 -- ═══════════════════════════════════════════════════════════════════
 
 generateInitialTerrain()
+setupDigRemote()
 print("[DeepDig] DigSystem loaded")

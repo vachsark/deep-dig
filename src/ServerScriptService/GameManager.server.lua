@@ -24,6 +24,15 @@ local function createRemote(name, className)
 end
 
 local DigBlockEvent = createRemote("DigBlock")
+
+-- Server-to-server communication (BindableEvents)
+local ServerEvents = Instance.new("Folder")
+ServerEvents.Name = "ServerEvents"
+ServerEvents.Parent = ReplicatedStorage
+
+local BlockBrokenEvent = Instance.new("BindableEvent")
+BlockBrokenEvent.Name = "BlockBroken"
+BlockBrokenEvent.Parent = ServerEvents
 local SellItemEvent = createRemote("SellItem")
 local BuyToolEvent = createRemote("BuyTool")
 local SellAllEvent = createRemote("SellAll")
@@ -112,7 +121,7 @@ local function triggerRandomEvent(player)
 	EventTriggeredEvent:FireAllClients(event.name, event.message, event.duration)
 end
 
-DigBlockEvent.OnServerEvent:Connect(function(player, blockPosition)
+BlockBrokenEvent.Event:Connect(function(player, blockPosition)
 	local data = getPlayerData(player)
 	if not data then return end
 
