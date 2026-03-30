@@ -4,9 +4,64 @@
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TweenService = game:GetService("TweenService")
+local RunService = game:GetService("RunService")
 
 local player = Players.LocalPlayer
+local camera = workspace.CurrentCamera
 local Remotes = ReplicatedStorage:WaitForChild("Remotes")
+
+-- ═══════════════════════════════════════════════════════════════════
+-- Sound Instances (placeholder IDs — swap with real Roblox asset IDs)
+-- ═══════════════════════════════════════════════════════════════════
+-- To use: find a sound on the Roblox Creator Marketplace, copy its
+-- asset ID (e.g. 9120386446), and replace the placeholder numbers below.
+
+local SoundFolder = Instance.new("Folder")
+SoundFolder.Name = "DeepDigSounds"
+SoundFolder.Parent = game:GetService("SoundService") or workspace
+
+local function makeSound(name, placeholderId, volume, pitchRange)
+	local s = Instance.new("Sound")
+	s.Name = name
+	s.SoundId = "rbxassetid://" .. tostring(placeholderId)
+	s.Volume = volume or 0.5
+	s.RollOffMaxDistance = 100
+	s.Parent = SoundFolder
+	return s
+end
+
+-- PLACEHOLDER IDs — replace with real Roblox audio asset IDs before shipping
+local Sounds = {
+	-- SOUND: block_break — short crunch/thud (e.g. dirt impact)
+	block_break   = makeSound("block_break",   0000000001, 0.6),
+
+	-- SOUND: item_found — sparkle chime (e.g. collect jingle)
+	item_found    = makeSound("item_found",    0000000002, 0.7),
+
+	-- SOUND: rare_reveal — dramatic reveal sting (e.g. fanfare hit)
+	rare_reveal   = makeSound("rare_reveal",   0000000003, 0.8),
+
+	-- SOUND: sell_coins — coin clink/jingle
+	sell_coins    = makeSound("sell_coins",    0000000004, 0.6),
+
+	-- SOUND: upgrade_whoosh — power-up energy whoosh
+	upgrade_whoosh = makeSound("upgrade_whoosh", 0000000005, 0.7),
+
+	-- SOUND: event_alarm — alarm horn / siren (world event trigger)
+	event_alarm   = makeSound("event_alarm",   0000000006, 0.8),
+}
+
+local function playSound(name)
+	local s = Sounds[name]
+	if s then
+		-- Clone so overlapping plays don't cut each other off
+		local clone = s:Clone()
+		clone.Parent = SoundFolder
+		clone:Play()
+		-- SOUND: auto-cleanup after playback
+		clone.Ended:Connect(function() clone:Destroy() end)
+	end
+end
 
 -- ═══════════════════════════════════════════════════════════════════
 -- Create HUD
@@ -93,6 +148,264 @@ invLabel.TextXAlignment = Enum.TextXAlignment.Left
 invLabel.Parent = screenGui
 
 -- ═══════════════════════════════════════════════════════════════════
+-- Screen Effects (flash overlay, screen shake, rarity banners)
+-- ═══════════════════════════════════════════════════════════════════
+
+-- Full-screen flash overlay — shared and reused (tweened in/out)
+local flashOverlay = Instance.new("Frame")
+flashOverlay.Name = "FlashOverlay"
+flashOverlay.Size = UDim2.new(1, 0, 1, 0)
+flashOverlay.Position = UDim2.new(0, 0, 0, 0)
+flashOverlay.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+flashOverlay.BackgroundTransparency = 1  -- starts invisible
+flashOverlay.BorderSizePixel = 0
+flashOverlay.ZIndex = 20  -- above everything
+flashOverlay.Parent = screenGui
+
+-- Rarity banner (Epic / Legendary / Mythic big pop-up)
+local rarityBanner = Instance.new("Frame")
+rarityBanner.Name = "RarityBanner"
+rarityBanner.Size = UDim2.new(0, 500, 0, 100)
+rarityBanner.Position = UDim2.new(0.5, -250, 0.35, 0)
+rarityBanner.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
+rarityBanner.BackgroundTransparency = 1  -- starts hidden
+rarityBanner.BorderSizePixel = 0
+rarityBanner.ZIndex = 25
+rarityBanner.Parent = screenGui
+
+local rarityBannerCorner = Instance.new("UICorner")
+rarityBannerCorner.CornerRadius = UDim.new(0, 12)
+rarityBannerCorner.Parent = rarityBanner
+
+local rarityBannerLabel = Instance.new("TextLabel")
+rarityBannerLabel.Size = UDim2.new(1, 0, 1, 0)
+rarityBannerLabel.BackgroundTransparency = 1
+rarityBannerLabel.Text = ""
+rarityBannerLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+rarityBannerLabel.TextSize = 48
+rarityBannerLabel.Font = Enum.Font.GothamBlack
+rarityBannerLabel.TextXAlignment = Enum.TextXAlignment.Center
+rarityBannerLabel.ZIndex = 26
+rarityBannerLabel.Parent = rarityBanner
+
+-- ── Flash implementation ─────────────────────────────────────────
+-- Instantly sets overlay to startTransparency then tweens to 1 (invisible).
+-- flashColor: the tint of the flash (white, blue, purple, gold, red)
+-- flashDuration: how long the fade-out takes
+local function playFlash(flashColor, startTransparency, flashDuration)
+	flashOverlay.BackgroundColor3 = flashColor
+	flashOverlay.BackgroundTransparency = startTransparency
+
+	TweenService:Create(
+		flashOverlay,
+		TweenInfo.new(flashDuration, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+		{ BackgroundTransparency = 1 }
+	):Play()
+end
+
+-- ── Screen shake implementation ──────────────────────────────────
+-- Offsets the camera CFrame by a random amount for `frames` frames,
+-- then restores it. intensity = max stud offset, frames = shake duration.
+local shakeActive = false
+local function playScreenShake(intensity, frames)
+	if shakeActive then return end
+	shakeActive = true
+
+	local originalCFrame = camera.CFrame
+	local frameCount = 0
+
+	local connection
+	connection = RunService.RenderStepped:Connect(function()
+		frameCount = frameCount + 1
+		if frameCount >= frames then
+			-- Restore and stop
+			camera.CFrame = originalCFrame
+			shakeActive = false
+			connection:Disconnect()
+			return
+		end
+
+		-- Decay: shake weakens toward the end
+		local decay = 1 - (frameCount / frames)
+		local offset = Vector3.new(
+			(math.random() * 2 - 1) * intensity * decay,
+			(math.random() * 2 - 1) * intensity * decay,
+			0
+		)
+		camera.CFrame = originalCFrame * CFrame.new(offset)
+	end)
+end
+
+-- ── Rarity banner animation ──────────────────────────────────────
+-- Tweens the banner in (scale up + fade in), holds, then fades out.
+-- text: what to display, color: glow color, holdTime: seconds to hold
+local bannerActive = false
+local function playRarityBanner(text, textColor, bgColor, holdTime)
+	if bannerActive then return end
+	bannerActive = true
+
+	rarityBannerLabel.Text = text
+	rarityBannerLabel.TextColor3 = textColor
+	rarityBanner.BackgroundColor3 = bgColor
+	rarityBanner.BackgroundTransparency = 0.2
+
+	-- Tween in: scale from 80% to 100%
+	rarityBanner.Size = UDim2.new(0, 400, 0, 80)
+	rarityBanner.Position = UDim2.new(0.5, -200, 0.35, 0)
+	TweenService:Create(
+		rarityBanner,
+		TweenInfo.new(0.25, Enum.EasingStyle.Back, Enum.EasingDirection.Out),
+		{
+			Size = UDim2.new(0, 520, 0, 110),
+			Position = UDim2.new(0.5, -260, 0.33, 0),
+		}
+	):Play()
+
+	-- Hold, then tween out
+	task.delay(holdTime, function()
+		TweenService:Create(
+			rarityBanner,
+			TweenInfo.new(0.4, Enum.EasingStyle.Quad, Enum.EasingDirection.In),
+			{
+				BackgroundTransparency = 1,
+				Position = UDim2.new(0.5, -260, 0.25, 0),
+			}
+		):Play()
+		TweenService:Create(
+			rarityBannerLabel,
+			TweenInfo.new(0.4, Enum.EasingStyle.Quad, Enum.EasingDirection.In),
+			{ TextTransparency = 1 }
+		):Play()
+
+		task.delay(0.5, function()
+			rarityBanner.BackgroundTransparency = 1
+			rarityBannerLabel.TextTransparency = 0
+			rarityBannerLabel.Text = ""
+			bannerActive = false
+		end)
+	end)
+end
+
+-- ── Mythic particle simulation ───────────────────────────────────
+-- Roblox LocalScripts can't spawn ParticleEmitters easily from code,
+-- but we fake a burst by briefly showing several colored frames that
+-- fly outward from the banner center, then fade.
+-- PARTICLE HOOK: replace this with a real ParticleEmitter attached to
+-- a Part in workspace if you want 3D particles.
+local function playMythicParticles()
+	local centerX = 0.5
+	local centerY = 0.4
+
+	for i = 1, 12 do
+		local particle = Instance.new("Frame")
+		particle.Size = UDim2.new(0, 10, 0, 10)
+		particle.Position = UDim2.new(centerX, -5, centerY, -5)
+		particle.BackgroundColor3 = Color3.fromHSV(math.random(), 0.8, 1)
+		particle.BackgroundTransparency = 0
+		particle.BorderSizePixel = 0
+		particle.ZIndex = 30
+		particle.Parent = screenGui
+
+		local pCorner = Instance.new("UICorner")
+		pCorner.CornerRadius = UDim.new(1, 0)
+		pCorner.Parent = particle
+
+		-- Each particle flies in a random direction
+		local angle = (i / 12) * math.pi * 2
+		local dist = 0.15 + math.random() * 0.1
+		local tx = centerX + math.cos(angle) * dist
+		local ty = centerY + math.sin(angle) * dist * 0.6  -- squish vertically
+
+		TweenService:Create(
+			particle,
+			TweenInfo.new(0.6, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+			{
+				Position = UDim2.new(tx, -5, ty, -5),
+				BackgroundTransparency = 1,
+				Size = UDim2.new(0, 4, 0, 4),
+			}
+		):Play()
+
+		task.delay(0.7, function() particle:Destroy() end)
+	end
+end
+
+-- ── Master item-found effect dispatcher ─────────────────────────
+-- Called by the ItemFound handler below. Selects effects based on rarity.
+local RARITY_FLASH_COLORS = {
+	Common    = Color3.fromRGB(255, 255, 255),  -- white
+	Uncommon  = Color3.fromRGB(220, 255, 220),  -- soft green
+	Rare      = Color3.fromRGB(80,  140, 255),  -- blue
+	Epic      = Color3.fromRGB(180,  80, 255),  -- purple
+	Legendary = Color3.fromRGB(255, 200,  30),  -- gold
+	Mythic    = Color3.fromRGB(255,  60,  60),  -- red
+}
+
+local function playItemFoundEffects(rarity)
+	local flashColor = RARITY_FLASH_COLORS[rarity] or Color3.fromRGB(255, 255, 255)
+
+	if rarity == "Common" or rarity == "Uncommon" then
+		-- Any item: brief white/soft flash (0.1s snap, 0.3s fade)
+		playFlash(flashColor, 0.7, 0.3)
+		-- SOUND: sparkle chime
+		playSound("item_found")
+
+	elseif rarity == "Rare" then
+		-- Blue flash + slight screen shake
+		playFlash(flashColor, 0.6, 0.4)
+		playScreenShake(0.3, 12)
+		-- SOUND: sparkle chime + dramatic reveal
+		playSound("item_found")
+		playSound("rare_reveal")
+
+	elseif rarity == "Epic" then
+		-- Purple flash + medium shake + "EPIC FIND!" banner
+		playFlash(flashColor, 0.5, 0.5)
+		playScreenShake(0.6, 20)
+		playRarityBanner(
+			"EPIC FIND!",
+			Color3.fromRGB(255, 255, 255),
+			Color3.fromRGB(100, 20, 180),
+			2.0
+		)
+		-- SOUND: dramatic reveal
+		playSound("rare_reveal")
+
+	elseif rarity == "Legendary" then
+		-- Gold flash + heavy shake + "LEGENDARY!" banner (stays longer)
+		playFlash(flashColor, 0.4, 0.7)
+		playScreenShake(1.0, 30)
+		playRarityBanner(
+			"LEGENDARY!",
+			Color3.fromRGB(255, 230, 80),
+			Color3.fromRGB(140, 70, 0),
+			2.5
+		)
+		-- SOUND: dramatic reveal
+		playSound("rare_reveal")
+
+	elseif rarity == "Mythic" then
+		-- Red flash + intense shake + "MYTHIC!!!" banner (3s hold) + particles
+		playFlash(flashColor, 0.3, 1.0)
+		playScreenShake(1.8, 45)
+		playRarityBanner(
+			"MYTHIC!!!",
+			Color3.fromRGB(255, 80, 80),
+			Color3.fromRGB(80, 0, 0),
+			3.0
+		)
+		playMythicParticles()
+		-- SOUND: dramatic reveal (will feel huge with the right audio ID)
+		playSound("rare_reveal")
+		-- Secondary burst after 0.5s for extra drama
+		task.delay(0.5, function()
+			playFlash(flashColor, 0.5, 0.6)
+			playMythicParticles()
+		end)
+	end
+end
+
+-- ═══════════════════════════════════════════════════════════════════
 -- Notification system (item found, events, etc.)
 -- ═══════════════════════════════════════════════════════════════════
 
@@ -171,6 +484,8 @@ sellCorner.CornerRadius = UDim.new(0, 8)
 sellCorner.Parent = sellButton
 
 sellButton.MouseButton1Click:Connect(function()
+	-- SOUND: coin clink on sell
+	playSound("sell_coins")
 	Remotes.SellAll:FireServer()
 end)
 
@@ -234,6 +549,8 @@ upCorner.Parent = upgradeButton
 local currentToolTier = 1
 
 upgradeButton.MouseButton1Click:Connect(function()
+	-- SOUND: power-up whoosh on upgrade (server confirms, client plays optimistically)
+	playSound("upgrade_whoosh")
 	Remotes.BuyTool:FireServer(currentToolTier + 1)
 end)
 
@@ -273,10 +590,18 @@ Remotes.UpdateHUD.OnClientEvent:Connect(function(data)
 end)
 
 Remotes.ItemFound.OnClientEvent:Connect(function(item)
+	-- 1. Screen effects (flash, shake, banner, particles by rarity)
+	playItemFoundEffects(item.rarity)
+
+	-- 2. Notification toast in the corner
 	showNotification("Found: " .. item.name .. " (+" .. item.sellValue .. " coins)", item.rarity)
 end)
 
 Remotes.EventTriggered.OnClientEvent:Connect(function(eventName, message, duration)
+	-- SOUND: alarm horn on world event
+	playSound("event_alarm")
+	-- Flash the screen gold to signal the event
+	playFlash(Color3.fromRGB(255, 200, 30), 0.6, 0.8)
 	showNotification("⚡ " .. message, "Legendary")
 end)
 

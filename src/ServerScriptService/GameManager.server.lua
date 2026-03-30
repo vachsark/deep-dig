@@ -44,11 +44,14 @@ local DEFAULT_DATA = {
 	toolTier = 1,
 	totalBlocksDug = 0,
 	deepestBlock = 0,
-	inventory = {},     -- { {name, rarity, sellValue}, ... }
-	collections = {},   -- { ["T-Rex Tooth"] = true, ... }
-	fragments = 0,      -- Duplicate recycling currency
+	inventory = {},       -- { {name, rarity, sellValue}, ... }
+	collections = {},     -- { ["T-Rex Tooth"] = true, ... }
+	fragments = 0,        -- Duplicate recycling currency
 	rebirths = 0,
 	totalEarned = 0,
+	lastLoginDate = "",   -- "YYYY-MM-DD" for streak tracking
+	loginStreak = 0,      -- Consecutive daily login count
+	ownedGamepasses = {}, -- { [passId] = true }
 }
 
 local function loadPlayerData(player)
@@ -101,6 +104,9 @@ local function triggerRandomEvent(player)
 	local event = Config.EVENTS[math.random(#Config.EVENTS)]
 	activeEvents[event.effect] = tick() + event.duration
 
+	-- SOUND HOOK: alarm horn when a world event triggers (handled client-side via EventTriggeredEvent)
+	-- Remotes.PlaySound:FireAllClients("event_alarm")
+
 	-- Notify all players
 	EventTriggeredEvent:FireAllClients(event.name, event.message, event.duration)
 end
@@ -123,17 +129,49 @@ DigBlockEvent.OnServerEvent:Connect(function(player, blockPosition)
 		data.deepestBlock = depth
 	end
 
+	-- SOUND HOOK: short crunch on every block break
+	-- Remotes.PlaySound:FireClient(player, "block_break")
+
+	-- ── FTUE: First 10 blocks guarantee a drop ──────────────────────
+	-- New players get an item every block for the first 10 digs so the
+	-- core loop (dig → find → sell) is felt before the 35% RNG starts.
+	-- isFirstEverFind guards: if inventory is empty AND collections is
+	-- empty, this is literally the player's first find ever.
+	local isNewPlayer = data.totalBlocksDug <= 10
+	local isFirstEverFind = #data.inventory == 0 and next(data.collections) == nil
+
 	-- Loot roll
 	local dropChance = Config.LOOT_DROP_CHANCE
 	if isEventActive("2x_rare") then dropChance = dropChance * 1.5 end
 	if isEventActive("bonus_loot") then dropChance = dropChance * 2 end
 
+	-- Apply LUCKY gamepass bonus (+25% drop chance)
+	if data.ownedGamepasses and data.ownedGamepasses[3] then
+		dropChance = dropChance * 1.25
+	end
+
+	-- Guarantee a drop for the first 10 blocks (FTUE)
+	if isNewPlayer then dropChance = 1.0 end
+
 	if math.random() < dropChance then
-		local item = ItemDatabase.rollItem(tierName)
+		-- FTUE: First-ever find is always Common or Uncommon.
+		-- Save the big dopamine spike for after the loop is understood.
+		local item
+		if isFirstEverFind then
+			item = ItemDatabase.rollItemWithMaxRarity(tierName, "Uncommon")
+		else
+			item = ItemDatabase.rollItem(tierName)
+		end
+
 		if item then
 			-- Apply event multipliers
 			if isEventActive("gold_rush") then
 				item.sellValue = item.sellValue * 3
+			end
+
+			-- Apply DOUBLE_LOOT gamepass (2x sell value)
+			if data.ownedGamepasses and data.ownedGamepasses[1] then
+				item.sellValue = item.sellValue * 2
 			end
 
 			-- Add to inventory
@@ -148,6 +186,13 @@ DigBlockEvent.OnServerEvent:Connect(function(player, blockPosition)
 
 			-- Notify player
 			ItemFoundEvent:FireClient(player, item)
+			-- SOUND HOOK: sparkle chime for any item find
+			-- Remotes.PlaySound:FireClient(player, "item_found")
+			-- SOUND HOOK: dramatic reveal for Rare+
+			-- if item.rarity == "Rare" or item.rarity == "Epic"
+			--    or item.rarity == "Legendary" or item.rarity == "Mythic" then
+			--     Remotes.PlaySound:FireClient(player, "rare_reveal")
+			-- end
 
 			-- Notify all players for rare+ finds
 			if item.rarity == "Epic" or item.rarity == "Legendary" or item.rarity == "Mythic" then
@@ -206,11 +251,30 @@ SellAllEvent.OnServerEvent:Connect(function(player)
 	data.totalEarned = data.totalEarned + total
 	data.inventory = {}
 
+	-- SOUND HOOK: coin clink/jingle on sell
+	-- Remotes.PlaySound:FireClient(player, "sell_coins")
+
 	NotifyEvent:FireClient(player, "Sold all items for " .. total .. " coins!", "Common")
 	UpdateHUDEvent:FireClient(player, {
 		coins = data.coins,
 		inventoryCount = 0,
 	})
+
+	-- ── FTUE: Post-sell upgrade nudge ───────────────────────────────
+	-- After selling, check if the player can now afford the next tool.
+	-- Only fires once (guarded by _upgradeNudgeSent flag) so it's not
+	-- spammy. Tier 1 only — higher tiers have their own shop UI hints.
+	local nextTool = Config.TOOLS[data.toolTier + 1]
+	if data.toolTier == 1 and nextTool and data.coins >= nextTool.cost then
+		if not data._upgradeNudgeSent then
+			data._upgradeNudgeSent = true
+			NotifyEvent:FireClient(
+				player,
+				"You can afford the " .. nextTool.name .. "! Upgrade to dig faster.",
+				"Uncommon"
+			)
+		end
+	end
 end)
 
 -- ═══════════════════════════════════════════════════════════════════
@@ -374,6 +438,8 @@ BuyToolEvent.OnServerEvent:Connect(function(player, toolTier)
 	data.coins = data.coins - tool.cost
 	data.toolTier = toolTier
 
+	-- SOUND HOOK: power-up whoosh on tool upgrade
+	-- Remotes.PlaySound:FireClient(player, "upgrade_whoosh")
 	NotifyEvent:FireClient(player, "Upgraded to " .. tool.name .. "!", "Rare")
 	UpdateHUDEvent:FireClient(player, {
 		coins = data.coins,
@@ -402,6 +468,8 @@ GetPlayerDataFunc.OnServerInvoke = function(player)
 		inventory = data.inventory,
 		collections = data.collections,
 		rebirths = data.rebirths,
+		loginStreak = data.loginStreak,
+		ownedGamepasses = data.ownedGamepasses,
 		nextToolCost = Config.TOOLS[data.toolTier + 1] and Config.TOOLS[data.toolTier + 1].cost or nil,
 		nextToolName = Config.TOOLS[data.toolTier + 1] and Config.TOOLS[data.toolTier + 1].name or nil,
 	}

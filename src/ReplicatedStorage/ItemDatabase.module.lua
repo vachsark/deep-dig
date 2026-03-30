@@ -112,6 +112,58 @@ function ItemDatabase.rollItem(tierName)
 	return nil
 end
 
+-- Ordered rarity tiers, from least to most rare.
+-- Used to enforce a max rarity ceiling (e.g. FTUE first-find guard).
+local RARITY_ORDER = { "Common", "Uncommon", "Rare", "Epic", "Legendary", "Mythic" }
+local RARITY_RANK = {}
+for i, r in ipairs(RARITY_ORDER) do RARITY_RANK[r] = i end
+
+-- Like rollItem(), but caps the result at maxRarity.
+-- Any item rolled above maxRarity is re-weighted to zero so it can't be selected.
+-- This lets the FTUE guarantee Common/Uncommon for the first find while still
+-- using the normal weighted distribution within the allowed rarities.
+function ItemDatabase.rollItemWithMaxRarity(tierName, maxRarity)
+	local tierItems = ItemDatabase.ITEMS[tierName]
+	if not tierItems then return nil end
+
+	local maxRank = RARITY_RANK[maxRarity] or #RARITY_ORDER
+
+	-- Build weighted pool, excluding any item above maxRarity
+	local pool = {}
+	local totalWeight = 0
+	for _, item in ipairs(tierItems) do
+		local rarityData = RARITY[item.rarity]
+		local rank = RARITY_RANK[item.rarity] or 999
+		if rarityData and rank <= maxRank then
+			totalWeight = totalWeight + rarityData.weight
+			table.insert(pool, { item = item, cumWeight = totalWeight })
+		end
+	end
+
+	if totalWeight == 0 then
+		-- Fallback: no items within the cap (shouldn't happen for Common/Uncommon)
+		return ItemDatabase.rollItem(tierName)
+	end
+
+	-- Roll
+	local roll = math.random() * totalWeight
+	for _, entry in ipairs(pool) do
+		if roll <= entry.cumWeight then
+			local item = entry.item
+			local rarityData = RARITY[item.rarity]
+			return {
+				name = item.name,
+				rarity = item.rarity,
+				baseValue = item.baseValue,
+				sellValue = item.baseValue * rarityData.multiplier,
+				color = rarityData.color,
+			}
+		end
+	end
+
+	return nil
+end
+
 -- Get tier name for a given depth (in blocks)
 function ItemDatabase.getTierForDepth(depth)
 	local Config = require(script.Parent.Config)
