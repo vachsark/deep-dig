@@ -38,6 +38,7 @@ local GetPlayerDataFunc = createRemote("GetPlayerData", "RemoteFunction")
 -- ═══════════════════════════════════════════════════════════════════
 
 local playerData = {} -- In-memory cache
+_G.DeepDig_playerData = playerData -- Shared with DailyStreak, Leaderboard, Gamepasses
 
 local DEFAULT_DATA = {
 	coins = Config.STARTING_COINS,

@@ -1,67 +1,18 @@
 -- HudGui.client.lua — Heads-up display (coins, depth, tool, notifications)
 -- Place in: StarterGui/HudGui (LocalScript)
+--
+-- Added in this version:
+--   • Login streak display (top-left, below fragments counter)
+--   • Gamepass status badges (row of small icons when passes are active)
+--   • Shop button + gamepass shop panel
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TweenService = game:GetService("TweenService")
-local RunService = game:GetService("RunService")
+local MarketplaceService = game:GetService("MarketplaceService")
 
 local player = Players.LocalPlayer
-local camera = workspace.CurrentCamera
 local Remotes = ReplicatedStorage:WaitForChild("Remotes")
-
--- ═══════════════════════════════════════════════════════════════════
--- Sound Instances (placeholder IDs — swap with real Roblox asset IDs)
--- ═══════════════════════════════════════════════════════════════════
--- To use: find a sound on the Roblox Creator Marketplace, copy its
--- asset ID (e.g. 9120386446), and replace the placeholder numbers below.
-
-local SoundFolder = Instance.new("Folder")
-SoundFolder.Name = "DeepDigSounds"
-SoundFolder.Parent = game:GetService("SoundService") or workspace
-
-local function makeSound(name, placeholderId, volume, pitchRange)
-	local s = Instance.new("Sound")
-	s.Name = name
-	s.SoundId = "rbxassetid://" .. tostring(placeholderId)
-	s.Volume = volume or 0.5
-	s.RollOffMaxDistance = 100
-	s.Parent = SoundFolder
-	return s
-end
-
--- PLACEHOLDER IDs — replace with real Roblox audio asset IDs before shipping
-local Sounds = {
-	-- SOUND: block_break — short crunch/thud (e.g. dirt impact)
-	block_break   = makeSound("block_break",   0000000001, 0.6),
-
-	-- SOUND: item_found — sparkle chime (e.g. collect jingle)
-	item_found    = makeSound("item_found",    0000000002, 0.7),
-
-	-- SOUND: rare_reveal — dramatic reveal sting (e.g. fanfare hit)
-	rare_reveal   = makeSound("rare_reveal",   0000000003, 0.8),
-
-	-- SOUND: sell_coins — coin clink/jingle
-	sell_coins    = makeSound("sell_coins",    0000000004, 0.6),
-
-	-- SOUND: upgrade_whoosh — power-up energy whoosh
-	upgrade_whoosh = makeSound("upgrade_whoosh", 0000000005, 0.7),
-
-	-- SOUND: event_alarm — alarm horn / siren (world event trigger)
-	event_alarm   = makeSound("event_alarm",   0000000006, 0.8),
-}
-
-local function playSound(name)
-	local s = Sounds[name]
-	if s then
-		-- Clone so overlapping plays don't cut each other off
-		local clone = s:Clone()
-		clone.Parent = SoundFolder
-		clone:Play()
-		-- SOUND: auto-cleanup after playback
-		clone.Ended:Connect(function() clone:Destroy() end)
-	end
-end
 
 -- ═══════════════════════════════════════════════════════════════════
 -- Create HUD
@@ -147,261 +98,94 @@ invLabel.Font = Enum.Font.Gotham
 invLabel.TextXAlignment = Enum.TextXAlignment.Left
 invLabel.Parent = screenGui
 
--- ═══════════════════════════════════════════════════════════════════
--- Screen Effects (flash overlay, screen shake, rarity banners)
--- ═══════════════════════════════════════════════════════════════════
+-- ─── Fragments counter ───────────────────────────────────────────────────────
 
--- Full-screen flash overlay — shared and reused (tweened in/out)
-local flashOverlay = Instance.new("Frame")
-flashOverlay.Name = "FlashOverlay"
-flashOverlay.Size = UDim2.new(1, 0, 1, 0)
-flashOverlay.Position = UDim2.new(0, 0, 0, 0)
-flashOverlay.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-flashOverlay.BackgroundTransparency = 1  -- starts invisible
-flashOverlay.BorderSizePixel = 0
-flashOverlay.ZIndex = 20  -- above everything
-flashOverlay.Parent = screenGui
+local fragLabel = Instance.new("TextLabel")
+fragLabel.Name = "Fragments"
+fragLabel.Size = UDim2.new(0, 150, 0, 25)
+fragLabel.Position = UDim2.new(0, 20, 0, 96)
+fragLabel.BackgroundTransparency = 1
+fragLabel.Text = "Fragments: 0"
+fragLabel.TextColor3 = Color3.fromRGB(160, 80, 200)
+fragLabel.TextSize = 14
+fragLabel.Font = Enum.Font.GothamBold
+fragLabel.TextXAlignment = Enum.TextXAlignment.Left
+fragLabel.Parent = screenGui
 
--- Rarity banner (Epic / Legendary / Mythic big pop-up)
-local rarityBanner = Instance.new("Frame")
-rarityBanner.Name = "RarityBanner"
-rarityBanner.Size = UDim2.new(0, 500, 0, 100)
-rarityBanner.Position = UDim2.new(0.5, -250, 0.35, 0)
-rarityBanner.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
-rarityBanner.BackgroundTransparency = 1  -- starts hidden
-rarityBanner.BorderSizePixel = 0
-rarityBanner.ZIndex = 25
-rarityBanner.Parent = screenGui
+-- ─── Login streak display ────────────────────────────────────────────────────
 
-local rarityBannerCorner = Instance.new("UICorner")
-rarityBannerCorner.CornerRadius = UDim.new(0, 12)
-rarityBannerCorner.Parent = rarityBanner
+local streakLabel = Instance.new("TextLabel")
+streakLabel.Name = "LoginStreak"
+streakLabel.Size = UDim2.new(0, 180, 0, 25)
+streakLabel.Position = UDim2.new(0, 20, 0, 118)
+streakLabel.BackgroundTransparency = 1
+streakLabel.Text = "🔥 Streak: –"
+streakLabel.TextColor3 = Color3.fromRGB(255, 140, 40)
+streakLabel.TextSize = 14
+streakLabel.Font = Enum.Font.GothamBold
+streakLabel.TextXAlignment = Enum.TextXAlignment.Left
+streakLabel.Parent = screenGui
 
-local rarityBannerLabel = Instance.new("TextLabel")
-rarityBannerLabel.Size = UDim2.new(1, 0, 1, 0)
-rarityBannerLabel.BackgroundTransparency = 1
-rarityBannerLabel.Text = ""
-rarityBannerLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-rarityBannerLabel.TextSize = 48
-rarityBannerLabel.Font = Enum.Font.GothamBlack
-rarityBannerLabel.TextXAlignment = Enum.TextXAlignment.Center
-rarityBannerLabel.ZIndex = 26
-rarityBannerLabel.Parent = rarityBanner
+-- ─── Gamepass badge row ──────────────────────────────────────────────────────
+-- Small pills shown when a gamepass is active.
 
--- ── Flash implementation ─────────────────────────────────────────
--- Instantly sets overlay to startTransparency then tweens to 1 (invisible).
--- flashColor: the tint of the flash (white, blue, purple, gold, red)
--- flashDuration: how long the fade-out takes
-local function playFlash(flashColor, startTransparency, flashDuration)
-	flashOverlay.BackgroundColor3 = flashColor
-	flashOverlay.BackgroundTransparency = startTransparency
+local badgeRow = Instance.new("Frame")
+badgeRow.Name = "PassBadges"
+badgeRow.Size = UDim2.new(0, 300, 0, 24)
+badgeRow.Position = UDim2.new(0, 20, 0, 142)
+badgeRow.BackgroundTransparency = 1
+badgeRow.Parent = screenGui
 
-	TweenService:Create(
-		flashOverlay,
-		TweenInfo.new(flashDuration, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
-		{ BackgroundTransparency = 1 }
-	):Play()
-end
+local badgeLayout = Instance.new("UIListLayout")
+badgeLayout.FillDirection = Enum.FillDirection.Horizontal
+badgeLayout.SortOrder = Enum.SortOrder.LayoutOrder
+badgeLayout.Padding = UDim.new(0, 4)
+badgeLayout.Parent = badgeRow
 
--- ── Screen shake implementation ──────────────────────────────────
--- Offsets the camera CFrame by a random amount for `frames` frames,
--- then restores it. intensity = max stud offset, frames = shake duration.
-local shakeActive = false
-local function playScreenShake(intensity, frames)
-	if shakeActive then return end
-	shakeActive = true
-
-	local originalCFrame = camera.CFrame
-	local frameCount = 0
-
-	local connection
-	connection = RunService.RenderStepped:Connect(function()
-		frameCount = frameCount + 1
-		if frameCount >= frames then
-			-- Restore and stop
-			camera.CFrame = originalCFrame
-			shakeActive = false
-			connection:Disconnect()
-			return
-		end
-
-		-- Decay: shake weakens toward the end
-		local decay = 1 - (frameCount / frames)
-		local offset = Vector3.new(
-			(math.random() * 2 - 1) * intensity * decay,
-			(math.random() * 2 - 1) * intensity * decay,
-			0
-		)
-		camera.CFrame = originalCFrame * CFrame.new(offset)
-	end)
-end
-
--- ── Rarity banner animation ──────────────────────────────────────
--- Tweens the banner in (scale up + fade in), holds, then fades out.
--- text: what to display, color: glow color, holdTime: seconds to hold
-local bannerActive = false
-local function playRarityBanner(text, textColor, bgColor, holdTime)
-	if bannerActive then return end
-	bannerActive = true
-
-	rarityBannerLabel.Text = text
-	rarityBannerLabel.TextColor3 = textColor
-	rarityBanner.BackgroundColor3 = bgColor
-	rarityBanner.BackgroundTransparency = 0.2
-
-	-- Tween in: scale from 80% to 100%
-	rarityBanner.Size = UDim2.new(0, 400, 0, 80)
-	rarityBanner.Position = UDim2.new(0.5, -200, 0.35, 0)
-	TweenService:Create(
-		rarityBanner,
-		TweenInfo.new(0.25, Enum.EasingStyle.Back, Enum.EasingDirection.Out),
-		{
-			Size = UDim2.new(0, 520, 0, 110),
-			Position = UDim2.new(0.5, -260, 0.33, 0),
-		}
-	):Play()
-
-	-- Hold, then tween out
-	task.delay(holdTime, function()
-		TweenService:Create(
-			rarityBanner,
-			TweenInfo.new(0.4, Enum.EasingStyle.Quad, Enum.EasingDirection.In),
-			{
-				BackgroundTransparency = 1,
-				Position = UDim2.new(0.5, -260, 0.25, 0),
-			}
-		):Play()
-		TweenService:Create(
-			rarityBannerLabel,
-			TweenInfo.new(0.4, Enum.EasingStyle.Quad, Enum.EasingDirection.In),
-			{ TextTransparency = 1 }
-		):Play()
-
-		task.delay(0.5, function()
-			rarityBanner.BackgroundTransparency = 1
-			rarityBannerLabel.TextTransparency = 0
-			rarityBannerLabel.Text = ""
-			bannerActive = false
-		end)
-	end)
-end
-
--- ── Mythic particle simulation ───────────────────────────────────
--- Roblox LocalScripts can't spawn ParticleEmitters easily from code,
--- but we fake a burst by briefly showing several colored frames that
--- fly outward from the banner center, then fade.
--- PARTICLE HOOK: replace this with a real ParticleEmitter attached to
--- a Part in workspace if you want 3D particles.
-local function playMythicParticles()
-	local centerX = 0.5
-	local centerY = 0.4
-
-	for i = 1, 12 do
-		local particle = Instance.new("Frame")
-		particle.Size = UDim2.new(0, 10, 0, 10)
-		particle.Position = UDim2.new(centerX, -5, centerY, -5)
-		particle.BackgroundColor3 = Color3.fromHSV(math.random(), 0.8, 1)
-		particle.BackgroundTransparency = 0
-		particle.BorderSizePixel = 0
-		particle.ZIndex = 30
-		particle.Parent = screenGui
-
-		local pCorner = Instance.new("UICorner")
-		pCorner.CornerRadius = UDim.new(1, 0)
-		pCorner.Parent = particle
-
-		-- Each particle flies in a random direction
-		local angle = (i / 12) * math.pi * 2
-		local dist = 0.15 + math.random() * 0.1
-		local tx = centerX + math.cos(angle) * dist
-		local ty = centerY + math.sin(angle) * dist * 0.6  -- squish vertically
-
-		TweenService:Create(
-			particle,
-			TweenInfo.new(0.6, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
-			{
-				Position = UDim2.new(tx, -5, ty, -5),
-				BackgroundTransparency = 1,
-				Size = UDim2.new(0, 4, 0, 4),
-			}
-		):Play()
-
-		task.delay(0.7, function() particle:Destroy() end)
-	end
-end
-
--- ── Master item-found effect dispatcher ─────────────────────────
--- Called by the ItemFound handler below. Selects effects based on rarity.
-local RARITY_FLASH_COLORS = {
-	Common    = Color3.fromRGB(255, 255, 255),  -- white
-	Uncommon  = Color3.fromRGB(220, 255, 220),  -- soft green
-	Rare      = Color3.fromRGB(80,  140, 255),  -- blue
-	Epic      = Color3.fromRGB(180,  80, 255),  -- purple
-	Legendary = Color3.fromRGB(255, 200,  30),  -- gold
-	Mythic    = Color3.fromRGB(255,  60,  60),  -- red
+local PASS_BADGE_COLORS = {
+	[1] = Color3.fromRGB(255, 80,  80),  -- DOUBLE_LOOT  — red
+	[2] = Color3.fromRGB(255, 200, 0),   -- VIP          — gold
+	[3] = Color3.fromRGB(80,  220, 80),  -- LUCKY        — green
 }
 
-local function playItemFoundEffects(rarity)
-	local flashColor = RARITY_FLASH_COLORS[rarity] or Color3.fromRGB(255, 255, 255)
+local PASS_BADGE_LABELS = {
+	[1] = "2× LOOT",
+	[2] = "★ VIP",
+	[3] = "🍀 LUCKY",
+}
 
-	if rarity == "Common" or rarity == "Uncommon" then
-		-- Any item: brief white/soft flash (0.1s snap, 0.3s fade)
-		playFlash(flashColor, 0.7, 0.3)
-		-- SOUND: sparkle chime
-		playSound("item_found")
+local badgeInstances = {} -- passId → TextLabel
 
-	elseif rarity == "Rare" then
-		-- Blue flash + slight screen shake
-		playFlash(flashColor, 0.6, 0.4)
-		playScreenShake(0.3, 12)
-		-- SOUND: sparkle chime + dramatic reveal
-		playSound("item_found")
-		playSound("rare_reveal")
+local function updatePassBadges(ownedGamepasses)
+	-- Clear old badges
+	for _, child in ipairs(badgeRow:GetChildren()) do
+		if child:IsA("TextLabel") then child:Destroy() end
+	end
+	badgeInstances = {}
 
-	elseif rarity == "Epic" then
-		-- Purple flash + medium shake + "EPIC FIND!" banner
-		playFlash(flashColor, 0.5, 0.5)
-		playScreenShake(0.6, 20)
-		playRarityBanner(
-			"EPIC FIND!",
-			Color3.fromRGB(255, 255, 255),
-			Color3.fromRGB(100, 20, 180),
-			2.0
-		)
-		-- SOUND: dramatic reveal
-		playSound("rare_reveal")
+	if not ownedGamepasses then return end
 
-	elseif rarity == "Legendary" then
-		-- Gold flash + heavy shake + "LEGENDARY!" banner (stays longer)
-		playFlash(flashColor, 0.4, 0.7)
-		playScreenShake(1.0, 30)
-		playRarityBanner(
-			"LEGENDARY!",
-			Color3.fromRGB(255, 230, 80),
-			Color3.fromRGB(140, 70, 0),
-			2.5
-		)
-		-- SOUND: dramatic reveal
-		playSound("rare_reveal")
+	for passId = 1, 3 do
+		if ownedGamepasses[passId] then
+			local badge = Instance.new("TextLabel")
+			badge.Size = UDim2.new(0, 72, 0, 20)
+			badge.BackgroundColor3 = PASS_BADGE_COLORS[passId]
+			badge.BackgroundTransparency = 0.2
+			badge.BorderSizePixel = 0
+			badge.Text = PASS_BADGE_LABELS[passId]
+			badge.TextColor3 = Color3.fromRGB(20, 15, 0)
+			badge.TextSize = 11
+			badge.Font = Enum.Font.GothamBlack
+			badge.TextXAlignment = Enum.TextXAlignment.Center
+			badge.LayoutOrder = passId
+			badge.Parent = badgeRow
 
-	elseif rarity == "Mythic" then
-		-- Red flash + intense shake + "MYTHIC!!!" banner (3s hold) + particles
-		playFlash(flashColor, 0.3, 1.0)
-		playScreenShake(1.8, 45)
-		playRarityBanner(
-			"MYTHIC!!!",
-			Color3.fromRGB(255, 80, 80),
-			Color3.fromRGB(80, 0, 0),
-			3.0
-		)
-		playMythicParticles()
-		-- SOUND: dramatic reveal (will feel huge with the right audio ID)
-		playSound("rare_reveal")
-		-- Secondary burst after 0.5s for extra drama
-		task.delay(0.5, function()
-			playFlash(flashColor, 0.5, 0.6)
-			playMythicParticles()
-		end)
+			local corner = Instance.new("UICorner")
+			corner.CornerRadius = UDim.new(0, 4)
+			corner.Parent = badge
+
+			badgeInstances[passId] = badge
+		end
 	end
 end
 
@@ -484,8 +268,6 @@ sellCorner.CornerRadius = UDim.new(0, 8)
 sellCorner.Parent = sellButton
 
 sellButton.MouseButton1Click:Connect(function()
-	-- SOUND: coin clink on sell
-	playSound("sell_coins")
 	Remotes.SellAll:FireServer()
 end)
 
@@ -513,19 +295,6 @@ recycleButton.MouseButton1Click:Connect(function()
 	Remotes.RecycleAllDupes:FireServer()
 end)
 
--- Fragments display
-local fragLabel = Instance.new("TextLabel")
-fragLabel.Name = "Fragments"
-fragLabel.Size = UDim2.new(0, 150, 0, 25)
-fragLabel.Position = UDim2.new(0, 20, 0, 96)
-fragLabel.BackgroundTransparency = 1
-fragLabel.Text = "Fragments: 0"
-fragLabel.TextColor3 = Color3.fromRGB(160, 80, 200)
-fragLabel.TextSize = 14
-fragLabel.Font = Enum.Font.GothamBold
-fragLabel.TextXAlignment = Enum.TextXAlignment.Left
-fragLabel.Parent = screenGui
-
 -- ═══════════════════════════════════════════════════════════════════
 -- Upgrade Tool Button
 -- ═══════════════════════════════════════════════════════════════════
@@ -549,64 +318,236 @@ upCorner.Parent = upgradeButton
 local currentToolTier = 1
 
 upgradeButton.MouseButton1Click:Connect(function()
-	-- SOUND: power-up whoosh on upgrade (server confirms, client plays optimistically)
-	playSound("upgrade_whoosh")
 	Remotes.BuyTool:FireServer(currentToolTier + 1)
 end)
 
 -- ═══════════════════════════════════════════════════════════════════
--- Event Handlers
+-- Shop Button + Gamepass Shop Panel
 -- ═══════════════════════════════════════════════════════════════════
 
-Remotes.UpdateHUD.OnClientEvent:Connect(function(data)
-	if data.coins then
-		coinsLabel.Text = "🪙 " .. tostring(math.floor(data.coins))
+local shopButton = Instance.new("TextButton")
+shopButton.Name = "ShopButton"
+shopButton.Size = UDim2.new(0, 90, 0, 35)
+shopButton.Position = UDim2.new(0, 130, 1, -60)
+shopButton.BackgroundColor3 = Color3.fromRGB(200, 80, 200)
+shopButton.BorderSizePixel = 0
+shopButton.Text = "🛒 Shop"
+shopButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+shopButton.TextSize = 14
+shopButton.Font = Enum.Font.GothamBold
+shopButton.Parent = screenGui
+
+local shopCorner = Instance.new("UICorner")
+shopCorner.CornerRadius = UDim.new(0, 8)
+shopCorner.Parent = shopButton
+
+-- ─── Shop panel ──────────────────────────────────────────────────────────────
+
+local shopPanel = Instance.new("Frame")
+shopPanel.Name = "ShopPanel"
+shopPanel.Size = UDim2.new(0, 420, 0, 320)
+shopPanel.Position = UDim2.new(0.5, -210, 0.5, -160)
+shopPanel.BackgroundColor3 = Color3.fromRGB(18, 16, 28)
+shopPanel.BackgroundTransparency = 0.05
+shopPanel.BorderSizePixel = 0
+shopPanel.Visible = false
+shopPanel.ZIndex = 10
+shopPanel.Parent = screenGui
+
+local shopPanelCorner = Instance.new("UICorner")
+shopPanelCorner.CornerRadius = UDim.new(0, 14)
+shopPanelCorner.Parent = shopPanel
+
+-- Panel title bar
+local shopTitleBar = Instance.new("Frame")
+shopTitleBar.Size = UDim2.new(1, 0, 0, 48)
+shopTitleBar.BackgroundColor3 = Color3.fromRGB(100, 40, 160)
+shopTitleBar.BackgroundTransparency = 0
+shopTitleBar.BorderSizePixel = 0
+shopTitleBar.ZIndex = 11
+shopTitleBar.Parent = shopPanel
+
+local shopTitleCorner = Instance.new("UICorner")
+shopTitleCorner.CornerRadius = UDim.new(0, 14)
+shopTitleCorner.Parent = shopTitleBar
+
+-- Clip bottom corners of title bar (fake it with an overlapping frame)
+local titleBarFix = Instance.new("Frame")
+titleBarFix.Size = UDim2.new(1, 0, 0, 14)
+titleBarFix.Position = UDim2.new(0, 0, 1, -14)
+titleBarFix.BackgroundColor3 = Color3.fromRGB(100, 40, 160)
+titleBarFix.BorderSizePixel = 0
+titleBarFix.ZIndex = 11
+titleBarFix.Parent = shopTitleBar
+
+local shopTitle = Instance.new("TextLabel")
+shopTitle.Size = UDim2.new(1, -50, 1, 0)
+shopTitle.Position = UDim2.new(0, 16, 0, 0)
+shopTitle.BackgroundTransparency = 1
+shopTitle.Text = "🛒  Gamepass Shop"
+shopTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
+shopTitle.TextSize = 20
+shopTitle.Font = Enum.Font.GothamBlack
+shopTitle.TextXAlignment = Enum.TextXAlignment.Left
+shopTitle.ZIndex = 12
+shopTitle.Parent = shopTitleBar
+
+local shopClose = Instance.new("TextButton")
+shopClose.Size = UDim2.new(0, 36, 0, 36)
+shopClose.Position = UDim2.new(1, -44, 0, 6)
+shopClose.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+shopClose.BorderSizePixel = 0
+shopClose.Text = "✕"
+shopClose.TextColor3 = Color3.fromRGB(255, 255, 255)
+shopClose.TextSize = 16
+shopClose.Font = Enum.Font.GothamBold
+shopClose.ZIndex = 12
+shopClose.Parent = shopTitleBar
+
+local shopCloseCorner = Instance.new("UICorner")
+shopCloseCorner.CornerRadius = UDim.new(0, 6)
+shopCloseCorner.Parent = shopClose
+
+-- Pass cards container
+local cardsFrame = Instance.new("Frame")
+cardsFrame.Name = "Cards"
+cardsFrame.Size = UDim2.new(1, -20, 1, -60)
+cardsFrame.Position = UDim2.new(0, 10, 0, 54)
+cardsFrame.BackgroundTransparency = 1
+cardsFrame.ZIndex = 11
+cardsFrame.Parent = shopPanel
+
+local cardsLayout = Instance.new("UIListLayout")
+cardsLayout.SortOrder = Enum.SortOrder.LayoutOrder
+cardsLayout.Padding = UDim.new(0, 8)
+cardsLayout.Parent = cardsFrame
+
+-- Gamepass card colours (matching badge row)
+local CARD_COLORS = {
+	[1] = Color3.fromRGB(180, 40, 40),
+	[2] = Color3.fromRGB(160, 130, 0),
+	[3] = Color3.fromRGB(30, 130, 30),
+}
+
+local passCards = {} -- passId → { frame, buyBtn, statusLabel }
+
+local function buildPassCard(passInfo)
+	local card = Instance.new("Frame")
+	card.Name = "Card_" .. passInfo.id
+	card.Size = UDim2.new(1, 0, 0, 70)
+	card.BackgroundColor3 = Color3.fromRGB(28, 24, 40)
+	card.BackgroundTransparency = 0
+	card.BorderSizePixel = 0
+	card.LayoutOrder = passInfo.id
+	card.ZIndex = 11
+	card.Parent = cardsFrame
+
+	local cardCorner = Instance.new("UICorner")
+	cardCorner.CornerRadius = UDim.new(0, 10)
+	cardCorner.Parent = card
+
+	-- Left accent strip
+	local strip = Instance.new("Frame")
+	strip.Size = UDim2.new(0, 6, 1, 0)
+	strip.BackgroundColor3 = CARD_COLORS[passInfo.id] or Color3.fromRGB(100, 100, 100)
+	strip.BorderSizePixel = 0
+	strip.ZIndex = 12
+	strip.Parent = card
+
+	local stripCorner = Instance.new("UICorner")
+	stripCorner.CornerRadius = UDim.new(0, 10)
+	stripCorner.Parent = strip
+
+	-- Name
+	local nameLabel = Instance.new("TextLabel")
+	nameLabel.Size = UDim2.new(0.55, 0, 0, 26)
+	nameLabel.Position = UDim2.new(0, 14, 0, 8)
+	nameLabel.BackgroundTransparency = 1
+	nameLabel.Text = passInfo.name
+	nameLabel.TextColor3 = Color3.fromRGB(240, 230, 255)
+	nameLabel.TextSize = 16
+	nameLabel.Font = Enum.Font.GothamBlack
+	nameLabel.TextXAlignment = Enum.TextXAlignment.Left
+	nameLabel.ZIndex = 12
+	nameLabel.Parent = card
+
+	-- Description
+	local descLabel = Instance.new("TextLabel")
+	descLabel.Size = UDim2.new(0.6, 0, 0, 30)
+	descLabel.Position = UDim2.new(0, 14, 0, 32)
+	descLabel.BackgroundTransparency = 1
+	descLabel.Text = passInfo.description
+	descLabel.TextColor3 = Color3.fromRGB(170, 160, 190)
+	descLabel.TextSize = 12
+	descLabel.Font = Enum.Font.Gotham
+	descLabel.TextXAlignment = Enum.TextXAlignment.Left
+	descLabel.TextWrapped = true
+	descLabel.ZIndex = 12
+	descLabel.Parent = card
+
+	-- Buy button / owned indicator
+	local buyBtn = Instance.new("TextButton")
+	buyBtn.Name = "BuyBtn"
+	buyBtn.Size = UDim2.new(0, 110, 0, 40)
+	buyBtn.Position = UDim2.new(1, -120, 0.5, -20)
+	buyBtn.BackgroundColor3 = CARD_COLORS[passInfo.id] or Color3.fromRGB(80, 80, 80)
+	buyBtn.BorderSizePixel = 0
+	buyBtn.Text = "R$ " .. passInfo.price
+	buyBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+	buyBtn.TextSize = 15
+	buyBtn.Font = Enum.Font.GothamBold
+	buyBtn.ZIndex = 13
+	buyBtn.Parent = card
+
+	local buyBtnCorner = Instance.new("UICorner")
+	buyBtnCorner.CornerRadius = UDim.new(0, 8)
+	buyBtnCorner.Parent = buyBtn
+
+	buyBtn.MouseButton1Click:Connect(function()
+		if Remotes:FindFirstChild("PromptGamepass") then
+			Remotes.PromptGamepass:FireServer(passInfo.id)
+		end
+	end)
+
+	passCards[passInfo.id] = { frame = card, buyBtn = buyBtn }
+	return card
+end
+
+local function setCardOwned(passId, owned)
+	local card = passCards[passId]
+	if not card then return end
+
+	if owned then
+		card.buyBtn.Text = "✓ Owned"
+		card.buyBtn.BackgroundColor3 = Color3.fromRGB(40, 120, 40)
+		card.buyBtn.Active = false
+	else
+		card.buyBtn.Active = true
 	end
-	if data.depth then
-		local tierText = data.tierName or "Surface"
-		depthLabel.Text = "⛏️ " .. tierText .. " (Depth: " .. data.depth .. ")"
-	end
-	if data.toolName then
-		toolLabel.Text = "🔧 " .. data.toolName
-	end
-	if data.toolTier then
-		currentToolTier = data.toolTier
-	end
-	if data.blocksDug then
-		blocksLabel.Text = "Blocks: " .. tostring(data.blocksDug)
-	end
-	if data.inventoryCount then
-		invLabel.Text = "Items: " .. tostring(data.inventoryCount)
-	end
-	if data.fragments then
-		fragLabel.Text = "Fragments: " .. tostring(data.fragments)
-	end
-	if data.nextToolCost and data.nextToolName then
-		upgradeButton.Text = "⬆️ " .. data.nextToolName .. " ($" .. data.nextToolCost .. ")"
-	elseif not data.nextToolCost then
-		upgradeButton.Text = "⬆️ MAX LEVEL"
-		upgradeButton.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
+end
+
+-- Toggle shop panel
+shopButton.MouseButton1Click:Connect(function()
+	shopPanel.Visible = not shopPanel.Visible
+	if shopPanel.Visible then
+		-- Populate cards if not yet built
+		if #cardsFrame:GetChildren() <= 1 then -- only layout child
+			task.spawn(function()
+				local GetPassInfo = Remotes:FindFirstChild("GetGamepassInfo")
+				if not GetPassInfo then return end
+				local info = GetPassInfo:InvokeServer()
+				if not info then return end
+				for _, passInfo in ipairs(info) do
+					buildPassCard(passInfo)
+					setCardOwned(passInfo.id, passInfo.owned)
+				end
+			end)
+		end
 	end
 end)
 
-Remotes.ItemFound.OnClientEvent:Connect(function(item)
-	-- 1. Screen effects (flash, shake, banner, particles by rarity)
-	playItemFoundEffects(item.rarity)
-
-	-- 2. Notification toast in the corner
-	showNotification("Found: " .. item.name .. " (+" .. item.sellValue .. " coins)", item.rarity)
-end)
-
-Remotes.EventTriggered.OnClientEvent:Connect(function(eventName, message, duration)
-	-- SOUND: alarm horn on world event
-	playSound("event_alarm")
-	-- Flash the screen gold to signal the event
-	playFlash(Color3.fromRGB(255, 200, 30), 0.6, 0.8)
-	showNotification("⚡ " .. message, "Legendary")
-end)
-
-Remotes.Notify.OnClientEvent:Connect(function(message, rarity)
-	showNotification(message, rarity)
+shopClose.MouseButton1Click:Connect(function()
+	shopPanel.Visible = false
 end)
 
 -- ═══════════════════════════════════════════════════════════════════
@@ -730,6 +671,68 @@ if Remotes:FindFirstChild("CodeResult") then
 end
 
 -- ═══════════════════════════════════════════════════════════════════
+-- Event Handlers
+-- ═══════════════════════════════════════════════════════════════════
+
+Remotes.UpdateHUD.OnClientEvent:Connect(function(data)
+	if data.coins then
+		coinsLabel.Text = "🪙 " .. tostring(math.floor(data.coins))
+	end
+	if data.depth then
+		local tierText = data.tierName or "Surface"
+		depthLabel.Text = "⛏️ " .. tierText .. " (Depth: " .. data.depth .. ")"
+	end
+	if data.toolName then
+		toolLabel.Text = "🔧 " .. data.toolName
+	end
+	if data.toolTier then
+		currentToolTier = data.toolTier
+	end
+	if data.blocksDug then
+		blocksLabel.Text = "Blocks: " .. tostring(data.blocksDug)
+	end
+	if data.inventoryCount then
+		invLabel.Text = "Items: " .. tostring(data.inventoryCount)
+	end
+	if data.fragments then
+		fragLabel.Text = "Fragments: " .. tostring(data.fragments)
+	end
+	if data.loginStreak then
+		local day = (data.loginStreak - 1) % 7 + 1
+		local emoji = day == 7 and "🏆" or "🔥"
+		streakLabel.Text = emoji .. " Streak: Day " .. day .. " (×" .. data.loginStreak .. ")"
+	end
+	if data.nextToolCost and data.nextToolName then
+		upgradeButton.Text = "⬆️ " .. data.nextToolName .. " ($" .. data.nextToolCost .. ")"
+	elseif data.nextToolCost == nil and data.toolTier then
+		upgradeButton.Text = "⬆️ MAX LEVEL"
+		upgradeButton.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
+	end
+	if data.ownedGamepasses then
+		updatePassBadges(data.ownedGamepasses)
+		-- Sync shop card owned states if panel is open
+		for passId, owned in pairs(data.ownedGamepasses) do
+			setCardOwned(passId, owned)
+		end
+	end
+	if data.personalBest then
+		-- Could show a star or depth update — handled by notification
+	end
+end)
+
+Remotes.ItemFound.OnClientEvent:Connect(function(item)
+	showNotification("Found: " .. item.name .. " (+" .. item.sellValue .. " coins)", item.rarity)
+end)
+
+Remotes.EventTriggered.OnClientEvent:Connect(function(eventName, message, duration)
+	showNotification("⚡ " .. message, "Legendary")
+end)
+
+Remotes.Notify.OnClientEvent:Connect(function(message, rarity)
+	showNotification(message, rarity)
+end)
+
+-- ═══════════════════════════════════════════════════════════════════
 -- Initial load
 -- ═══════════════════════════════════════════════════════════════════
 
@@ -744,6 +747,16 @@ task.spawn(function()
 
 		if data.nextToolCost and data.nextToolName then
 			upgradeButton.Text = "⬆️ " .. data.nextToolName .. " ($" .. data.nextToolCost .. ")"
+		end
+
+		if data.loginStreak and data.loginStreak > 0 then
+			local day = (data.loginStreak - 1) % 7 + 1
+			local emoji = day == 7 and "🏆" or "🔥"
+			streakLabel.Text = emoji .. " Streak: Day " .. day .. " (×" .. data.loginStreak .. ")"
+		end
+
+		if data.ownedGamepasses then
+			updatePassBadges(data.ownedGamepasses)
 		end
 	end
 end)
