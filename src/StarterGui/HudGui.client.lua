@@ -285,6 +285,126 @@ Remotes.Notify.OnClientEvent:Connect(function(message, rarity)
 end)
 
 -- ═══════════════════════════════════════════════════════════════════
+-- Code Redemption UI
+-- ═══════════════════════════════════════════════════════════════════
+
+local codeButton = Instance.new("TextButton")
+codeButton.Name = "CodeButton"
+codeButton.Size = UDim2.new(0, 100, 0, 35)
+codeButton.Position = UDim2.new(0, 20, 1, -60)
+codeButton.BackgroundColor3 = Color3.fromRGB(200, 160, 40)
+codeButton.BorderSizePixel = 0
+codeButton.Text = "🎁 Codes"
+codeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+codeButton.TextSize = 14
+codeButton.Font = Enum.Font.GothamBold
+codeButton.Parent = screenGui
+
+local codeCorner = Instance.new("UICorner")
+codeCorner.CornerRadius = UDim.new(0, 8)
+codeCorner.Parent = codeButton
+
+-- Code input popup
+local codePopup = Instance.new("Frame")
+codePopup.Name = "CodePopup"
+codePopup.Size = UDim2.new(0, 300, 0, 120)
+codePopup.Position = UDim2.new(0.5, -150, 0.5, -60)
+codePopup.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
+codePopup.BorderSizePixel = 0
+codePopup.Visible = false
+codePopup.Parent = screenGui
+
+local popupCorner = Instance.new("UICorner")
+popupCorner.CornerRadius = UDim.new(0, 10)
+popupCorner.Parent = codePopup
+
+local codeTitle = Instance.new("TextLabel")
+codeTitle.Size = UDim2.new(1, 0, 0, 30)
+codeTitle.BackgroundTransparency = 1
+codeTitle.Text = "Enter Code"
+codeTitle.TextColor3 = Color3.fromRGB(255, 200, 50)
+codeTitle.TextSize = 16
+codeTitle.Font = Enum.Font.GothamBold
+codeTitle.Parent = codePopup
+
+local codeInput = Instance.new("TextBox")
+codeInput.Name = "CodeInput"
+codeInput.Size = UDim2.new(0.7, 0, 0, 35)
+codeInput.Position = UDim2.new(0.05, 0, 0.35, 0)
+codeInput.BackgroundColor3 = Color3.fromRGB(50, 50, 55)
+codeInput.BorderSizePixel = 0
+codeInput.PlaceholderText = "Type code here..."
+codeInput.Text = ""
+codeInput.TextColor3 = Color3.fromRGB(255, 255, 255)
+codeInput.PlaceholderColor3 = Color3.fromRGB(120, 120, 120)
+codeInput.TextSize = 14
+codeInput.Font = Enum.Font.Gotham
+codeInput.ClearTextOnFocus = true
+codeInput.Parent = codePopup
+
+local inputCorner = Instance.new("UICorner")
+inputCorner.CornerRadius = UDim.new(0, 6)
+inputCorner.Parent = codeInput
+
+local redeemBtn = Instance.new("TextButton")
+redeemBtn.Size = UDim2.new(0.2, 0, 0, 35)
+redeemBtn.Position = UDim2.new(0.77, 0, 0.35, 0)
+redeemBtn.BackgroundColor3 = Color3.fromRGB(40, 160, 40)
+redeemBtn.BorderSizePixel = 0
+redeemBtn.Text = "✓"
+redeemBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+redeemBtn.TextSize = 18
+redeemBtn.Font = Enum.Font.GothamBold
+redeemBtn.Parent = codePopup
+
+local redeemCorner = Instance.new("UICorner")
+redeemCorner.CornerRadius = UDim.new(0, 6)
+redeemCorner.Parent = redeemBtn
+
+local codeStatus = Instance.new("TextLabel")
+codeStatus.Size = UDim2.new(0.9, 0, 0, 25)
+codeStatus.Position = UDim2.new(0.05, 0, 0.72, 0)
+codeStatus.BackgroundTransparency = 1
+codeStatus.Text = ""
+codeStatus.TextColor3 = Color3.fromRGB(140, 140, 140)
+codeStatus.TextSize = 12
+codeStatus.Font = Enum.Font.Gotham
+codeStatus.TextWrapped = true
+codeStatus.Parent = codePopup
+
+codeButton.MouseButton1Click:Connect(function()
+	codePopup.Visible = not codePopup.Visible
+	if codePopup.Visible then
+		codeInput:CaptureFocus()
+	end
+end)
+
+local function submitCode()
+	local code = codeInput.Text
+	if code == "" then return end
+	codeStatus.Text = "Redeeming..."
+	codeStatus.TextColor3 = Color3.fromRGB(200, 200, 200)
+	Remotes.RedeemCode:FireServer(code)
+end
+
+redeemBtn.MouseButton1Click:Connect(submitCode)
+codeInput.FocusLost:Connect(function(enterPressed)
+	if enterPressed then submitCode() end
+end)
+
+-- Handle code result
+if Remotes:FindFirstChild("CodeResult") then
+	Remotes.CodeResult.OnClientEvent:Connect(function(success, message)
+		codeStatus.Text = message
+		codeStatus.TextColor3 = success and Color3.fromRGB(50, 200, 50) or Color3.fromRGB(255, 80, 80)
+		if success then
+			codeInput.Text = ""
+			task.delay(3, function() codePopup.Visible = false end)
+		end
+	end)
+end
+
+-- ═══════════════════════════════════════════════════════════════════
 -- Initial load
 -- ═══════════════════════════════════════════════════════════════════
 
