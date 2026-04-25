@@ -15,6 +15,7 @@ local Lighting = game:GetService("Lighting")
 
 local player = Players.LocalPlayer
 local Remotes = ReplicatedStorage:WaitForChild("Remotes")
+local Config = require(ReplicatedStorage:WaitForChild("Config"))
 
 -- ═══════════════════════════════════════════════════════════════════
 -- Create HUD
@@ -1529,7 +1530,10 @@ end
 -- Server validates everything; the button is a hint + one-click action.
 -- ═══════════════════════════════════════════════════════════════════
 
-local RESURFACE_MIN_DEPTH = 188 -- Tier 6 (Unknown) minDepth, kept in sync with Config.lua
+-- Derive resurface min depth from Config (Tier 6 = Unknown). 188 is the
+-- last-known fallback in case Config or its TIERS table is missing.
+local resurfaceTier = (Config and Config.TIERS and Config.TIERS[6]) or nil
+local RESURFACE_MIN_DEPTH = (resurfaceTier and resurfaceTier.minDepth) or 188
 local RESURFACE_BASE_COST = 1000000
 
 local resurfaceButton = Instance.new("TextButton")

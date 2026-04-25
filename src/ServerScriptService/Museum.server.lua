@@ -63,6 +63,12 @@ local TIER_COMPLETION_BONUS = {
 local playerMuseums = {} -- userId -> { folder, pedestals, displayedItems, position }
 local museumIndex = 0
 
+local function countDisplayed(museum)
+	local n = 0
+	for _ in pairs(museum.displayedItems or {}) do n = n + 1 end
+	return n
+end
+
 local function createMuseumForPlayer(player)
 	museumIndex = museumIndex + 1
 	local offsetX = museumIndex * MUSEUM_SPACING
@@ -325,11 +331,7 @@ DisplayItemEvent.OnServerEvent:Connect(function(player, inventoryIndex)
 	MuseumUpdateEvent:FireClient(player, {
 		itemName = item.name,
 		rarity = item.rarity,
-		totalDisplayed = (function()
-			local n = 0
-			for _ in pairs(museum.displayedItems) do n = n + 1 end
-			return n
-		end)(),
+		totalDisplayed = countDisplayed(museum),
 	})
 end)
 
@@ -374,7 +376,7 @@ GetMuseumDataFunc.OnServerInvoke = function(player, targetUserId)
 		ownerName = ownerName,
 		displayedItems = museum.displayedItems,
 		progress = progress,
-		totalDisplayed = 0, -- Count from displayedItems
+		totalDisplayed = countDisplayed(museum),
 	}
 end
 

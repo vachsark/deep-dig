@@ -213,4 +213,6 @@ end)
 -- game.ServerScriptService.PromoCodes:SetAttribute("NewCode", "EVENTNAME:1000:50")
 -- Format: "CODE:coins:fragments"
 
-print("[DeepDig] Promo Codes loaded (" .. tostring(#(function() local n=0; for _ in pairs(CODES) do n=n+1 end; return n end)()) .. " codes)")
+local codeCount = 0
+for _ in pairs(CODES) do codeCount = codeCount + 1 end
+print(string.format("[DeepDig] Promo Codes loaded (%d codes)", codeCount))
