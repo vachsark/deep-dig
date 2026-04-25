@@ -257,7 +257,4 @@ for _, player in ipairs(Players:GetPlayers()) do
 	end)
 end
 
--- Listen for HUD updates that include resurface info
-Remotes.UpdateHUD.OnServerEvent:Connect(function() end) -- Client-only event, no-op on server
-
 print("[DeepDig] Resurface system loaded")

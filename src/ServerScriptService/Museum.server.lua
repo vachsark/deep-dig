@@ -365,8 +365,15 @@ GetMuseumDataFunc.OnServerInvoke = function(player, targetUserId)
 		end
 	end
 
+	local ok, ownerName = pcall(function()
+		return Players:GetNameFromUserIdAsync(userId)
+	end)
+	if not ok or not ownerName then
+		ownerName = "Unknown"
+	end
+
 	return {
-		ownerName = Players:GetNameFromUserIdAsync(userId) or "Unknown",
+		ownerName = ownerName,
 		displayedItems = museum.displayedItems,
 		progress = progress,
 		totalDisplayed = 0, -- Count from displayedItems
@@ -380,6 +387,11 @@ end
 Players.PlayerAdded:Connect(function(player)
 	createMuseumForPlayer(player)
 end)
+
+-- Handle players already in the game when the script loads (Studio playtest)
+for _, p in ipairs(Players:GetPlayers()) do
+	task.spawn(function() createMuseumForPlayer(p) end)
+end
 
 Players.PlayerRemoving:Connect(function(player)
 	local museum = playerMuseums[player.UserId]

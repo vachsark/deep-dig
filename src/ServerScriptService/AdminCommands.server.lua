@@ -241,6 +241,20 @@ local function onChatted(player, message)
 
 	local handler = commands[cmd]
 	if handler then
+		-- Server-side audit log: in-memory ring buffer (last 200) + Studio output
+		_G.DeepDig_admin_audit = _G.DeepDig_admin_audit or {}
+		table.insert(_G.DeepDig_admin_audit, {
+			t = os.time(),
+			userId = player.UserId,
+			name = player.Name,
+			cmd = cmd,
+			args = table.concat(args, " "),
+		})
+		while #_G.DeepDig_admin_audit > 200 do
+			table.remove(_G.DeepDig_admin_audit, 1)
+		end
+		print("[DeepDig][admin]", player.UserId, player.Name, cmd, table.concat(args, " "))
+
 		local ok, err = pcall(handler, player, args)
 		if not ok then
 			notify(player, "error: " .. tostring(err), "Common")

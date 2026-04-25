@@ -61,22 +61,25 @@ task.spawn(function()
 	while true do
 		task.wait(5)
 		for _, player in ipairs(Players:GetPlayers()) do
-			local data = getSharedData(player)
-			if data then
-				local prev = sessionDeepest[player.UserId] or 0
-				local current = data.deepestBlock or 0
-				if current > prev then
-					sessionDeepest[player.UserId] = current
-					-- Only notify if prev > 0 (skip the very first few blocks)
-					if prev > 5 then
-						NotifyEvent:FireClient(
-							player,
-							"New Personal Best! Depth " .. current .. " blocks",
-							"Rare"
-						)
-						UpdateHUDEvent:FireClient(player, {
-							personalBest = current,
-						})
+			-- Skip players who have already been removed but are still in the iteration
+			if player.Parent == Players then
+				local data = getSharedData(player)
+				if data then
+					local prev = sessionDeepest[player.UserId] or 0
+					local current = data.deepestBlock or 0
+					if current > prev then
+						sessionDeepest[player.UserId] = current
+						-- Only notify if prev > 0 (skip the very first few blocks)
+						if prev > 5 then
+							NotifyEvent:FireClient(
+								player,
+								"New Personal Best! Depth " .. current .. " blocks",
+								"Rare"
+							)
+							UpdateHUDEvent:FireClient(player, {
+								personalBest = current,
+							})
+						end
 					end
 				end
 			end
