@@ -71,11 +71,6 @@ local function notify(player, msg, rarity)
 	NotifyEvent:FireClient(player, "[admin] " .. msg, rarity or "Uncommon")
 end
 
-local function cleanGet(t, i)
-	if type(t) ~= "table" then return nil end
-	return t[i]
-end
-
 -- ═══════════════════════════════════════════════════════════════════
 -- Commands
 -- ═══════════════════════════════════════════════════════════════════

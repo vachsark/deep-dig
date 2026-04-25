@@ -23,8 +23,6 @@ local function createRemote(name, className)
 	return remote
 end
 
-local DigBlockEvent = createRemote("DigBlock")
-
 -- Server-to-server communication (BindableEvents)
 local ServerEvents = Instance.new("Folder")
 ServerEvents.Name = "ServerEvents"
@@ -314,6 +312,8 @@ BlockBrokenEvent.Event:Connect(function(player, blockPosition)
 		tierName = tierName,
 		blocksDug = data.totalBlocksDug,
 		inventoryCount = #data.inventory,
+		totalEarned = data.totalEarned,
+		rebirths = data.rebirths or 0,
 	})
 end)
 
@@ -337,6 +337,8 @@ SellItemEvent.OnServerEvent:Connect(function(player, inventoryIndex)
 	UpdateHUDEvent:FireClient(player, {
 		coins = data.coins,
 		inventoryCount = #data.inventory,
+		totalEarned = data.totalEarned,
+		rebirths = data.rebirths or 0,
 	})
 end)
 
@@ -364,6 +366,8 @@ SellAllEvent.OnServerEvent:Connect(function(player)
 	UpdateHUDEvent:FireClient(player, {
 		coins = data.coins,
 		inventoryCount = 0,
+		totalEarned = data.totalEarned,
+		rebirths = data.rebirths or 0,
 	})
 
 	-- ── FTUE: Post-sell upgrade nudge ───────────────────────────────
@@ -419,6 +423,8 @@ RecycleItemEvent.OnServerEvent:Connect(function(player, inventoryIndex)
 		coins = data.coins,
 		inventoryCount = #data.inventory,
 		fragments = data.fragments,
+		totalEarned = data.totalEarned,
+		rebirths = data.rebirths or 0,
 	})
 end)
 
@@ -457,6 +463,8 @@ RecycleAllDupesEvent.OnServerEvent:Connect(function(player)
 		coins = data.coins,
 		inventoryCount = #data.inventory,
 		fragments = data.fragments,
+		totalEarned = data.totalEarned,
+		rebirths = data.rebirths or 0,
 	})
 end)
 
@@ -523,6 +531,8 @@ CraftFromFragsEvent.OnServerEvent:Connect(function(player, targetRarity, tierNam
 		coins = data.coins,
 		inventoryCount = #data.inventory,
 		fragments = data.fragments,
+		totalEarned = data.totalEarned,
+		rebirths = data.rebirths or 0,
 	})
 end)
 
@@ -553,6 +563,8 @@ BuyToolEvent.OnServerEvent:Connect(function(player, toolTier)
 		coins = data.coins,
 		toolName = tool.name,
 		toolTier = toolTier,
+		totalEarned = data.totalEarned,
+		rebirths = data.rebirths or 0,
 	})
 end)
 
@@ -576,6 +588,7 @@ GetPlayerDataFunc.OnServerInvoke = function(player)
 		inventory = data.inventory,
 		collections = data.collections,
 		rebirths = data.rebirths,
+		totalEarned = data.totalEarned or 0,
 		loginStreak = data.loginStreak,
 		streakReviveEligible = data.streakReviveEligible,
 		streakRevivePending = data.streakRevivePending,

@@ -103,10 +103,12 @@ ResurfaceEvent.OnServerEvent:Connect(function(player)
 		return
 	end
 
-	local minDepth = Config.TIERS[MIN_DEPTH_TIER] and Config.TIERS[MIN_DEPTH_TIER].minDepth or 188
+	local tierEntry = Config.TIERS[MIN_DEPTH_TIER]
+	local tierName = (tierEntry and tierEntry.name) or "Unknown tier"
+	local minDepth = (tierEntry and tierEntry.minDepth) or 188
 	if (data.deepestBlock or 0) < minDepth then
 		NotifyEvent:FireClient(player,
-			"Resurface locked — reach " .. (Config.TIERS[MIN_DEPTH_TIER].name) .. " tier first (depth " .. minDepth .. ").",
+			"Resurface locked — reach " .. tierName .. " tier first (depth " .. minDepth .. ").",
 			"Common")
 		return
 	end

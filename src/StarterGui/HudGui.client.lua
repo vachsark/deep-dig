@@ -1342,6 +1342,10 @@ end
 -- Event Handlers
 -- ═══════════════════════════════════════════════════════════════════
 
+-- Forward-declared so the UpdateHUD listener below can call into the
+-- resurface-eligibility cache that's defined later in this file.
+local ingestResurfaceFields
+
 Remotes.UpdateHUD.OnClientEvent:Connect(function(data)
 	if data.coins then
 		local newCoins = math.floor(data.coins)
@@ -1390,6 +1394,7 @@ Remotes.UpdateHUD.OnClientEvent:Connect(function(data)
 
 	refreshStreakRevivePrompt(data)
 	updateFtueGuideFromHUD(data)
+	ingestResurfaceFields(data)
 end)
 
 Remotes.ItemFound.OnClientEvent:Connect(function(item)
@@ -1548,31 +1553,50 @@ resurfaceButton.MouseButton1Click:Connect(function()
 	Remotes.Resurface:FireServer()
 end)
 
-local function evaluateResurfaceEligibility(data)
-	if not data then return end
-	local deepest = data.deepestBlock or 0
-	local earned = data.totalEarned or 0
-	local rebirths = data.rebirths or 0
-	local cost = math.floor(RESURFACE_BASE_COST * (1.08 ^ rebirths))
-	if deepest >= RESURFACE_MIN_DEPTH and earned >= cost then
+-- Cached resurface-eligibility inputs. Server pushes totalEarned/rebirths in
+-- every UpdateHUD payload; depth comes from the dig handler. We store last-seen
+-- values so partial payloads from other systems (PetSystem, Museum, …) don't
+-- clobber eligibility state.
+local cachedDeepestBlock = 0
+local cachedTotalEarned = 0
+local cachedRebirths = 0
+
+local function evaluateResurfaceEligibility()
+	local cost = math.floor(RESURFACE_BASE_COST * (1.08 ^ cachedRebirths))
+	if cachedDeepestBlock >= RESURFACE_MIN_DEPTH and cachedTotalEarned >= cost then
 		resurfaceButton.Visible = true
-		resurfaceButton.Text = "⭐ Resurface (" .. (rebirths + 1) .. ")"
+		resurfaceButton.Text = "⭐ Resurface (" .. (cachedRebirths + 1) .. ")"
 	else
 		resurfaceButton.Visible = false
 	end
 end
 
--- Poll player data every 20s for eligibility (cheap; avoids editing UpdateHUD payload).
-task.spawn(function()
-	while task.wait(20) do
-		local ok, data = pcall(function()
-			return Remotes.GetPlayerData:InvokeServer()
-		end)
-		if ok and data then
-			evaluateResurfaceEligibility(data)
-		end
+function ingestResurfaceFields(data)
+	if not data then return end
+	local changed = false
+	-- deepestBlock comes from the initial GetPlayerData snapshot; depth (current
+	-- depth from dig events) is monotonically tracked here so we never need a
+	-- second round-trip just to refresh eligibility.
+	if data.deepestBlock and data.deepestBlock > cachedDeepestBlock then
+		cachedDeepestBlock = data.deepestBlock
+		changed = true
 	end
-end)
+	if data.depth and data.depth > cachedDeepestBlock then
+		cachedDeepestBlock = data.depth
+		changed = true
+	end
+	if data.totalEarned ~= nil then
+		cachedTotalEarned = data.totalEarned
+		changed = true
+	end
+	if data.rebirths ~= nil then
+		cachedRebirths = data.rebirths
+		changed = true
+	end
+	if changed then
+		evaluateResurfaceEligibility()
+	end
+end
 
 -- ═══════════════════════════════════════════════════════════════════
 -- Initial load
@@ -1603,7 +1627,15 @@ task.spawn(function()
 			updatePassBadges(data.ownedGamepasses)
 		end
 
-		evaluateResurfaceEligibility(data)
+		-- Seed cached eligibility inputs from the initial snapshot, then evaluate.
+		-- After this, all updates flow reactively through UpdateHUD payloads —
+		-- no more 20s GetPlayerData polling.
+		ingestResurfaceFields({
+			deepestBlock = data.deepestBlock,
+			totalEarned = data.totalEarned,
+			rebirths = data.rebirths,
+		})
+		evaluateResurfaceEligibility()
 	end
 end)
 
