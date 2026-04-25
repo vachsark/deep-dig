@@ -230,8 +230,37 @@ local function rollItemEchoBoosted(tierName)
 	return nil
 end
 
+-- ── Seasonal event accessors (Phase 3 wiring) ─────────────────────
+-- SeasonalEvents.server.lua publishes _G.DeepDig_getActiveSeason; we
+-- query per-dig. No-ops cleanly if SeasonalEvents hasn't loaded yet.
+local function getActiveSeasonId()
+	local fn = _G.DeepDig_getActiveSeason
+	if not fn then return nil end
+	local season = fn()
+	return season and season.id or nil
+end
+
+-- Rarity ladder used by winter_loot's 25% promotion. Mythic is the cap.
+local RARITY_LADDER = { "Common", "Uncommon", "Rare", "Epic", "Legendary", "Mythic" }
+local function promoteRarity(r)
+	for i = 1, #RARITY_LADDER - 1 do
+		if RARITY_LADDER[i] == r then
+			return RARITY_LADDER[i + 1]
+		end
+	end
+	return r -- Mythic (or unknown) doesn't promote
+end
+
 local function triggerRandomEvent(player)
-	if math.random() > Config.EVENT_CHANCE then return end
+	local chance = Config.EVENT_CHANCE
+	-- summer_loot: doubles random world event trigger frequency.
+	-- We bump the per-tick probability instead of halving the wait,
+	-- because the random event check runs inline in BlockBrokenEvent
+	-- (no fixed-cadence loop to halve).
+	if getActiveSeasonId() == "summer" then
+		chance = chance * 2
+	end
+	if math.random() > chance then return end
 
 	local event = Config.EVENTS[math.random(#Config.EVENTS)]
 	activeEvents[event.effect] = tick() + event.duration
@@ -248,6 +277,18 @@ end
 BlockBrokenEvent.Event:Connect(function(player, blockPosition)
 	local data = getPlayerData(player)
 	if not data then return end
+
+	-- ── Active seasonal event (Phase 3) ────────────────────────────
+	-- Cached once per block so the four seasonal branches below all
+	-- read the same value (and can't race a calendar rollover mid-dig).
+	local activeSeason = getActiveSeasonId()
+
+	-- spring_loot: +1 fragment per block break, regardless of drop.
+	-- Fired once per BlockBrokenEvent (not per chunk). No toast — the
+	-- HUD push below carries the new fragment count.
+	if activeSeason == "spring" then
+		data.fragments = (data.fragments or 0) + 1
+	end
 
 	-- ── Equipped-pet multipliers ───────────────────────────────────
 	-- Look up the equipped pet once per dig. PetSystem stores either
@@ -322,6 +363,12 @@ BlockBrokenEvent.Event:Connect(function(player, blockPosition)
 	-- Apply equipped pet luck multiplier (capped at 5x above)
 	dropChance = dropChance * petLuck
 
+	-- halloween_loot: +50% drop chance multiplier. Stacks with everything
+	-- above; the cap at 1.0 below keeps the stacked total sane.
+	if activeSeason == "halloween" then
+		dropChance = dropChance * 1.5
+	end
+
 	-- Cap drop chance at 1.0 to prevent overflow when multiple multipliers stack
 	-- (FTUE override below intentionally also sets to 1.0).
 	if dropChance > 1.0 then dropChance = 1.0 end
@@ -344,6 +391,25 @@ BlockBrokenEvent.Event:Connect(function(player, blockPosition)
 		end
 
 		if item then
+			-- winter_loot: 25% chance to promote the rolled rarity one tier
+			-- (Common → Uncommon, …, Legendary → Mythic; Mythic doesn't
+			-- promote). FTUE rolls cap at Uncommon — we still allow the
+			-- promotion there, since first-find-as-Rare is still well below
+			-- the "save the dopamine" Epic+ floor. Promotion cascade is
+			-- single-step by construction (one helper call).
+			--
+			-- TODO: re-roll item from ItemDatabase to match the promoted
+			-- rarity. For first-pass we bump only the rarity LABEL on the
+			-- existing item; sellValue therefore reflects the original
+			-- rarity's multiplier. This is gameplay-acceptable (still a
+			-- visible win) and avoids tangling with the FTUE / echo_blocks
+			-- roll paths.
+			if activeSeason == "winter" and item.rarity ~= "Mythic" then
+				if math.random() < 0.25 then
+					item.rarity = promoteRarity(item.rarity)
+				end
+			end
+
 			-- Apply event multipliers
 			if isEventActive("gold_rush") then
 				item.sellValue = item.sellValue * 3
@@ -425,6 +491,8 @@ BlockBrokenEvent.Event:Connect(function(player, blockPosition)
 		inventoryCount = #data.inventory,
 		totalEarned = data.totalEarned,
 		rebirths = data.rebirths or 0,
+		-- spring_loot bumps fragments per-block; keep the HUD coherent.
+		fragments = data.fragments,
 	})
 end)
 

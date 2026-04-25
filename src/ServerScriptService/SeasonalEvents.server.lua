@@ -98,6 +98,15 @@ end
 
 local activeSeason = getActiveSeason()
 
+-- Expose the active season to other server scripts via a global accessor.
+-- Mirrors the existing `_G.DeepDig_playerData` pattern. GameManager calls
+-- this per-block to apply seasonal loot effects (halloween_loot, winter_loot,
+-- spring_loot, summer_loot). Always recomputes so a calendar rollover
+-- mid-server is reflected immediately.
+_G.DeepDig_getActiveSeason = function()
+	return getActiveSeason()
+end
+
 -- ─── Boot announcement ──────────────────────────────────────────────────────-
 -- 9999 = "indefinite duration" — existing client camera shake / notify logic
 -- handles long durations gracefully.
