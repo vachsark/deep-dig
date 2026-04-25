@@ -36,6 +36,11 @@ Config.LOOT_DROP_CHANCE = 0.35  -- 35% chance per block
 -- Economy
 Config.STARTING_COINS = 50
 
+-- Admin / testing
+-- UserIds in this list (in addition to game.CreatorId) can run /coins, /tool,
+-- /maxall etc. via chat. Read by AdminCommands.server.lua.
+Config.ADMIN_USERIDS = {}
+
 -- Events
 Config.EVENT_CHANCE = 0.02  -- 2% per block broken
 Config.EVENTS = {
