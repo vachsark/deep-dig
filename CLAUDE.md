@@ -1,5 +1,23 @@
 # Deep Dig — Roblox Excavation Game
 
+## Multi-Machine Coordination (READ FIRST)
+
+This repo has **multiple concurrent writers**:
+
+- An autonomous lane runs on Vache's Linux box (TestVault `_scripts/heartbeat-collectors/roblox-worker.sh`), driven by `roblox-architect` (Codex gpt-5.3-codex, every 4h) and `roblox-worker` (Codex gpt-5.4-mini, every 1h). It auto-commits + auto-pushes gameplay-meaningful changes to `origin/master`.
+- Vache (or another Claude session) may edit from a Windows clone for Studio playtests.
+
+**Protocol — every Claude in this repo MUST follow:**
+
+1. **Before any work** (even just reading code to advise): `git pull --rebase origin master`. Skipping this means you're working on stale state and will collide with the lane.
+2. **After committing**: push immediately — `git push origin master`. Do not sit on local commits; the lane will rebase and push around you, leaving your work behind.
+3. **If push is rejected**: `git pull --rebase origin master`, resolve conflicts, push again. Never `git push --force` to master — you will overwrite the lane's commits.
+4. **If you hit a real conflict you can't resolve**: stop and surface it to Vache. Don't guess.
+5. **Before starting anything substantial**: `git log --oneline -3` — if the most recent commit is from the last ~5 minutes and authored by `Codex gpt-5.4-mini` or `Codex gpt-5.3-codex`, the lane is mid-cycle. Wait a minute, pull again, then start.
+6. **Default branch is `master`**, not `main`.
+
+The lane has the same protocol baked in (`pull --rebase` on push rejection). As long as both writers follow it, they coexist cleanly.
+
 ## Vault Write-Intent Contract (Required Before Edits)
 
 This file is project-specific quick start only. It does not replace the vault bootstrap contract for write-enabled work.
