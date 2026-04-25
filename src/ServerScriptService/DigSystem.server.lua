@@ -210,6 +210,10 @@ local function breakBlock(player, block)
 
 	spawnBreakVFX(block.Position, block.Color)
 
+	-- Audio: AudioRouter creates the PlaySound RemoteEvent at game start.
+	local PlaySound = ReplicatedStorage:WaitForChild("Remotes"):FindFirstChild("PlaySound")
+	if PlaySound then PlaySound:FireClient(player, "block_break") end
+
 	-- Remove block from grid
 	if blockGrid[gridX] and blockGrid[gridX][gridZ] then
 		blockGrid[gridX][gridZ][depthBlock] = nil

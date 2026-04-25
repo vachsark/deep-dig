@@ -150,8 +150,9 @@ ResurfaceEvent.OnServerEvent:Connect(function(player)
 		applyAura(player, data.rebirths)
 	end
 
-	-- SOUND HOOK: prestige fanfare
-	-- Remotes.PlaySound:FireAllClients("resurface_fanfare")
+	-- Prestige fanfare for the whole server (everyone sees the player erupt).
+	local PlaySound = Remotes:FindFirstChild("PlaySound")
+	if PlaySound then PlaySound:FireAllClients("resurface_fanfare") end
 end)
 
 -- ═══════════════════════════════════════════════════════════════════
