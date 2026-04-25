@@ -5,15 +5,10 @@
 --   1. Inventory grid — owned pets, equipped pet highlighted, click to equip/unequip
 --   2. Hatchery — three egg tier buttons that fire HatchEgg
 --
--- Inventory data sourcing — see "API note" below: PetSystem doesn't expose a
--- GetPetInventory remote, and GameManager's GetPlayerData payload doesn't
--- include `pets` / `equippedPet` either (verified in commit be2a9d4 backend).
--- We therefore shadow-track inventory client-side from the events the server
--- already fires (NotifyEvent on hatch, UpdateHUDEvent on equip), reconciling
--- against `petCount` from UpdateHUD so the user knows when the visible list
--- under-represents the real server state (e.g. after a rejoin). When
--- shadow-tracked entries are missing, we show "Pet #id" placeholders so users
--- can still equip a known id and see it light up afterward.
+-- Inventory data sourcing — PetSystem now exposes GetPetInventory, so the
+-- client fetches authoritative pet data on open, on a 5s refresh cadence, and
+-- after hatch/equip actions. NotifyEvent is only used for user-facing status
+-- text; it no longer drives inventory state.
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -34,10 +29,11 @@ end
 
 local HatchEggEvent = Remotes:WaitForChild("HatchEgg", 5)
 local EquipPetEvent = Remotes:WaitForChild("EquipPet", 5)
+local GetPetInventoryFunction = Remotes:WaitForChild("GetPetInventory", 5)
 local NotifyEvent = Remotes:WaitForChild("Notify", 5)
 local UpdateHUDEvent = Remotes:WaitForChild("UpdateHUD", 5)
 
-if not (HatchEggEvent and EquipPetEvent and NotifyEvent and UpdateHUDEvent) then
+if not (HatchEggEvent and EquipPetEvent and GetPetInventoryFunction and NotifyEvent and UpdateHUDEvent) then
 	warn("[PetGui] Required pet remotes missing — exiting cleanly.")
 	return
 end
@@ -292,6 +288,8 @@ hatcheryStatus.Parent = hatcherySection
 -- Three egg tier buttons (Stone / Gem / Void)
 local EGG_ORDER = { "Stone", "Gem", "Void" }
 local eggButtons = {}
+local refreshInventory
+local renderInventory
 
 for index, eggType in ipairs(EGG_ORDER) do
 	local egg = PetDatabase.EGGS[eggType]
@@ -358,6 +356,10 @@ for index, eggType in ipairs(EGG_ORDER) do
 			hatcheryStatus.Text = "Hatching " .. egg.name .. "..."
 			hatcheryStatus.TextColor3 = ACCENT_GOLD
 
+			task.delay(0.75, function()
+				refreshInventory()
+			end)
+
 			-- Brief visual squeeze on the button to acknowledge the press
 			local origSize = button.Size
 			local pressTween = TweenService:Create(
@@ -378,22 +380,11 @@ for index, eggType in ipairs(EGG_ORDER) do
 	end
 end
 
--- ═══════════════════════════════════════════════════════════════════
--- Inventory state (shadow-tracked from server events)
--- ═══════════════════════════════════════════════════════════════════
---
--- See "API note" at the top of the file. We track what we can deduce from:
---   - NotifyEvent on hatch ("You hatched a [Rarity] [Name]!") → inferred new pet record
---   - UpdateHUDEvent on equip (full equippedPet payload) → confirmed pet record
---   - UpdateHUDEvent.petCount → reconciliation hint for placeholder cards
-
-local knownPets = {} -- ordered list, each entry: { id, name, rarity, multipliers? }
-local knownPetById = {} -- id → entry
-local equippedPetId = nil
-local serverPetCount = 0
-local hatchSequenceCounter = 0 -- monotonic id for inferred records
-
 local function petMultipliersFromName(name)
+	if type(name) ~= "string" or name == "" then
+		return { dig_speed = 1.0, loot_value = 1.0, luck = 1.0 }
+	end
+
 	local def = PetDatabase.getPet(name)
 	if def and def.multipliers then
 		return def.multipliers
@@ -401,37 +392,56 @@ local function petMultipliersFromName(name)
 	return { dig_speed = 1.0, loot_value = 1.0, luck = 1.0 }
 end
 
--- Track or update a pet record by id. Used both for hatch-inferred records
--- (where the id is a guess) and for equip-confirmed records (server-provided id).
-local function upsertPet(id, name, rarity)
-	local existing = knownPetById[id]
-	if existing then
-		if name then
-			existing.name = name
-			existing.multipliers = petMultipliersFromName(name)
-		end
-		if rarity then
-			existing.rarity = rarity
-		end
-		existing.placeholder = false
-		return existing
+local inventoryPets = {}
+local equippedPetId = nil
+
+local function applyInventory(payload)
+	if type(payload) ~= "table" then
+		return false
 	end
 
-	local entry = {
-		id = id,
-		name = name or ("Pet #" .. tostring(id)),
-		rarity = rarity or "Common",
-		multipliers = name and petMultipliersFromName(name) or { dig_speed = 1.0, loot_value = 1.0, luck = 1.0 },
-		placeholder = (name == nil),
-	}
-	knownPetById[id] = entry
-	table.insert(knownPets, entry)
-	return entry
+	local pets = {}
+	if type(payload.pets) == "table" then
+		for _, record in ipairs(payload.pets) do
+			if type(record) == "table" and record.id ~= nil then
+				local name = record.name or ("Pet " .. tostring(record.id))
+				local multipliers = record.multipliers
+				if multipliers == nil and record.name then
+					multipliers = petMultipliersFromName(record.name)
+				end
+				if multipliers == nil then
+					multipliers = { dig_speed = 1.0, loot_value = 1.0, luck = 1.0 }
+				end
+
+				table.insert(pets, {
+					id = record.id,
+					name = name,
+					rarity = record.rarity or "Common",
+					egg = record.egg,
+					level = record.level or 1,
+					acquiredAt = record.acquiredAt,
+					multipliers = multipliers,
+				})
+			end
+		end
+	end
+
+	inventoryPets = pets
+
+	if payload.equippedPet == nil or payload.equippedPet == false then
+		equippedPetId = nil
+	else
+		equippedPetId = payload.equippedPet
+	end
+
+	return true
 end
 
--- ═══════════════════════════════════════════════════════════════════
--- Inventory rendering
--- ═══════════════════════════════════════════════════════════════════
+local function updateToggleBadge()
+	local count = #inventoryPets
+	toggleBadge.Text = tostring(count)
+	toggleBadge.Visible = count > 0
+end
 
 local function formatMultiplierPreview(multipliers)
 	-- Pick the strongest non-1.0 stat for the preview so the card stays compact.
@@ -459,7 +469,6 @@ local function buildPetCard(entry)
 	card.BackgroundColor3 = CARD_BG
 	card.BackgroundTransparency = 0.1
 	card.BorderSizePixel = 0
-	card.LayoutOrder = entry.id
 
 	local cardCorner = Instance.new("UICorner")
 	cardCorner.CornerRadius = UDim.new(0, 6)
@@ -513,7 +522,7 @@ local function buildPetCard(entry)
 	mulLabel.Size = UDim2.new(1, -10, 0, 14)
 	mulLabel.Position = UDim2.new(0, 5, 0, 44)
 	mulLabel.BackgroundTransparency = 1
-	mulLabel.Text = entry.placeholder and "(unknown)" or formatMultiplierPreview(entry.multipliers)
+	mulLabel.Text = formatMultiplierPreview(entry.multipliers)
 	mulLabel.TextColor3 = TEXT_MUTED
 	mulLabel.TextSize = 11
 	mulLabel.Font = Enum.Font.Gotham
@@ -544,12 +553,16 @@ local function buildPetCard(entry)
 		else
 			EquipPetEvent:FireServer(entry.id)
 		end
+
+		task.delay(0.15, function()
+			refreshInventory()
+		end)
 	end)
 
 	return card
 end
 
-local function renderInventory()
+renderInventory = function()
 	-- Clear existing cards (keep UIGridLayout / UIPadding)
 	for _, child in ipairs(inventoryScroll:GetChildren()) do
 		if child:IsA("Frame") then
@@ -557,26 +570,10 @@ local function renderInventory()
 		end
 	end
 
-	-- Reconcile placeholder count with serverPetCount
-	local known = #knownPets
-	if serverPetCount > known then
-		-- Insert placeholder entries with synthetic high ids to avoid colliding
-		-- with real ids (real ids start at 1). We don't actually know which ids
-		-- are missing — these are "ghost" cards that say "rejoined session".
-		local missing = serverPetCount - known
-		for _ = 1, missing do
-			hatchSequenceCounter = hatchSequenceCounter + 1
-			-- Synthetic ids in a high range so they won't collide if we later
-			-- learn the real id via an equip event.
-			local syntheticId = -hatchSequenceCounter
-			upsertPet(syntheticId, nil, nil)
-		end
-	end
-
-	if #knownPets == 0 then
+	if #inventoryPets == 0 then
 		emptyPlaceholder.Visible = true
 		inventoryScroll.Visible = false
-		toggleBadge.Visible = false
+		updateToggleBadge()
 		return
 	end
 
@@ -587,7 +584,8 @@ local function renderInventory()
 	local rarityRank = {
 		Mythic = 6, Legendary = 5, Epic = 4, Rare = 3, Uncommon = 2, Common = 1,
 	}
-	table.sort(knownPets, function(a, b)
+	local pets = table.clone(inventoryPets)
+	table.sort(pets, function(a, b)
 		if (a.id == equippedPetId) ~= (b.id == equippedPetId) then
 			return a.id == equippedPetId
 		end
@@ -597,59 +595,47 @@ local function renderInventory()
 		return a.id < b.id
 	end)
 
-	for index, entry in ipairs(knownPets) do
-		entry._sortIndex = index
+	for index, entry in ipairs(pets) do
 		local card = buildPetCard(entry)
 		card.LayoutOrder = index
 		card.Parent = inventoryScroll
 	end
 
-	-- Update toggle badge with the better-of-known-vs-server count
-	local displayCount = math.max(#knownPets, serverPetCount)
-	toggleBadge.Text = tostring(displayCount)
-	toggleBadge.Visible = displayCount > 0
+	updateToggleBadge()
 end
 
 -- ═══════════════════════════════════════════════════════════════════
--- Server event handling — shadow-track inventory state
+-- Inventory refresh + event handling
 -- ═══════════════════════════════════════════════════════════════════
 
--- Match: "You hatched a [Rarity] [Pet Name]!"
-local HATCH_PATTERN = "^You hatched a (%a+) (.-)!$"
-
-NotifyEvent.OnClientEvent:Connect(function(text, _rarity)
-	if type(text) ~= "string" then return end
-
-	local rarity, name = string.match(text, HATCH_PATTERN)
-	if not (rarity and name) then return end
-
-	-- Server doesn't tell us the new pet's id directly — it's #data.pets after
-	-- insert. We approximate by appending after our known max real id. When
-	-- the player eventually equips it, the equip event's id will be the
-	-- authoritative one and we'll reconcile.
-	local nextId = 0
-	for _, entry in ipairs(knownPets) do
-		if entry.id > 0 and entry.id > nextId then
-			nextId = entry.id
-		end
+refreshInventory = function()
+	local success, payload = pcall(function()
+		return GetPetInventoryFunction:InvokeServer()
+	end)
+	if not success then
+		warn("[PetGui] Failed to fetch pet inventory: " .. tostring(payload))
+		return false
 	end
-	-- Bump to at least serverPetCount so we don't double-place.
-	nextId = math.max(nextId, serverPetCount) + 1
 
-	upsertPet(nextId, name, rarity)
-	-- Bump serverPetCount optimistically; UpdateHUD will confirm.
-	serverPetCount = math.max(serverPetCount, nextId)
-
-	hatcheryStatus.Text = string.format("Hatched: %s %s!", rarity, name)
-	hatcheryStatus.TextColor3 = RarityColors[rarity] or ACCENT_GOLD
+	if not applyInventory(payload) then
+		warn("[PetGui] Invalid pet inventory payload from server")
+		return false
+	end
 
 	if panel.Visible then
 		renderInventory()
 	else
-		-- Still update badge even if panel closed
-		toggleBadge.Text = tostring(math.max(#knownPets, serverPetCount))
-		toggleBadge.Visible = true
+		updateToggleBadge()
 	end
+
+	return true
+end
+
+NotifyEvent.OnClientEvent:Connect(function(text, rarity)
+	if type(text) ~= "string" then return end
+
+	hatcheryStatus.Text = text
+	hatcheryStatus.TextColor3 = RarityColors[rarity] or TEXT_MUTED
 end)
 
 UpdateHUDEvent.OnClientEvent:Connect(function(payload)
@@ -657,52 +643,13 @@ UpdateHUDEvent.OnClientEvent:Connect(function(payload)
 
 	local changed = false
 
-	if payload.petCount ~= nil and type(payload.petCount) == "number" then
-		serverPetCount = payload.petCount
-		changed = true
-	end
-
 	if payload.equippedPet ~= nil then
 		if payload.equippedPet == false or payload.equippedPet == 0 then
 			if equippedPetId ~= nil then
 				equippedPetId = nil
 				changed = true
 			end
-		elseif type(payload.equippedPet) == "number" then
-			-- Authoritative id from server. If we have a placeholder (negative
-			-- synthetic id) and the server gives us a real id, reuse the
-			-- placeholder slot so the count stays consistent.
-			if not knownPetById[payload.equippedPet] then
-				-- Try to absorb a placeholder
-				local absorbed = false
-				for i, entry in ipairs(knownPets) do
-					if entry.placeholder and entry.id < 0 then
-						knownPetById[entry.id] = nil
-						entry.id = payload.equippedPet
-						entry.name = payload.petName or entry.name
-						entry.rarity = payload.petRarity or entry.rarity
-						entry.multipliers = payload.petMultipliers
-							or (payload.petName and petMultipliersFromName(payload.petName))
-							or entry.multipliers
-						entry.placeholder = (payload.petName == nil)
-						knownPetById[entry.id] = entry
-						knownPets[i] = entry
-						absorbed = true
-						break
-					end
-				end
-				if not absorbed then
-					upsertPet(payload.equippedPet, payload.petName, payload.petRarity)
-				end
-			else
-				-- Refresh the entry with any new info
-				upsertPet(payload.equippedPet, payload.petName, payload.petRarity)
-			end
-			-- Ensure multipliers from payload override database lookup if present
-			local entry = knownPetById[payload.equippedPet]
-			if entry and payload.petMultipliers then
-				entry.multipliers = payload.petMultipliers
-			end
+		else
 			equippedPetId = payload.equippedPet
 			changed = true
 		end
@@ -710,10 +657,6 @@ UpdateHUDEvent.OnClientEvent:Connect(function(payload)
 
 	if changed and panel.Visible then
 		renderInventory()
-	elseif changed then
-		-- Update badge even while closed
-		toggleBadge.Text = tostring(math.max(#knownPets, serverPetCount))
-		toggleBadge.Visible = math.max(#knownPets, serverPetCount) > 0
 	end
 end)
 
@@ -725,7 +668,7 @@ local function setPanelVisible(visible)
 	panel.Visible = visible
 	player:SetAttribute("PetPanelOpen", visible)
 	if visible then
-		renderInventory()
+		refreshInventory()
 	end
 end
 
@@ -750,7 +693,7 @@ task.spawn(function()
 	while true do
 		task.wait(5)
 		if panel.Visible then
-			renderInventory()
+			refreshInventory()
 		end
 	end
 end)

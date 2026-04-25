@@ -2,8 +2,9 @@
 -- Place in: ServerScriptService/PetSystem (Script)
 --
 -- Phase 2 #8 from ROADMAP.md. Builds 3 egg hatch pads in workspace,
--- listens for HatchEgg / EquipPet remotes, mutates player data via the
--- shared _G.DeepDig_playerData table (NEVER edits GameManager directly).
+-- listens for HatchEgg / EquipPet / GetPetInventory remotes, mutates
+-- player data via the shared _G.DeepDig_playerData table (NEVER edits
+-- GameManager directly).
 --
 -- Out of scope (TODOs):
 --   * Applying pet multipliers to BlockBrokenEvent — lives in GameManager.
@@ -15,6 +16,7 @@
 --     players are initialized lazily here on first egg interaction.
 
 local Players = game:GetService("Players")
+local HttpService = game:GetService("HttpService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local PetDatabase = require(ReplicatedStorage:WaitForChild("PetDatabase"))
@@ -32,6 +34,13 @@ HatchEggEvent.Parent = Remotes
 local EquipPetEvent = Instance.new("RemoteEvent")
 EquipPetEvent.Name = "EquipPet"
 EquipPetEvent.Parent = Remotes
+
+local GetPetInventoryFunction = Remotes:FindFirstChild("GetPetInventory")
+if not GetPetInventoryFunction then
+	GetPetInventoryFunction = Instance.new("RemoteFunction")
+	GetPetInventoryFunction.Name = "GetPetInventory"
+	GetPetInventoryFunction.Parent = Remotes
+end
 
 local NotifyEvent = Remotes:WaitForChild("Notify")
 local UpdateHUDEvent = Remotes:WaitForChild("UpdateHUD")
@@ -57,6 +66,39 @@ local function ensurePetFields(data)
 	if data.equippedPet == nil then
 		data.equippedPet = false -- false = none equipped (nil-safe sentinel)
 	end
+
+	local equippedPet = data.equippedPet
+	for _, record in ipairs(data.pets) do
+		if type(record) == "table" then
+			local oldId = record.id
+			if type(record.id) ~= "string" or record.id == "" then
+				record.id = HttpService:GenerateGUID(false)
+				if equippedPet == oldId then
+					equippedPet = record.id
+				end
+			end
+		end
+	end
+
+	if type(equippedPet) == "string" then
+		data.equippedPet = equippedPet
+	else
+		data.equippedPet = false
+	end
+end
+
+GetPetInventoryFunction.OnServerInvoke = function(player)
+	local data = getData(player)
+	if not data then
+		return { pets = {}, equippedPet = nil }
+	end
+
+	ensurePetFields(data)
+
+	return {
+		pets = data.pets or {},
+		equippedPet = (data.equippedPet == false and nil) or data.equippedPet,
+	}
 end
 
 -- ═══════════════════════════════════════════════════════════════════
@@ -187,7 +229,7 @@ function rollAndAward(player, eggType)
 	-- store enough to reconstruct without leaning on PetDatabase at read
 	-- time (so renames in the db don't orphan saved records).
 	local petRecord = {
-		id = #data.pets + 1, -- simple incremental id
+		id = HttpService:GenerateGUID(false),
 		name = pet.name,
 		rarity = pet.rarity,
 		egg = pet.egg,
@@ -212,6 +254,7 @@ function rollAndAward(player, eggType)
 	UpdateHUDEvent:FireClient(player, {
 		coins = data.coins,
 		petCount = #data.pets,
+		equippedPet = data.equippedPet == false and nil or data.equippedPet,
 	})
 end
 
@@ -239,13 +282,14 @@ EquipPetEvent.OnServerEvent:Connect(function(player, petId)
 		data.equippedPet = false
 		UpdateHUDEvent:FireClient(player, {
 			equippedPet = false,
+			petCount = #data.pets,
 			petMultipliers = { dig_speed = 1.0, loot_value = 1.0, luck = 1.0 },
 		})
 		NotifyEvent:FireClient(player, "Unequipped pet.", "Common")
 		return
 	end
 
-	if type(petId) ~= "number" then return end
+	if type(petId) ~= "string" then return end
 
 	-- Validate the pet is owned
 	local owned
@@ -276,6 +320,7 @@ EquipPetEvent.OnServerEvent:Connect(function(player, petId)
 		petName = owned.name,
 		petRarity = owned.rarity,
 		petMultipliers = multipliers,
+		petCount = #data.pets,
 	})
 	NotifyEvent:FireClient(player,
 		"Equipped " .. owned.rarity .. " " .. owned.name .. ".",
