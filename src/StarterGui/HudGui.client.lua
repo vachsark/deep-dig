@@ -733,6 +733,112 @@ Remotes.Notify.OnClientEvent:Connect(function(message, rarity)
 end)
 
 -- ═══════════════════════════════════════════════════════════════════
+-- Museum button — teleport to player's personal museum from any depth.
+-- Mirrors the in-world telepad; HUD button makes it discoverable from anywhere.
+-- ═══════════════════════════════════════════════════════════════════
+
+local museumButton = Instance.new("TextButton")
+museumButton.Name = "MuseumButton"
+museumButton.Size = UDim2.new(0, 100, 0, 35)
+museumButton.Position = UDim2.new(0, 370, 1, -60)
+museumButton.BackgroundColor3 = Color3.fromRGB(80, 100, 180)
+museumButton.BorderSizePixel = 0
+museumButton.Text = "🏛️ Museum"
+museumButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+museumButton.TextSize = 14
+museumButton.Font = Enum.Font.GothamBold
+museumButton.Parent = screenGui
+
+local museumCorner = Instance.new("UICorner")
+museumCorner.CornerRadius = UDim.new(0, 8)
+museumCorner.Parent = museumButton
+
+museumButton.MouseButton1Click:Connect(function()
+	-- Look for the player's MuseumPad in workspace and teleport HRP onto it.
+	-- If the pad isn't built yet (very first second of play), nudge the user.
+	local museums = workspace:FindFirstChild("Museums")
+	local pad = museums and museums:FindFirstChild(player.Name .. "_MuseumPad")
+	if not pad then
+		showNotification("Museum loading… try again in a sec.", "Common")
+		return
+	end
+	local char = player.Character
+	local hrp = char and char:FindFirstChild("HumanoidRootPart")
+	if hrp then
+		hrp.CFrame = CFrame.new(pad.Position + Vector3.new(0, 4, 0))
+	end
+end)
+
+-- ═══════════════════════════════════════════════════════════════════
+-- First-time tutorial popup — fires once when a fresh profile joins.
+-- ═══════════════════════════════════════════════════════════════════
+
+local function showTutorial()
+	local frame = Instance.new("Frame")
+	frame.Name = "Tutorial"
+	frame.Size = UDim2.new(0, 420, 0, 220)
+	frame.Position = UDim2.new(0.5, -210, 0.5, -110)
+	frame.BackgroundColor3 = Color3.fromRGB(20, 18, 28)
+	frame.BackgroundTransparency = 0.05
+	frame.BorderSizePixel = 0
+	frame.ZIndex = 50
+	frame.Parent = screenGui
+
+	local corner = Instance.new("UICorner")
+	corner.CornerRadius = UDim.new(0, 14)
+	corner.Parent = frame
+
+	local stroke = Instance.new("UIStroke")
+	stroke.Color = Color3.fromRGB(255, 200, 50)
+	stroke.Thickness = 2
+	stroke.Parent = frame
+
+	local title = Instance.new("TextLabel")
+	title.Size = UDim2.new(1, 0, 0, 50)
+	title.BackgroundTransparency = 1
+	title.Text = "⛏️ Welcome to Deep Dig"
+	title.TextColor3 = Color3.fromRGB(255, 200, 50)
+	title.TextSize = 24
+	title.Font = Enum.Font.GothamBlack
+	title.ZIndex = 51
+	title.Parent = frame
+
+	local body = Instance.new("TextLabel")
+	body.Size = UDim2.new(1, -32, 1, -110)
+	body.Position = UDim2.new(0, 16, 0, 50)
+	body.BackgroundTransparency = 1
+	body.Text = "1.  Equip your Excavator (1 key) and click on a block.\n2.  Find ancient artifacts as you dig deeper.\n3.  Use 💰 Sell All to convert finds to coins.\n4.  Buy a better tool with the ⬆️ Upgrade button.\n5.  Display rare finds in 🏛️ Museum for bonuses."
+	body.TextColor3 = Color3.fromRGB(220, 220, 230)
+	body.TextSize = 15
+	body.Font = Enum.Font.Gotham
+	body.TextXAlignment = Enum.TextXAlignment.Left
+	body.TextYAlignment = Enum.TextYAlignment.Top
+	body.TextWrapped = true
+	body.ZIndex = 51
+	body.Parent = frame
+
+	local ok = Instance.new("TextButton")
+	ok.Size = UDim2.new(0, 160, 0, 36)
+	ok.Position = UDim2.new(0.5, -80, 1, -50)
+	ok.BackgroundColor3 = Color3.fromRGB(255, 200, 50)
+	ok.BorderSizePixel = 0
+	ok.Text = "DIG IN"
+	ok.TextColor3 = Color3.fromRGB(40, 20, 0)
+	ok.TextSize = 16
+	ok.Font = Enum.Font.GothamBlack
+	ok.ZIndex = 51
+	ok.Parent = frame
+
+	local okCorner = Instance.new("UICorner")
+	okCorner.CornerRadius = UDim.new(0, 8)
+	okCorner.Parent = ok
+
+	ok.MouseButton1Click:Connect(function()
+		frame:Destroy()
+	end)
+end
+
+-- ═══════════════════════════════════════════════════════════════════
 -- Resurface (prestige) button — visible only when eligible.
 -- Server validates everything; the button is a hint + one-click action.
 -- ═══════════════════════════════════════════════════════════════════
@@ -799,6 +905,11 @@ task.spawn(function()
 		blocksLabel.Text = "Blocks: " .. tostring(data.totalBlocksDug)
 		invLabel.Text = "Items: " .. tostring(#data.inventory)
 		currentToolTier = data.toolTier
+
+		-- First-time tutorial: only on truly fresh profile (zero blocks dug, no inventory).
+		if (data.totalBlocksDug or 0) == 0 and #data.inventory == 0 then
+			task.delay(2, showTutorial)
+		end
 
 		if data.nextToolCost and data.nextToolName then
 			upgradeButton.Text = "⬆️ " .. data.nextToolName .. " ($" .. data.nextToolCost .. ")"
