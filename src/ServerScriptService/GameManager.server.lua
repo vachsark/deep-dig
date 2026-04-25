@@ -171,6 +171,35 @@ BlockBrokenEvent.Event:Connect(function(player, blockPosition)
 	local data = getPlayerData(player)
 	if not data then return end
 
+	-- ── Equipped-pet multipliers ───────────────────────────────────
+	-- Look up the equipped pet once per dig. PetSystem stores either
+	-- the petId (number) in data.equippedPet, or false/nil for none.
+	-- The pet record on the player only holds `name` (canonical key
+	-- into PetDatabase), so we resolve owned-pet → name → pet def.
+	-- dig_speed multiplier is consumed by DigSystem.server.lua via data.equippedPet (TODO: wire reads on the dig side)
+	local petLuck = 1
+	local petLoot = 1
+	if data.equippedPet and data.pets then
+		local equippedName
+		for _, record in ipairs(data.pets) do
+			if record.id == data.equippedPet then
+				equippedName = record.name
+				break
+			end
+		end
+		if equippedName then
+			local PetDatabase = require(ReplicatedStorage:WaitForChild("PetDatabase"))
+			local equippedPet = PetDatabase.getPet(equippedName)
+			if equippedPet and equippedPet.multipliers then
+				petLuck = equippedPet.multipliers.luck or 1
+				petLoot = equippedPet.multipliers.loot_value or 1
+			end
+		end
+	end
+	-- Defensive caps so a future config typo can't break the economy.
+	petLuck = math.min(petLuck, 5)
+	petLoot = math.min(petLoot, 5)
+
 	-- Get tool info
 	local tool = Config.TOOLS[data.toolTier]
 	if not tool then return end
@@ -208,6 +237,9 @@ BlockBrokenEvent.Event:Connect(function(player, blockPosition)
 		dropChance = dropChance * 1.25
 	end
 
+	-- Apply equipped pet luck multiplier (capped at 5x above)
+	dropChance = dropChance * petLuck
+
 	-- Guarantee a drop for the first 10 blocks (FTUE)
 	if isNewPlayer then dropChance = 1.0 end
 
@@ -231,6 +263,12 @@ BlockBrokenEvent.Event:Connect(function(player, blockPosition)
 			if data.ownedGamepasses and data.ownedGamepasses[1] then
 				item.sellValue = item.sellValue * 2
 			end
+
+			-- Apply equipped pet loot_value multiplier (capped at 5x above).
+			-- Mutating `item.sellValue` here propagates to both the inventory
+			-- record below AND the ItemFoundEvent:FireClient payload, so the
+			-- client toast shows the bumped value.
+			item.sellValue = math.floor(item.sellValue * petLoot)
 
 			-- Add to inventory
 			table.insert(data.inventory, {
