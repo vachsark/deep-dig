@@ -81,30 +81,84 @@ end
 -- Resurface Execution
 -- ═══════════════════════════════════════════════════════════════════
 
+local function getData(player)
+	local cache = _G.DeepDig_playerData
+	if not cache then return nil end
+	return cache[player.UserId]
+end
+
+-- Forward-declared so the ResurfaceEvent handler can call it; defined below
+-- alongside the spawn-time aura logic.
+local applyAura
+
 ResurfaceEvent.OnServerEvent:Connect(function(player)
-	-- NOTE: This needs direct access to GameManager's playerData table.
-	-- In production, GameManager exposes a module API.
-	-- For MVP, we define the logic and trust integration.
+	local data = getData(player)
+	if not data then
+		NotifyEvent:FireClient(player, "Player data not loaded yet — try again in a moment.", "Common")
+		return
+	end
 
-	-- The integration point in GameManager.server.lua:
-	-- 1. Check: data.totalEarned >= getResurfaceCost(data.rebirths)
-	-- 2. Check: data.deepestBlock >= Config.TIERS[MIN_DEPTH_TIER].minDepth
-	-- 3. Reset: coins=STARTING_COINS, toolTier=1, totalBlocksDug=0, deepestBlock=0, inventory={}
-	-- 4. Keep: collections, fragments, rebirths (incremented), totalEarned (keeps counting)
-	-- 5. Apply: all future coin gains multiplied by getMultiplier(data.rebirths)
+	if (data.rebirths or 0) >= MAX_RESURFACES then
+		NotifyEvent:FireClient(player, "You're at the soft cap of " .. MAX_RESURFACES .. " resurfaces.", "Common")
+		return
+	end
 
-	-- For now, notify the player about the system
+	local minDepth = Config.TIERS[MIN_DEPTH_TIER] and Config.TIERS[MIN_DEPTH_TIER].minDepth or 188
+	if (data.deepestBlock or 0) < minDepth then
+		NotifyEvent:FireClient(player,
+			"Resurface locked — reach " .. (Config.TIERS[MIN_DEPTH_TIER].name) .. " tier first (depth " .. minDepth .. ").",
+			"Common")
+		return
+	end
+
+	local cost = getResurfaceCost(data.rebirths or 0)
+	if (data.totalEarned or 0) < cost then
+		NotifyEvent:FireClient(player,
+			string.format("Resurface needs %s total earned (you have %s).", tostring(cost), tostring(math.floor(data.totalEarned or 0))),
+			"Common")
+		return
+	end
+
+	-- Apply prestige: reset progression, keep collections + identity.
+	data.rebirths = (data.rebirths or 0) + 1
+	data.coins = Config.STARTING_COINS
+	data.toolTier = 1
+	data.totalBlocksDug = 0
+	data.deepestBlock = 0
+	data.inventory = {}
+	data.firstSellAffordabilityGrantUsed = false
+
+	local multiplier = getMultiplier(data.rebirths)
+
 	NotifyEvent:FireClient(player,
-		"Resurface: reach the Unknown tier + earn 1M coins to prestige! Keep your museum, gain permanent multipliers.",
-		"Legendary"
-	)
+		string.format("⭐ Resurface #%d — permanent +%.1fx coin multiplier active.", data.rebirths, multiplier - 1),
+		"Mythic")
+
+	UpdateHUDEvent:FireClient(player, {
+		coins = data.coins,
+		toolTier = data.toolTier,
+		toolName = Config.TOOLS[1].name,
+		blocksDug = 0,
+		depth = 0,
+		tierName = Config.TIERS[1].name,
+		inventoryCount = 0,
+		rebirths = data.rebirths,
+	})
+
+	-- Refresh aura instantly (don't wait for next respawn).
+	if player.Character then
+		applyAura(player, data.rebirths)
+	end
+
+	-- SOUND HOOK: prestige fanfare
+	-- Remotes.PlaySound:FireAllClients("resurface_fanfare")
 end)
 
 -- ═══════════════════════════════════════════════════════════════════
 -- Aura Visual Effect (applied on character spawn)
 -- ═══════════════════════════════════════════════════════════════════
 
-local function applyAura(player, resurfaces)
+applyAura = function(player, resurfaces)
 	local color = getAuraColor(resurfaces)
 	if not color then return end
 
@@ -171,14 +225,13 @@ local function applyAura(player, resurfaces)
 	end
 end
 
--- Apply aura on character spawn
+-- Apply aura on character spawn using shared player data.
 local function onCharacterAdded(player, character)
-	task.wait(1)
-	-- Get resurface count from player data
-	local GetPlayerDataFunc = Remotes:FindFirstChild("GetPlayerData")
-	if GetPlayerDataFunc then
-		-- In production: local data = PlayerDataModule.get(player)
-		-- For MVP: aura applied when GameManager sends resurface count via HUD update
+	task.wait(1) -- let GameManager load profile
+	local data = getData(player)
+	if not data then return end
+	if (data.rebirths or 0) > 0 then
+		applyAura(player, data.rebirths)
 	end
 end
 

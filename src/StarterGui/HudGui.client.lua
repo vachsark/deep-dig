@@ -733,6 +733,61 @@ Remotes.Notify.OnClientEvent:Connect(function(message, rarity)
 end)
 
 -- ═══════════════════════════════════════════════════════════════════
+-- Resurface (prestige) button — visible only when eligible.
+-- Server validates everything; the button is a hint + one-click action.
+-- ═══════════════════════════════════════════════════════════════════
+
+local RESURFACE_MIN_DEPTH = 188 -- Tier 6 (Unknown) minDepth, kept in sync with Config.lua
+local RESURFACE_BASE_COST = 1000000
+
+local resurfaceButton = Instance.new("TextButton")
+resurfaceButton.Name = "ResurfaceButton"
+resurfaceButton.Size = UDim2.new(0, 130, 0, 35)
+resurfaceButton.Position = UDim2.new(0, 230, 1, -60)
+resurfaceButton.BackgroundColor3 = Color3.fromRGB(255, 200, 50)
+resurfaceButton.BorderSizePixel = 0
+resurfaceButton.Text = "⭐ Resurface"
+resurfaceButton.TextColor3 = Color3.fromRGB(40, 20, 0)
+resurfaceButton.TextSize = 14
+resurfaceButton.Font = Enum.Font.GothamBlack
+resurfaceButton.Visible = false
+resurfaceButton.Parent = screenGui
+
+local resurfaceCorner = Instance.new("UICorner")
+resurfaceCorner.CornerRadius = UDim.new(0, 8)
+resurfaceCorner.Parent = resurfaceButton
+
+resurfaceButton.MouseButton1Click:Connect(function()
+	Remotes.Resurface:FireServer()
+end)
+
+local function evaluateResurfaceEligibility(data)
+	if not data then return end
+	local deepest = data.deepestBlock or 0
+	local earned = data.totalEarned or 0
+	local rebirths = data.rebirths or 0
+	local cost = math.floor(RESURFACE_BASE_COST * (1.08 ^ rebirths))
+	if deepest >= RESURFACE_MIN_DEPTH and earned >= cost then
+		resurfaceButton.Visible = true
+		resurfaceButton.Text = "⭐ Resurface (" .. (rebirths + 1) .. ")"
+	else
+		resurfaceButton.Visible = false
+	end
+end
+
+-- Poll player data every 20s for eligibility (cheap; avoids editing UpdateHUD payload).
+task.spawn(function()
+	while task.wait(20) do
+		local ok, data = pcall(function()
+			return Remotes.GetPlayerData:InvokeServer()
+		end)
+		if ok and data then
+			evaluateResurfaceEligibility(data)
+		end
+	end
+end)
+
+-- ═══════════════════════════════════════════════════════════════════
 -- Initial load
 -- ═══════════════════════════════════════════════════════════════════
 
@@ -758,6 +813,8 @@ task.spawn(function()
 		if data.ownedGamepasses then
 			updatePassBadges(data.ownedGamepasses)
 		end
+
+		evaluateResurfaceEligibility(data)
 	end
 end)
 
