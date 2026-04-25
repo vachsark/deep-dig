@@ -41,6 +41,21 @@ local NotifyEvent = createRemote("Notify")
 local GetPlayerDataFunc = createRemote("GetPlayerData", "RemoteFunction")
 local PlaySound = Remotes:WaitForChild("PlaySound", 5)
 
+-- ── Quest progress feeder ────────────────────────────────────────
+-- QuestSystem creates ReplicatedStorage.QuestProgressBindable on load
+-- and listens for (player, eventType, eventData). Other server systems
+-- fire it to notify of progress. The helper short-circuits gracefully
+-- when QuestSystem hasn't loaded yet (BindableEvent absent).
+local QuestProgressBindable = ReplicatedStorage:FindFirstChild("QuestProgressBindable")
+local function fireQuestProgress(player, eventType, eventData)
+	if not QuestProgressBindable then
+		QuestProgressBindable = ReplicatedStorage:FindFirstChild("QuestProgressBindable")
+	end
+	if QuestProgressBindable then
+		QuestProgressBindable:Fire(player, eventType, eventData)
+	end
+end
+
 -- ═══════════════════════════════════════════════════════════════════
 -- Player Data Management
 -- ═══════════════════════════════════════════════════════════════════
@@ -210,6 +225,8 @@ BlockBrokenEvent.Event:Connect(function(player, blockPosition)
 	data.totalBlocksDug = data.totalBlocksDug + 1
 	if depth > data.deepestBlock then
 		data.deepestBlock = depth
+		-- Fire depth_reached on each new max so QuestSystem can take max
+		fireQuestProgress(player, "depth_reached", { depth = data.deepestBlock })
 	end
 
 	-- SOUND HOOK: short crunch on every block break
@@ -280,6 +297,10 @@ BlockBrokenEvent.Event:Connect(function(player, blockPosition)
 
 			-- Notify player
 			ItemFoundEvent:FireClient(player, item)
+			-- Quest progress: items_found (always +1) and rarity_found (+1 with rarity tag).
+			-- QuestSystem listener filters by quest.rarityFilter == eventData.rarity.
+			fireQuestProgress(player, "items_found", { amount = 1 })
+			fireQuestProgress(player, "rarity_found", { amount = 1, rarity = item.rarity })
 			-- SOUND HOOK: sparkle chime for any item find
 			if PlaySound then
 				PlaySound:FireClient(player, "item_found")
@@ -354,6 +375,11 @@ SellAllEvent.OnServerEvent:Connect(function(player)
 	data.coins = data.coins + total
 	data.totalEarned = data.totalEarned + total
 	data.inventory = {}
+
+	-- Quest progress: coins_earned with the per-sale total (not cumulative)
+	if total > 0 then
+		fireQuestProgress(player, "coins_earned", { amount = total })
+	end
 
 	applyFirstSellAffordabilityGrant(player, data)
 
