@@ -25,6 +25,9 @@ local Remotes = ReplicatedStorage:WaitForChild("Remotes")
 local NotifyEvent = Remotes:WaitForChild("Notify")
 local UpdateHUDEvent = Remotes:WaitForChild("UpdateHUD")
 
+local AUTO_PROMPT_DELAY = 240
+local autoPromptSessions = {}
+
 -- ─── Gamepass definitions ─────────────────────────────────────────────────────
 -- Replace placeholder IDs (1, 2, 3) with your real Roblox gamepass IDs.
 
@@ -76,6 +79,50 @@ local function ownsPass(player, passId)
 		return false
 	end
 	return result
+end
+
+local function getAutoPromptPass(data)
+	local ownedGamepasses = data and data.ownedGamepasses
+	if not ownedGamepasses then
+		return nil
+	end
+
+	for _, pass in ipairs(GAMEPASSES) do
+		if ownedGamepasses[pass.id] ~= true then
+			return pass
+		end
+	end
+
+	return nil
+end
+
+local function scheduleAutoPrompt(player)
+	if autoPromptSessions[player] then
+		return
+	end
+
+	local token = {}
+	autoPromptSessions[player] = token
+
+	task.delay(AUTO_PROMPT_DELAY, function()
+		if autoPromptSessions[player] ~= token then
+			return
+		end
+		if player.Parent ~= Players then
+			autoPromptSessions[player] = nil
+			return
+		end
+
+		local data = getSharedData(player)
+		local pass = getAutoPromptPass(data)
+		if not pass then
+			autoPromptSessions[player] = nil
+			return
+		end
+
+		MarketplaceService:PromptGamePassPurchase(player, pass.id)
+		autoPromptSessions[player] = nil
+	end)
 end
 
 -- ─── VIP Chat Tag ─────────────────────────────────────────────────────────────
@@ -174,6 +221,7 @@ local function onCharacterAdded(player, character)
 end
 
 Players.PlayerAdded:Connect(function(player)
+	scheduleAutoPrompt(player)
 	player.CharacterAdded:Connect(function(character)
 		onCharacterAdded(player, character)
 	end)
@@ -182,8 +230,13 @@ Players.PlayerAdded:Connect(function(player)
 	end)
 end)
 
+Players.PlayerRemoving:Connect(function(player)
+	autoPromptSessions[player] = nil
+end)
+
 -- Also check players already in-game when script loads (Studio playtest)
 for _, player in ipairs(Players:GetPlayers()) do
+	scheduleAutoPrompt(player)
 	task.spawn(function()
 		checkPassesForPlayer(player)
 	end)
