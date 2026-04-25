@@ -18,6 +18,14 @@ local Remotes = ReplicatedStorage:WaitForChild("Remotes")
 local NotifyEvent = Remotes:WaitForChild("Notify")
 local UpdateHUDEvent = Remotes:WaitForChild("UpdateHUD")
 
+-- Client-facing query: top 10 + caller's own depth/rank.
+local GetTopDepthsFunc = Remotes:FindFirstChild("GetTopDepths")
+if not GetTopDepthsFunc then
+	GetTopDepthsFunc = Instance.new("RemoteFunction")
+	GetTopDepthsFunc.Name = "GetTopDepths"
+	GetTopDepthsFunc.Parent = Remotes
+end
+
 -- ─── Helpers ─────────────────────────────────────────────────────────────────
 
 local function getSharedData(player)
@@ -199,6 +207,102 @@ local function getLocalTop5()
 		top5[i] = { rank = i, name = list[i].name, depth = list[i].depth }
 	end
 	return top5
+end
+
+-- ─── Client query: GetTopDepths RemoteFunction ───────────────────────────────
+-- Server-side cache shared across all callers (60s TTL) to avoid spamming
+-- OrderedDataStore on every UI refresh. Caches the top-10 list AND the top-100
+-- rank-lookup table so per-player rank resolution is also cheap.
+local CACHE_TTL = 60
+local cachedTop10 = nil           -- list of { userId, name, depth }
+local cachedRankByUserId = nil    -- { [userId] = rank } for top 100
+local cachedAt = 0
+local cacheError = nil
+
+local function refreshLeaderboardCache()
+	local now = os.time()
+	if cachedTop10 and (now - cachedAt) < CACHE_TTL then
+		return
+	end
+
+	local newTop10 = {}
+	local newRanks = {}
+	local newError = nil
+
+	-- Top 10 (with name resolution)
+	local ok10, pages10 = pcall(function()
+		return DepthStore:GetSortedAsync(false, 10)
+	end)
+	if not ok10 or not pages10 then
+		newError = "leaderboard unavailable"
+	else
+		local okPage, entries = pcall(function() return pages10:GetCurrentPage() end)
+		if okPage and entries then
+			for _, entry in ipairs(entries) do
+				local userId = tonumber(tostring(entry.key):match("player_(%d+)"))
+				local name = "[unknown]"
+				if userId then
+					local nameOk, fetchedName = pcall(function()
+						return Players:GetNameFromUserIdAsync(userId)
+					end)
+					if nameOk and fetchedName then name = fetchedName end
+				end
+				table.insert(newTop10, {
+					userId = userId,
+					name = name,
+					depth = entry.value,
+				})
+			end
+		else
+			newError = "leaderboard unavailable"
+		end
+	end
+
+	-- Top 100 for rank lookup (no name resolution — keys only)
+	local ok100, pages100 = pcall(function()
+		return DepthStore:GetSortedAsync(false, 100)
+	end)
+	if ok100 and pages100 then
+		local okPage, entries = pcall(function() return pages100:GetCurrentPage() end)
+		if okPage and entries then
+			for i, entry in ipairs(entries) do
+				local userId = tonumber(tostring(entry.key):match("player_(%d+)"))
+				if userId then
+					newRanks[userId] = i
+				end
+			end
+		end
+	end
+
+	cachedTop10 = newTop10
+	cachedRankByUserId = newRanks
+	cacheError = newError
+	cachedAt = now
+end
+
+GetTopDepthsFunc.OnServerInvoke = function(player)
+	refreshLeaderboardCache()
+
+	local data = getSharedData(player)
+	local yourDepth = (data and data.deepestBlock) or 0
+	local yourRank = cachedRankByUserId and cachedRankByUserId[player.UserId] or nil
+
+	local entries = {}
+	if cachedTop10 then
+		for i, e in ipairs(cachedTop10) do
+			entries[i] = { userId = e.userId, name = e.name, depth = e.depth }
+		end
+	end
+
+	local response = {
+		entries = entries,
+		yourDepth = yourDepth,
+		yourRank = yourRank,
+	}
+	if cacheError then
+		response.error = cacheError
+	end
+	return response
 end
 
 -- ─── In-world leaderboard Part ───────────────────────────────────────────────
