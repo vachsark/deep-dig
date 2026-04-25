@@ -8,6 +8,7 @@
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
 local MarketplaceService = game:GetService("MarketplaceService")
 
@@ -320,6 +321,238 @@ local currentToolTier = 1
 upgradeButton.MouseButton1Click:Connect(function()
 	Remotes.BuyTool:FireServer(currentToolTier + 1)
 end)
+
+-- ═══════════════════════════════════════════════════════════════════
+-- FTUE arrow guide — nudges fresh players through dig → sell → upgrade.
+-- ═══════════════════════════════════════════════════════════════════
+
+local FTUE_STAGE_NONE = 0
+local FTUE_STAGE_DIG = 1
+local FTUE_STAGE_SELL = 2
+local FTUE_STAGE_UPGRADE = 3
+local FTUE_STAGE_DONE = 4
+
+local ftueGuideEnabled = false
+local ftueGuideStage = FTUE_STAGE_NONE
+local ftueGuideCoins = 0
+local ftueGuideInventoryCount = 0
+local ftueGuideToolTier = 1
+local ftueGuideNextToolCost = nil
+
+local ftuePulseValue = Instance.new("NumberValue")
+ftuePulseValue.Name = "FTUEPulse"
+ftuePulseValue.Value = 0
+ftuePulseValue.Parent = screenGui
+
+local ftueGuideLayer = Instance.new("Frame")
+ftueGuideLayer.Name = "FTUEGuide"
+ftueGuideLayer.Size = UDim2.new(1, 0, 1, 0)
+ftueGuideLayer.BackgroundTransparency = 1
+ftueGuideLayer.Visible = false
+ftueGuideLayer.ZIndex = 55
+ftueGuideLayer.Parent = screenGui
+
+local ftuePulse = Instance.new("Frame")
+ftuePulse.Name = "Pulse"
+ftuePulse.AnchorPoint = Vector2.new(0.5, 0.5)
+ftuePulse.BackgroundColor3 = Color3.fromRGB(255, 200, 50)
+ftuePulse.BackgroundTransparency = 0.88
+ftuePulse.BorderSizePixel = 0
+ftuePulse.Visible = false
+ftuePulse.ZIndex = 56
+ftuePulse.Parent = ftueGuideLayer
+
+local ftuePulseCorner = Instance.new("UICorner")
+ftuePulseCorner.CornerRadius = UDim.new(0, 14)
+ftuePulseCorner.Parent = ftuePulse
+
+local ftuePulseStroke = Instance.new("UIStroke")
+ftuePulseStroke.Color = Color3.fromRGB(255, 220, 120)
+ftuePulseStroke.Thickness = 2
+ftuePulseStroke.Transparency = 0.25
+ftuePulseStroke.Parent = ftuePulse
+
+local ftueArrow = Instance.new("TextLabel")
+ftueArrow.Name = "Arrow"
+ftueArrow.AnchorPoint = Vector2.new(0.5, 1)
+ftueArrow.Size = UDim2.new(0, 240, 0, 34)
+ftueArrow.BackgroundTransparency = 1
+ftueArrow.Text = ""
+ftueArrow.TextColor3 = Color3.fromRGB(255, 220, 100)
+ftueArrow.TextStrokeColor3 = Color3.fromRGB(45, 25, 0)
+ftueArrow.TextStrokeTransparency = 0.35
+ftueArrow.TextSize = 18
+ftueArrow.Font = Enum.Font.GothamBlack
+ftueArrow.Visible = false
+ftueArrow.ZIndex = 57
+ftueArrow.Parent = ftueGuideLayer
+
+local ftueStageTitles = {
+	[FTUE_STAGE_DIG] = "⬇ DIG HERE",
+	[FTUE_STAGE_SELL] = "⬇ SELL ALL",
+	[FTUE_STAGE_UPGRADE] = "⬇ UPGRADE",
+}
+
+local function hideFtueGuide()
+	ftueGuideEnabled = false
+	ftueGuideStage = FTUE_STAGE_DONE
+	ftueGuideLayer.Visible = false
+	ftuePulse.Visible = false
+	ftueArrow.Visible = false
+end
+
+local function getFtueTarget()
+	if ftueGuideStage == FTUE_STAGE_DIG then
+		local digSite = workspace:FindFirstChild("DigSite")
+		if not digSite then
+			return nil
+		end
+
+		return digSite:FindFirstChild("SpawnPlatform") or digSite:FindFirstChildWhichIsA("BasePart")
+	elseif ftueGuideStage == FTUE_STAGE_SELL then
+		return sellButton
+	elseif ftueGuideStage == FTUE_STAGE_UPGRADE then
+		return upgradeButton
+	end
+
+	return nil
+end
+
+local function getFtueTargetAnchor(target)
+	if not target then
+		return nil
+	end
+
+	if target:IsA("GuiObject") then
+		return target.AbsolutePosition + (target.AbsoluteSize / 2), target.AbsoluteSize
+	end
+
+	if target:IsA("BasePart") then
+		local camera = workspace.CurrentCamera
+		if not camera then
+			return nil
+		end
+
+		local screenPoint, onScreen = camera:WorldToScreenPoint(target.Position)
+		local viewportSize = camera.ViewportSize
+		local x = math.clamp(screenPoint.X, 80, math.max(80, viewportSize.X - 80))
+		local y = math.clamp(screenPoint.Y, 90, math.max(90, viewportSize.Y - 90))
+
+		if not onScreen then
+			x = math.floor(viewportSize.X * 0.5)
+			y = math.floor(viewportSize.Y * 0.42)
+		end
+
+		return Vector2.new(x, y), Vector2.new(108, 108)
+	end
+
+	return nil
+end
+
+local function applyFtueGuide()
+	if not ftueGuideEnabled or ftueGuideStage >= FTUE_STAGE_DONE then
+		ftueGuideLayer.Visible = false
+		ftuePulse.Visible = false
+		ftueArrow.Visible = false
+		return
+	end
+
+	local target = getFtueTarget()
+	local center, size = getFtueTargetAnchor(target)
+	if not center or not size then
+		ftueGuideLayer.Visible = false
+		ftuePulse.Visible = false
+		ftueArrow.Visible = false
+		return
+	end
+
+	local pulsePadding = 20 + math.floor(ftuePulseValue.Value * 10)
+	local pulseWidth = math.max(size.X + pulsePadding, 120)
+	local pulseHeight = math.max(size.Y + pulsePadding, 54)
+
+	ftuePulse.Size = UDim2.fromOffset(pulseWidth, pulseHeight)
+	ftuePulse.Position = UDim2.fromOffset(center.X, center.Y)
+	ftuePulse.Visible = true
+
+	ftueArrow.Text = ftueStageTitles[ftueGuideStage] or "⬇ DIG HERE"
+	ftueArrow.Position = UDim2.fromOffset(center.X, center.Y - (pulseHeight / 2) - 12)
+	ftueArrow.Visible = true
+	ftueGuideLayer.Visible = true
+end
+
+local ftuePulseTween = TweenService:Create(
+	ftuePulseValue,
+	TweenInfo.new(0.9, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true),
+	{ Value = 1 }
+)
+ftuePulseTween:Play()
+
+RunService.RenderStepped:Connect(function()
+	applyFtueGuide()
+end)
+
+local function refreshFtueGuideState()
+	if not ftueGuideEnabled then
+		return
+	end
+
+	if ftueGuideToolTier > 1 then
+		hideFtueGuide()
+		return
+	end
+
+	if ftueGuideStage < FTUE_STAGE_SELL and ftueGuideInventoryCount > 0 then
+		ftueGuideStage = FTUE_STAGE_SELL
+	end
+
+	if ftueGuideStage >= FTUE_STAGE_SELL and ftueGuideInventoryCount == 0 and ftueGuideNextToolCost and ftueGuideCoins >= ftueGuideNextToolCost then
+		ftueGuideStage = FTUE_STAGE_UPGRADE
+	end
+
+	applyFtueGuide()
+end
+
+local function initializeFtueGuide(data)
+	local inventoryCount = #(data.inventory or {})
+	local freshProfile = (data.toolTier or 1) == 1
+		and (data.totalBlocksDug or 0) == 0
+		and inventoryCount == 0
+		and (data.rebirths or 0) == 0
+
+	ftueGuideEnabled = freshProfile
+	ftueGuideCoins = math.floor(data.coins or 0)
+	ftueGuideInventoryCount = inventoryCount
+	ftueGuideToolTier = data.toolTier or 1
+	ftueGuideNextToolCost = data.nextToolCost
+	ftueGuideStage = ftueGuideEnabled and FTUE_STAGE_DIG or FTUE_STAGE_DONE
+
+	if ftueGuideEnabled then
+		refreshFtueGuideState()
+	else
+		hideFtueGuide()
+	end
+end
+
+local function updateFtueGuideFromHUD(data)
+	if not ftueGuideEnabled then
+		return
+	end
+
+	if data.coins ~= nil then
+		ftueGuideCoins = math.floor(data.coins)
+	end
+	if data.inventoryCount ~= nil then
+		ftueGuideInventoryCount = data.inventoryCount
+	end
+	if data.toolTier ~= nil then
+		ftueGuideToolTier = data.toolTier
+	end
+	if data.nextToolCost ~= nil then
+		ftueGuideNextToolCost = data.nextToolCost
+	end
+
+	refreshFtueGuideState()
+end
 
 -- ═══════════════════════════════════════════════════════════════════
 -- Shop Button + Gamepass Shop Panel
@@ -718,6 +951,8 @@ Remotes.UpdateHUD.OnClientEvent:Connect(function(data)
 	if data.personalBest then
 		-- Could show a star or depth update — handled by notification
 	end
+
+	updateFtueGuideFromHUD(data)
 end)
 
 Remotes.ItemFound.OnClientEvent:Connect(function(item)
@@ -905,6 +1140,7 @@ task.spawn(function()
 		blocksLabel.Text = "Blocks: " .. tostring(data.totalBlocksDug)
 		invLabel.Text = "Items: " .. tostring(#data.inventory)
 		currentToolTier = data.toolTier
+		initializeFtueGuide(data)
 
 		-- First-time tutorial: only on truly fresh profile (zero blocks dug, no inventory).
 		if (data.totalBlocksDug or 0) == 0 and #data.inventory == 0 then
