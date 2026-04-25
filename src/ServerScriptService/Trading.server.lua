@@ -86,6 +86,9 @@ local function cancelTrade(tradeId, reason)
 	activeTrades[tradeId] = nil
 end
 
+local TRADE_PROXIMITY_STUDS = 20
+local MAX_OFFER_ITEMS = 20
+
 -- Player A requests trade with Player B
 RequestTradeEvent.OnServerEvent:Connect(function(playerA, playerBId)
 	local playerB = Players:GetPlayerByUserId(playerBId)
@@ -94,19 +97,20 @@ RequestTradeEvent.OnServerEvent:Connect(function(playerA, playerBId)
 		return
 	end
 
-	-- Check proximity (within 20 studs)
+	-- Proximity check (20 studs). Both characters MUST exist; if either side is
+	-- mid-respawn, deny the trade rather than silently allowing across-map asks.
 	local charA = playerA.Character
 	local charB = playerB.Character
-	if charA and charB then
-		local hrpA = charA:FindFirstChild("HumanoidRootPart")
-		local hrpB = charB:FindFirstChild("HumanoidRootPart")
-		if hrpA and hrpB then
-			local dist = (hrpA.Position - hrpB.Position).Magnitude
-			if dist > 20 then
-				Remotes.Notify:FireClient(playerA, "Too far away! Get within 20 studs.", "Common")
-				return
-			end
-		end
+	local hrpA = charA and charA:FindFirstChild("HumanoidRootPart")
+	local hrpB = charB and charB:FindFirstChild("HumanoidRootPart")
+	if not (hrpA and hrpB) then
+		Remotes.Notify:FireClient(playerA, "Can't trade — partner is respawning.", "Common")
+		return
+	end
+	local dist = (hrpA.Position - hrpB.Position).Magnitude
+	if dist > TRADE_PROXIMITY_STUDS then
+		Remotes.Notify:FireClient(playerA, "Too far away! Get within " .. TRADE_PROXIMITY_STUDS .. " studs.", "Common")
+		return
 	end
 
 	-- Check neither is already trading
@@ -174,28 +178,61 @@ RespondTradeEvent.OnServerEvent:Connect(function(playerB, tradeId, accepted)
 	})
 end)
 
--- Player updates their offer
+-- Player updates their offer.
+-- SECURITY: client supplies itemIndices. We must (a) reject non-table input,
+-- (b) cap length, (c) ensure each entry is an integer in inventory range,
+-- (d) reject duplicate indices — without dedup a malicious client can submit
+-- {1,1,1,1,1} and dupe item #1 five times into the partner's inventory.
+-- Snapshots `{name, rarity, sellValue}` at offer time so executeTrade can
+-- re-validate the underlying item didn't change between offer and confirm.
 SetTradeOfferEvent.OnServerEvent:Connect(function(player, tradeId, itemIndices)
 	local trade = activeTrades[tradeId]
 	if not trade or trade.state ~= "selecting" then return end
+	if player ~= trade.playerA and player ~= trade.playerB then return end
 
-	if player == trade.playerA then
-		trade.offerA = itemIndices
-		trade.confirmA = false -- Reset confirm on offer change
-	elseif player == trade.playerB then
-		trade.offerB = itemIndices
-		trade.confirmB = false
-	else
-		return
+	if type(itemIndices) ~= "table" then return end
+
+	local data = getData(player)
+	if not data then return end
+
+	local invSize = #data.inventory
+	local cleaned = {}
+	local snapshots = {}
+	local seen = {}
+	for _, idx in ipairs(itemIndices) do
+		if type(idx) ~= "number" then return end
+		idx = math.floor(idx)
+		if idx < 1 or idx > invSize then return end
+		if seen[idx] then return end -- duplicate index in offer
+		seen[idx] = true
+		local item = data.inventory[idx]
+		if not item then return end
+		table.insert(cleaned, idx)
+		table.insert(snapshots, {
+			idx = idx,
+			name = item.name,
+			rarity = item.rarity,
+			sellValue = item.sellValue,
+		})
+		if #cleaned >= MAX_OFFER_ITEMS then break end
 	end
 
-	-- Notify partner of updated offer
-	local partner = (player == trade.playerA) and trade.playerB or trade.playerA
-	local offer = (player == trade.playerA) and trade.offerA or trade.offerB
+	if player == trade.playerA then
+		trade.offerA = cleaned
+		trade.snapshotA = snapshots
+	else
+		trade.offerB = cleaned
+		trade.snapshotB = snapshots
+	end
+	-- Both confirms reset on ANY offer change so neither side can pre-confirm
+	-- before they see the final swap composition.
+	trade.confirmA = false
+	trade.confirmB = false
 
+	local partner = (player == trade.playerA) and trade.playerB or trade.playerA
 	TradeUIEvent:FireClient(partner, "partner_offer", {
 		tradeId = tradeId,
-		itemCount = #offer,
+		itemCount = #cleaned,
 	})
 end)
 
@@ -224,6 +261,26 @@ ConfirmTradeEvent.OnServerEvent:Connect(function(player, tradeId)
 	end
 end)
 
+-- Verify a snapshot row still matches the underlying inventory item at that
+-- index. If the player sold or moved the item between offer-time and
+-- confirm-time, refuse the trade rather than swap a stale ghost.
+local function snapshotsMatch(snapshots, inventory)
+	if not snapshots then return false end
+	local seen = {}
+	for _, snap in ipairs(snapshots) do
+		if seen[snap.idx] then return false end
+		seen[snap.idx] = true
+		local cur = inventory[snap.idx]
+		if not cur then return false end
+		if cur.name ~= snap.name
+			or cur.rarity ~= snap.rarity
+			or cur.sellValue ~= snap.sellValue then
+			return false
+		end
+	end
+	return true
+end
+
 executeTrade = function(tradeId)
 	local trade = activeTrades[tradeId]
 	if not trade then return end
@@ -235,23 +292,26 @@ executeTrade = function(tradeId)
 		return
 	end
 
-	-- Validate that the offered indices are still in each player's inventory.
-	-- Sort offer indices descending so removal doesn't shift later positions.
-	local offerA = {}
-	for _, idx in ipairs(trade.offerA) do
-		local item = dataA.inventory[idx]
-		if item then table.insert(offerA, { idx = idx, item = item }) end
-	end
-	local offerB = {}
-	for _, idx in ipairs(trade.offerB) do
-		local item = dataB.inventory[idx]
-		if item then table.insert(offerB, { idx = idx, item = item }) end
+	-- Re-validate against snapshots taken at SetTradeOffer time. Closes the
+	-- dupe-by-duplicate-index vector AND the dupe-by-sell-then-trade vector.
+	if not (snapshotsMatch(trade.snapshotA, dataA.inventory)
+		and snapshotsMatch(trade.snapshotB, dataB.inventory)) then
+		cancelTrade(tradeId, "trade aborted — items changed since offer was made")
+		return
 	end
 
+	-- Sort offer indices descending so table.remove doesn't shift later picks.
+	local offerA = {}
+	for _, snap in ipairs(trade.snapshotA) do
+		table.insert(offerA, { idx = snap.idx, item = dataA.inventory[snap.idx] })
+	end
+	local offerB = {}
+	for _, snap in ipairs(trade.snapshotB) do
+		table.insert(offerB, { idx = snap.idx, item = dataB.inventory[snap.idx] })
+	end
 	table.sort(offerA, function(a, b) return a.idx > b.idx end)
 	table.sort(offerB, function(a, b) return a.idx > b.idx end)
 
-	-- Remove from each player's inventory.
 	for _, entry in ipairs(offerA) do
 		table.remove(dataA.inventory, entry.idx)
 	end
@@ -259,7 +319,6 @@ executeTrade = function(tradeId)
 		table.remove(dataB.inventory, entry.idx)
 	end
 
-	-- Add to opposite inventories. Update collections for new finds.
 	for _, entry in ipairs(offerA) do
 		local clone = { name = entry.item.name, rarity = entry.item.rarity, sellValue = entry.item.sellValue }
 		table.insert(dataB.inventory, clone)

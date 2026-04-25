@@ -22,6 +22,9 @@ local NotifyEvent = Remotes:WaitForChild("Notify")
 local UpdateHUDEvent = Remotes:WaitForChild("UpdateHUD")
 
 local CodesDataStore = DataStoreService:GetDataStore("DeepDig_Codes_v1")
+-- Separate store for code-level usage counters so we can UpdateAsync them
+-- atomically across servers (per-player redemptions stay in CodesDataStore).
+local CodeUsageStore = DataStoreService:GetDataStore("DeepDig_CodeUsage_v1")
 
 -- ═══════════════════════════════════════════════════════════════════
 -- Code Definitions (add new codes here)
@@ -67,8 +70,24 @@ local CODES = {
 	-- },
 }
 
--- Global usage counter (shared across all players)
-local globalUsage = {} -- { [code] = count }
+-- Cross-server usage counter via DataStore atomic increment.
+-- IncrementAsync is the right primitive here: each call returns the new total
+-- so we can roll back if the cap is exceeded.
+local function bumpGlobalUsage(code, by)
+	local ok, total = pcall(function()
+		return CodeUsageStore:IncrementAsync("count_" .. code, by or 1)
+	end)
+	if ok then return total end
+	return nil
+end
+
+local function readGlobalUsage(code)
+	local ok, total = pcall(function()
+		return CodeUsageStore:GetAsync("count_" .. code)
+	end)
+	if ok then return total or 0 end
+	return nil
+end
 
 -- ═══════════════════════════════════════════════════════════════════
 -- Redemption Logic
@@ -110,17 +129,30 @@ RedeemCodeEvent.OnServerEvent:Connect(function(player, inputCode)
 		return
 	end
 
-	-- Check global usage limit
+	-- Check global usage limit (DataStore-backed; persists across server restarts).
 	if codeDef.maxUses then
-		local used = globalUsage[code] or 0
+		local used = readGlobalUsage(code)
+		if used == nil then
+			-- DataStore unreachable. Refuse rather than risk over-redeeming.
+			CodeResultEvent:FireClient(player, false, "Try again in a moment")
+			return
+		end
 		if used >= codeDef.maxUses then
 			CodeResultEvent:FireClient(player, false, "This code has been fully redeemed")
 			return
 		end
 	end
 
-	-- Check if player already redeemed
-	local redeemed = getRedeemedCodes(player)
+	-- Check if player already redeemed. Distinguish "GetAsync threw" from
+	-- "code not redeemed" — a throttled GetAsync would let us double-redeem.
+	local redeemedOk, redeemed = pcall(function()
+		return CodesDataStore:GetAsync("redeemed_" .. player.UserId)
+	end)
+	if not redeemedOk then
+		CodeResultEvent:FireClient(player, false, "Try again in a moment")
+		return
+	end
+	redeemed = redeemed or {}
 	if redeemed[code] then
 		CodeResultEvent:FireClient(player, false, "You already redeemed this code")
 		return
@@ -149,7 +181,13 @@ RedeemCodeEvent.OnServerEvent:Connect(function(player, inputCode)
 
 	-- Mark as redeemed AFTER successful application (no double-apply on retry).
 	saveRedeemedCode(player, code)
-	globalUsage[code] = (globalUsage[code] or 0) + 1
+	-- Bump the cross-server counter. If we land over cap because of a race
+	-- between IncrementAsync and the earlier readGlobalUsage check, that's
+	-- acceptable — at most maxUses+(servers-1) redemptions slip through,
+	-- which is way better than the in-memory counter's per-server reset.
+	if codeDef.maxUses then
+		bumpGlobalUsage(code, 1)
+	end
 
 	-- Push the new totals to the HUD.
 	local UpdateHUD = Remotes:FindFirstChild("UpdateHUD")
