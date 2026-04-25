@@ -10,7 +10,6 @@
 --   * Applying pet multipliers to BlockBrokenEvent — lives in GameManager.
 --   * HUD UI for pet inventory + equip — lives in StarterGui (HudGui).
 --   * Pet leveling / fragment-based feeding — Phase 2 #8 follow-up.
---   * Lucky Egg gamepass (699 R$) double-luck — Phase 2 #8 follow-up.
 --   * Persistence of `pets` and `equippedPet` lives in GameManager's
 --     DEFAULT_DATA merge; it auto-fills missing fields on reload, but new
 --     players are initialized lazily here on first egg interaction.
@@ -19,6 +18,7 @@ local Players = game:GetService("Players")
 local HttpService = game:GetService("HttpService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
+local Config = require(ReplicatedStorage:WaitForChild("Config"))
 local PetDatabase = require(ReplicatedStorage:WaitForChild("PetDatabase"))
 
 local Remotes = ReplicatedStorage:WaitForChild("Remotes")
@@ -85,6 +85,82 @@ local function ensurePetFields(data)
 	else
 		data.equippedPet = false
 	end
+end
+
+local petsByEggAndRarity = {}
+for _, pet in ipairs(PetDatabase.PETS) do
+	local eggBucket = petsByEggAndRarity[pet.egg]
+	if not eggBucket then
+		eggBucket = {}
+		petsByEggAndRarity[pet.egg] = eggBucket
+	end
+
+	local rarityBucket = eggBucket[pet.rarity]
+	if not rarityBucket then
+		rarityBucket = {}
+		eggBucket[pet.rarity] = rarityBucket
+	end
+
+	table.insert(rarityBucket, pet)
+end
+
+local function rollFromEgg(eggType, player)
+	local egg = PetDatabase.EGGS[eggType]
+	if not egg then return nil end
+
+	local eggDrops = egg.dropRates
+	local weights = eggDrops
+
+	local data = _G.DeepDig_playerData and player and _G.DeepDig_playerData[player.UserId]
+	local hasLuckyEgg = data and data.ownedGamepasses and (
+		data.ownedGamepasses[Config.GAMEPASS_LUCKY_EGG]
+		or data.ownedGamepasses["Lucky Egg"]
+		or data.ownedGamepasses[0]
+	)
+
+	if hasLuckyEgg then
+		weights = {}
+		for rarity, weight in pairs(eggDrops) do
+			if rarity == "Legendary" or rarity == "Mythic" then
+				weights[rarity] = weight * 2
+			else
+				weights[rarity] = weight
+			end
+		end
+	end
+
+	local total = 0
+	for _, weight in pairs(weights) do
+		total = total + weight
+	end
+	if total <= 0 then return nil end
+
+	local roll = math.random() * total
+	local chosenRarity
+	local accum = 0
+	for rarity, weight in pairs(weights) do
+		accum = accum + weight
+		if roll <= accum then
+			chosenRarity = rarity
+			break
+		end
+	end
+	if not chosenRarity then return nil end
+
+	local pool = petsByEggAndRarity[eggType] and petsByEggAndRarity[eggType][chosenRarity]
+	if not pool or #pool == 0 then
+		local eggBucket = petsByEggAndRarity[eggType]
+		if eggBucket then
+			for _, rarityPool in pairs(eggBucket) do
+				if #rarityPool > 0 then
+					return rarityPool[math.random(#rarityPool)]
+				end
+			end
+		end
+		return nil
+	end
+
+	return pool[math.random(#pool)]
 end
 
 GetPetInventoryFunction.OnServerInvoke = function(player)
@@ -217,7 +293,7 @@ function rollAndAward(player, eggType)
 	-- Deduct + roll
 	data.coins = data.coins - egg.cost
 
-	local pet = PetDatabase.rollFromEgg(eggType)
+	local pet = rollFromEgg(eggType, player)
 	if not pet then
 		-- Refund on roller failure (shouldn't happen but defensive).
 		data.coins = data.coins + egg.cost

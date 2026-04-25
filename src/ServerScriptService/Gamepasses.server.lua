@@ -21,6 +21,8 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local MarketplaceService = game:GetService("MarketplaceService")
 local Chat = game:GetService("Chat")
 
+local Config = require(ReplicatedStorage:WaitForChild("Config"))
+
 local Remotes = ReplicatedStorage:WaitForChild("Remotes")
 local NotifyEvent = Remotes:WaitForChild("Notify")
 local UpdateHUDEvent = Remotes:WaitForChild("UpdateHUD")
@@ -29,7 +31,7 @@ local AUTO_PROMPT_DELAY = 240
 local autoPromptSessions = {}
 
 -- ─── Gamepass definitions ─────────────────────────────────────────────────────
--- Replace placeholder IDs (1, 2, 3) with your real Roblox gamepass IDs.
+-- Replace placeholder IDs (1, 2, 3, 0) with your real Roblox gamepass IDs.
 
 local GAMEPASSES = {
 	{
@@ -66,6 +68,38 @@ local function getSharedData(player)
 		return cache[player.UserId]
 	end
 	return nil
+end
+
+local function isValidPassId(passId)
+	return type(passId) == "number" and passId > 0
+end
+
+local function syncPassOwnership(data, pass, owned)
+	if not data.ownedGamepasses then
+		data.ownedGamepasses = {}
+	end
+
+	if isValidPassId(pass.id) then
+		data.ownedGamepasses[pass.id] = owned and true or nil
+	end
+
+	if pass.key then
+		data.ownedGamepasses[pass.key] = owned and true or nil
+	end
+end
+
+local luckyEggAnnounced = {}
+
+local function announceLuckyEgg(player)
+	if luckyEggAnnounced[player] then
+		return
+	end
+	luckyEggAnnounced[player] = true
+	NotifyEvent:FireClient(
+		player,
+		"🍀 Lucky Egg active - your eggs now favor Legendary and Mythic pets!",
+		"Legendary"
+	)
 end
 
 -- Wait for GameManager to finish populating this player's data.
@@ -118,7 +152,7 @@ local function getAutoPromptPass(data)
 	end
 
 	for _, pass in ipairs(GAMEPASSES) do
-		if ownedGamepasses[pass.id] ~= true then
+		if isValidPassId(pass.id) and ownedGamepasses[pass.id] ~= true then
 			return pass
 		end
 	end
@@ -212,16 +246,18 @@ local function checkPassesForPlayer(player)
 
 	local owned = {}
 	for _, pass in ipairs(GAMEPASSES) do
-		if ownsPass(player, pass.id) then
-			data.ownedGamepasses[pass.id] = true
+		if isValidPassId(pass.id) and ownsPass(player, pass.id) then
+			syncPassOwnership(data, pass, true)
 			table.insert(owned, pass.name)
 
 			-- Apply VIP tag immediately (on first spawn)
 			if pass.tag == "VIP" then
 				task.spawn(applyVIPTag, player)
+			elseif pass.key == Config.GAMEPASS_LUCKY_EGG then
+				announceLuckyEgg(player)
 			end
 		else
-			data.ownedGamepasses[pass.id] = nil
+			syncPassOwnership(data, pass, false)
 		end
 	end
 
@@ -261,6 +297,7 @@ end)
 
 Players.PlayerRemoving:Connect(function(player)
 	autoPromptSessions[player] = nil
+	luckyEggAnnounced[player] = nil
 end)
 
 -- Also check players already in-game when script loads (Studio playtest)
@@ -282,7 +319,7 @@ PromptPassEvent.OnServerEvent:Connect(function(player, passId)
 	-- Validate passId exists in our table
 	local valid = false
 	for _, pass in ipairs(GAMEPASSES) do
-		if pass.id == passId then valid = true break end
+		if isValidPassId(pass.id) and pass.id == passId then valid = true break end
 	end
 	if not valid then return end
 
@@ -299,16 +336,17 @@ MarketplaceService.PromptGamePassPurchaseFinished:Connect(function(player, passI
 	if not data then return end
 	if not data.ownedGamepasses then data.ownedGamepasses = {} end
 
-	data.ownedGamepasses[passId] = true
-
 	-- Find pass name for notification
 	local passName = "Gamepass"
 	for _, pass in ipairs(GAMEPASSES) do
 		if pass.id == passId then
+			syncPassOwnership(data, pass, true)
 			passName = pass.name
 
 			if pass.tag == "VIP" then
 				task.spawn(applyVIPTag, player)
+			elseif pass.key == Config.GAMEPASS_LUCKY_EGG then
+				announceLuckyEgg(player)
 			end
 			break
 		end
@@ -341,7 +379,7 @@ GetPassInfoFunc.OnServerInvoke = function(player)
 			icon = pass.icon,
 			price = pass.price,
 			tag = pass.tag,
-			owned = owned[pass.id] == true,
+			owned = owned[pass.id] == true or (pass.key and owned[pass.key] == true),
 		})
 	end
 	return result
