@@ -1,0 +1,14 @@
+# Autopilot lane artifacts — don't pollute the public repo
+_collab/heartbeat/logs/
+.lane-lock
+
+# OS / editor noise
+.DS_Store
+.vscode/
+.idea/
+
+# Build outputs / Studio
+*.rbxl
+*.rbxlx
+*.rbxm
+*.rbxmx
