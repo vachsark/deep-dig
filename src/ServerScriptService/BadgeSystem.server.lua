@@ -1,0 +1,272 @@
+-- BadgeSystem.server.lua — Roblox BadgeService milestone awards
+-- Place in: ServerScriptService/BadgeSystem (Script)
+--
+-- Phase 2 from ROADMAP.md. Holds an array of badge id placeholders that
+-- map vault-side milestones onto Roblox profile badges via BadgeService.
+-- The actual badges must be created on the Creator Dashboard; the
+-- numeric `badgeId` fields below are placeholders (0) until then —
+-- AwardBadge is short-circuited when badgeId is 0 so the in-game toast
+-- still fires for testing.
+--
+-- Out of scope (TODOs):
+--   * Replacing badgeId=0 placeholders with real Creator Dashboard ids.
+--   * Persisting `data.badgesAwarded` lives in GameManager's DEFAULT_DATA
+--     merge; new players are initialized lazily here on first event.
+--   * A dedicated server→server BindableEvent for "rare item found" —
+--     currently we sniff the latest inventory entry after each
+--     BlockBrokenEvent. Race-resistant via badgesAwarded idempotency.
+
+local Players = game:GetService("Players")
+local BadgeService = game:GetService("BadgeService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Remotes = ReplicatedStorage:WaitForChild("Remotes")
+local NotifyEvent = Remotes:WaitForChild("Notify")
+
+-- ServerEvents folder + BlockBroken BindableEvent are created by
+-- GameManager. Wait so we don't race the load order on hot-reload.
+local ServerEvents = ReplicatedStorage:WaitForChild("ServerEvents")
+local BlockBrokenEvent = ServerEvents:WaitForChild("BlockBroken")
+
+-- ═══════════════════════════════════════════════════════════════════
+-- Badge definitions
+-- ═══════════════════════════════════════════════════════════════════
+-- trigger.type values handled below:
+--   blocks_dug              → data.totalBlocksDug >= value
+--   rarity_found            → latest inventory item rarity == value
+--   depth_tier              → tier name reached (uses data.deepestBlock)
+--   resurface_count         → data.rebirths >= value
+--   museum_displays         → count(data.collections) >= value
+--                             (proxy for "displayed in museum"; tightened
+--                             once Museum.server.lua exposes a counter)
+local BADGES = {
+	{
+		id = "first_dig",
+		badgeId = 0,           -- TODO: replace with real Roblox badge id from Creator Dashboard
+		description = "Dig your first block",
+		trigger = { type = "blocks_dug", value = 1 },
+	},
+	{
+		id = "hundred_blocks",
+		badgeId = 0,           -- TODO: replace with real Roblox badge id
+		description = "Dig 100 blocks",
+		trigger = { type = "blocks_dug", value = 100 },
+	},
+	{
+		id = "thousand_blocks",
+		badgeId = 0,           -- TODO: replace with real Roblox badge id
+		description = "Dig 1,000 blocks",
+		trigger = { type = "blocks_dug", value = 1000 },
+	},
+	{
+		id = "first_rare_find",
+		badgeId = 0,           -- TODO: replace with real Roblox badge id
+		description = "Discover your first Rare item",
+		trigger = { type = "rarity_found", value = "Rare" },
+	},
+	{
+		id = "first_legendary",
+		badgeId = 0,           -- TODO: replace with real Roblox badge id
+		description = "Discover your first Legendary item",
+		trigger = { type = "rarity_found", value = "Legendary" },
+	},
+	{
+		id = "depth_unknown_tier",
+		badgeId = 0,           -- TODO: replace with real Roblox badge id
+		description = "Reach the Unknown depth tier",
+		trigger = { type = "depth_tier", value = "Unknown" },
+	},
+	{
+		id = "first_resurface",
+		badgeId = 0,           -- TODO: replace with real Roblox badge id
+		description = "Resurface for the first time",
+		trigger = { type = "resurface_count", value = 1 },
+	},
+	{
+		id = "first_museum_display",
+		badgeId = 0,           -- TODO: replace with real Roblox badge id; proxy on data.collections until Museum exposes a counter
+		description = "Display your first item in the museum",
+		trigger = { type = "museum_displays", value = 1 },
+	},
+}
+
+-- Tier-name → required minDepth lookup. Hardcoded (small constant table)
+-- to avoid pulling Config just for a name match; if Config.TIERS is
+-- renamed, this table must be updated in lockstep.
+local TIER_MIN_DEPTH = {
+	Modern = 0,
+	Industrial = 13,
+	Medieval = 38,
+	Ancient = 76,
+	Prehistoric = 126,
+	Unknown = 188,
+}
+
+-- ═══════════════════════════════════════════════════════════════════
+-- Player data access (shared cache from GameManager)
+-- ═══════════════════════════════════════════════════════════════════
+
+local function getData(player)
+	local cache = _G.DeepDig_playerData
+	if not cache then return nil end
+	return cache[player.UserId]
+end
+
+local function ensureBadgeField(data)
+	if not data then return end
+	if data.badgesAwarded == nil then
+		data.badgesAwarded = {}
+	end
+end
+
+-- ═══════════════════════════════════════════════════════════════════
+-- Award helper (idempotent, race-safe)
+-- ═══════════════════════════════════════════════════════════════════
+
+local function awardBadge(player, badgeKey)
+	local data = getData(player)
+	if not data then return end
+	ensureBadgeField(data)
+	if data.badgesAwarded[badgeKey] then return end
+
+	local entry
+	for _, b in ipairs(BADGES) do
+		if b.id == badgeKey then
+			entry = b
+			break
+		end
+	end
+	if not entry then return end
+
+	-- Mark first so a re-entrant trigger in the same frame can't double-fire.
+	data.badgesAwarded[badgeKey] = os.time()
+
+	if entry.badgeId and entry.badgeId > 0 then
+		local ok, err = pcall(function()
+			BadgeService:AwardBadge(player.UserId, entry.badgeId)
+		end)
+		if not ok then
+			warn("[DeepDig] BadgeService:AwardBadge failed for " .. badgeKey .. ": " .. tostring(err))
+		end
+	end
+
+	if NotifyEvent then
+		NotifyEvent:FireClient(player, "🏆 Badge unlocked: " .. entry.description, "Legendary")
+	end
+end
+
+-- ═══════════════════════════════════════════════════════════════════
+-- Trigger evaluation
+-- ═══════════════════════════════════════════════════════════════════
+
+local function countTable(t)
+	if type(t) ~= "table" then return 0 end
+	local n = 0
+	for _ in pairs(t) do
+		n = n + 1
+	end
+	return n
+end
+
+-- Evaluate every badge for a player. Cheap (8 entries, simple comparisons)
+-- and idempotency-protected by awardBadge, so we just brute-force on every
+-- relevant signal.
+local function evaluateAll(player)
+	local data = getData(player)
+	if not data then return end
+	ensureBadgeField(data)
+
+	local latestItem
+	if data.inventory and #data.inventory > 0 then
+		latestItem = data.inventory[#data.inventory]
+	end
+
+	for _, entry in ipairs(BADGES) do
+		if not data.badgesAwarded[entry.id] then
+			local trigger = entry.trigger
+			local fired = false
+
+			if trigger.type == "blocks_dug" then
+				if (data.totalBlocksDug or 0) >= trigger.value then
+					fired = true
+				end
+
+			elseif trigger.type == "rarity_found" then
+				if latestItem and latestItem.rarity == trigger.value then
+					fired = true
+				end
+
+			elseif trigger.type == "depth_tier" then
+				local needed = TIER_MIN_DEPTH[trigger.value]
+				if needed and (data.deepestBlock or 0) >= needed then
+					fired = true
+				end
+
+			elseif trigger.type == "resurface_count" then
+				if (data.rebirths or 0) >= trigger.value then
+					fired = true
+				end
+
+			elseif trigger.type == "museum_displays" then
+				-- Proxy on collections until Museum.server.lua exposes
+				-- a real "displayed" counter. data.collections is set
+				-- to true for any item the player has ever owned —
+				-- close enough for "first museum display" milestone.
+				if countTable(data.collections) >= trigger.value then
+					fired = true
+				end
+			end
+
+			if fired then
+				awardBadge(player, entry.id)
+			end
+		end
+	end
+end
+
+-- ═══════════════════════════════════════════════════════════════════
+-- Wire up signals
+-- ═══════════════════════════════════════════════════════════════════
+
+-- Fires for every block any player breaks. We re-evaluate that player's
+-- badges; covers blocks_dug, rarity_found, depth_tier in one place.
+BlockBrokenEvent.Event:Connect(function(player, _blockPosition)
+	if not player then return end
+	evaluateAll(player)
+end)
+
+-- Per-player init + slow polling loop for resurface/museum gating.
+-- 30s cadence keeps server cost negligible while still catching events
+-- driven from systems we don't (and shouldn't) couple to directly.
+local function startPlayerLoop(player)
+	task.spawn(function()
+		-- Wait briefly for GameManager to populate _G.DeepDig_playerData.
+		local data
+		for _ = 1, 20 do
+			data = getData(player)
+			if data then break end
+			task.wait(0.5)
+		end
+		if not data then return end
+		ensureBadgeField(data)
+
+		-- Initial sweep covers cases where data was loaded with progress
+		-- already in place (Studio playtest / hot-reload).
+		evaluateAll(player)
+
+		while player.Parent do
+			task.wait(30)
+			if not getData(player) then return end
+			evaluateAll(player)
+		end
+	end)
+end
+
+Players.PlayerAdded:Connect(startPlayerLoop)
+
+-- Handle players already in-game when the script loads (Studio playtest).
+for _, player in ipairs(Players:GetPlayers()) do
+	startPlayerLoop(player)
+end
+
+print("[DeepDig] BadgeSystem loaded — " .. #BADGES .. " badges configured")
