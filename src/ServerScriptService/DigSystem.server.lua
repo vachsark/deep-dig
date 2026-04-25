@@ -5,6 +5,46 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Config = require(ReplicatedStorage:WaitForChild("Config"))
+local PetDatabase = require(ReplicatedStorage:WaitForChild("PetDatabase"))
+
+local function getData(player)
+	return _G.DeepDig_playerData and _G.DeepDig_playerData[player.UserId]
+end
+
+local function getEquippedPetDigSpeed(data)
+	if not data or not data.equippedPet or not data.pets then
+		return 1
+	end
+
+	local equippedName
+	for _, record in ipairs(data.pets) do
+		if type(record) == "table" and record.id == data.equippedPet then
+			equippedName = record.name
+			break
+		end
+	end
+
+	if not equippedName then
+		return 1
+	end
+
+	local petDef = PetDatabase.getPet(equippedName)
+	local digSpeed = petDef and petDef.multipliers and petDef.multipliers.dig_speed
+	if type(digSpeed) ~= "number" then
+		return 1
+	end
+
+	return math.min(digSpeed, 5)
+end
+
+local function getDigInterval(player)
+	local data = getData(player)
+	local tool = data and Config.TOOLS[data.toolTier]
+	local baseInterval = (tool and tool.speed) or 1
+	local petDigSpeed = getEquippedPetDigSpeed(data)
+
+	return baseInterval / petDigSpeed
+end
 
 -- ═══════════════════════════════════════════════════════════════════
 -- Dig Site Generation
@@ -15,6 +55,7 @@ digSiteFolder.Name = "DigSite"
 digSiteFolder.Parent = workspace
 
 local blockGrid = {} -- [x][z][y] = Part
+local digCooldownByUserId = {}
 
 local function getTierForDepth(depthBlocks)
 	for _, tier in ipairs(Config.TIERS) do
@@ -193,15 +234,15 @@ end
 local DIG_RANGE_STUDS = 60 -- conservative; tune later
 
 local function breakBlock(player, block)
-	if not block then return end
-	if not block:GetAttribute("Depth") then return end
-	if not block:IsDescendantOf(digSiteFolder) then return end
+	if not block then return false end
+	if not block:GetAttribute("Depth") then return false end
+	if not block:IsDescendantOf(digSiteFolder) then return false end
 
 	-- Range check: prevent click-anywhere exploits.
 	local character = player.Character
 	local hrp = character and character:FindFirstChild("HumanoidRootPart")
 	if hrp and (hrp.Position - block.Position).Magnitude > DIG_RANGE_STUDS then
-		return
+		return false
 	end
 
 	local gridX = block:GetAttribute("GridX")
@@ -227,6 +268,8 @@ local function breakBlock(player, block)
 	-- Fire DigBlock to GameManager for loot processing (server→server via BindableEvent)
 	local ServerEvents = ReplicatedStorage:WaitForChild("ServerEvents")
 	ServerEvents.BlockBroken:Fire(player, Vector3.new(gridX, -depthBlock * Config.BLOCK_SIZE, gridZ))
+
+	return true
 end
 
 -- ═══════════════════════════════════════════════════════════════════
@@ -267,7 +310,14 @@ local function setupDigRemote()
 		if not block:GetAttribute("Depth") then return end
 		if not block:IsDescendantOf(digSiteFolder) then return end
 
-		breakBlock(player, block)
+		local userId = player.UserId
+		local now = os.clock()
+		local nextAllowedDigAt = digCooldownByUserId[userId] or 0
+		if now < nextAllowedDigAt then return end
+
+		if breakBlock(player, block) then
+			digCooldownByUserId[userId] = now + getDigInterval(player)
+		end
 	end)
 end
 
@@ -287,6 +337,9 @@ local function onPlayerAdded(player)
 end
 
 Players.PlayerAdded:Connect(onPlayerAdded)
+Players.PlayerRemoving:Connect(function(player)
+	digCooldownByUserId[player.UserId] = nil
+end)
 
 -- Handle players already in the game when the script loads (Studio playtest)
 for _, player in ipairs(Players:GetPlayers()) do
