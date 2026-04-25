@@ -87,6 +87,36 @@ local function getData(player)
 	return cache[player.UserId]
 end
 
+-- Wait for GameManager to populate player data via the PlayerDataReady
+-- BindableEvent. Replaces the old `task.wait(1)` race in onCharacterAdded.
+local ServerEvents = ReplicatedStorage:WaitForChild("ServerEvents")
+local PlayerDataReady = ServerEvents:WaitForChild("PlayerDataReady")
+
+local function awaitPlayerData(player, timeoutSeconds)
+	if _G.DeepDig_playerData and _G.DeepDig_playerData[player.UserId] then
+		return _G.DeepDig_playerData[player.UserId]
+	end
+	local readyForThisPlayer = false
+	local connection
+	connection = PlayerDataReady.Event:Connect(function(p)
+		if p == player then
+			readyForThisPlayer = true
+		end
+	end)
+	local elapsed = 0
+	local step = 0.1
+	local cap = timeoutSeconds or 30
+	while not readyForThisPlayer and elapsed < cap and player.Parent do
+		task.wait(step)
+		elapsed = elapsed + step
+	end
+	connection:Disconnect()
+	if _G.DeepDig_playerData then
+		return _G.DeepDig_playerData[player.UserId]
+	end
+	return nil
+end
+
 -- Forward-declared so the ResurfaceEvent handler can call it; defined below
 -- alongside the spawn-time aura logic.
 local applyAura
@@ -230,8 +260,8 @@ end
 
 -- Apply aura on character spawn using shared player data.
 local function onCharacterAdded(player, character)
-	task.wait(1) -- let GameManager load profile
-	local data = getData(player)
+	-- Wait for GameManager via PlayerDataReady BindableEvent (cap 30s).
+	local data = awaitPlayerData(player, 30)
 	if not data then return end
 	if (data.rebirths or 0) > 0 then
 		applyAura(player, data.rebirths)

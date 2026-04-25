@@ -31,6 +31,15 @@ ServerEvents.Parent = ReplicatedStorage
 local BlockBrokenEvent = Instance.new("BindableEvent")
 BlockBrokenEvent.Name = "BlockBroken"
 BlockBrokenEvent.Parent = ServerEvents
+
+-- Fired per player after their persisted data finishes loading.
+-- Consumers (DailyStreak, Gamepasses, Leaderboard, Rebirth) wait on this
+-- instead of sleeping a fixed `task.wait(N)` and hoping GameManager beat
+-- them to populate `_G.DeepDig_playerData`. See awaitPlayerData() helper
+-- in each consumer.
+local PlayerDataReady = Instance.new("BindableEvent")
+PlayerDataReady.Name = "PlayerDataReady"
+PlayerDataReady.Parent = ServerEvents
 local SellItemEvent = createRemote("SellItem")
 local BuyToolEvent = createRemote("BuyTool")
 local SellAllEvent = createRemote("SellAll")
@@ -633,6 +642,10 @@ end
 
 local function onPlayerAdded(player)
 	local data = loadPlayerData(player)
+	-- Signal readiness AFTER playerData[UserId] is populated. Consumers
+	-- (DailyStreak, Gamepasses, Leaderboard, Rebirth) wait on this event
+	-- via awaitPlayerData() instead of guessing with task.wait(N).
+	PlayerDataReady:Fire(player)
 	print("[DeepDig] " .. player.Name .. " joined (coins: " .. data.coins .. ", tool: " .. Config.TOOLS[data.toolTier].name .. ")")
 end
 

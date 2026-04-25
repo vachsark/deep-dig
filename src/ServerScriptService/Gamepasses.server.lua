@@ -68,6 +68,36 @@ local function getSharedData(player)
 	return nil
 end
 
+-- Wait for GameManager to finish populating this player's data.
+-- Replaces the old `task.wait(3)` race in checkPassesForPlayer.
+local ServerEvents = ReplicatedStorage:WaitForChild("ServerEvents")
+local PlayerDataReady = ServerEvents:WaitForChild("PlayerDataReady")
+
+local function awaitPlayerData(player, timeoutSeconds)
+	if _G.DeepDig_playerData and _G.DeepDig_playerData[player.UserId] then
+		return _G.DeepDig_playerData[player.UserId]
+	end
+	local readyForThisPlayer = false
+	local connection
+	connection = PlayerDataReady.Event:Connect(function(p)
+		if p == player then
+			readyForThisPlayer = true
+		end
+	end)
+	local elapsed = 0
+	local step = 0.1
+	local cap = timeoutSeconds or 30
+	while not readyForThisPlayer and elapsed < cap and player.Parent do
+		task.wait(step)
+		elapsed = elapsed + step
+	end
+	connection:Disconnect()
+	if _G.DeepDig_playerData then
+		return _G.DeepDig_playerData[player.UserId]
+	end
+	return nil
+end
+
 -- Check a single gamepass. Returns true/false. Wraps in pcall.
 local function ownsPass(player, passId)
 	local ok, result = pcall(function()
@@ -166,10 +196,10 @@ end
 -- ─── On player join — check and cache all passes ─────────────────────────────
 
 local function checkPassesForPlayer(player)
-	-- Wait for GameManager to load player data first
-	task.wait(3)
-
-	local data = getSharedData(player)
+	-- Wait for GameManager via PlayerDataReady BindableEvent (cap 30s).
+	-- Old code slept a fixed 3s which silently skipped gamepass init when
+	-- GameManager's :GetAsync was throttled.
+	local data = awaitPlayerData(player, 30)
 	if not data then
 		warn("[Gamepasses] No player data for " .. player.Name .. " — skipping pass check.")
 		return

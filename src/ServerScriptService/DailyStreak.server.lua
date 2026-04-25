@@ -161,6 +161,39 @@ local function getSharedData(player)
 	return nil
 end
 
+-- Wait for GameManager to finish populating this player's data.
+-- Replaces the old `task.wait(2)` race: if GameManager's :GetAsync is
+-- slow (DataStore throttle), the fixed sleep silently skipped streak
+-- init. PlayerDataReady fires per-player from GameManager once the
+-- cache slot is set.
+local ServerEvents = ReplicatedStorage:WaitForChild("ServerEvents")
+local PlayerDataReady = ServerEvents:WaitForChild("PlayerDataReady")
+
+local function awaitPlayerData(player, timeoutSeconds)
+	if _G.DeepDig_playerData and _G.DeepDig_playerData[player.UserId] then
+		return _G.DeepDig_playerData[player.UserId]
+	end
+	local readyForThisPlayer = false
+	local connection
+	connection = PlayerDataReady.Event:Connect(function(p)
+		if p == player then
+			readyForThisPlayer = true
+		end
+	end)
+	local elapsed = 0
+	local step = 0.1
+	local cap = timeoutSeconds or 30
+	while not readyForThisPlayer and elapsed < cap and player.Parent do
+		task.wait(step)
+		elapsed = elapsed + step
+	end
+	connection:Disconnect()
+	if _G.DeepDig_playerData then
+		return _G.DeepDig_playerData[player.UserId]
+	end
+	return nil
+end
+
 local function getStreakHudPayload(data)
 	return {
 		coins = data.coins,
@@ -244,13 +277,13 @@ end
 -- ─── Streak processing ───────────────────────────────────────────────────────
 
 local function processLoginStreak(player)
-	-- Small delay to ensure GameManager has loaded and registered _G.DeepDig_playerData
-	task.wait(2)
-
-	local data = getSharedData(player)
+	-- Wait for GameManager to populate _G.DeepDig_playerData via the
+	-- PlayerDataReady BindableEvent. Capped at 30s; if it times out the
+	-- player likely left or DataStore is hard-down, so abort silently.
+	local data = awaitPlayerData(player, 30)
 	if not data then
-		warn("[DailyStreak] Could not find player data for " .. player.Name ..
-			". Ensure _G.DeepDig_playerData = playerData is set in GameManager.")
+		warn("[DailyStreak] Player data never became ready for " .. player.Name ..
+			" (timeout or player left).")
 		return
 	end
 

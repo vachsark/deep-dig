@@ -28,6 +28,36 @@ local function getSharedData(player)
 	return nil
 end
 
+-- Wait for GameManager to populate player data via the PlayerDataReady
+-- BindableEvent. Replaces the old `task.wait(3)` race in onPlayerAdded.
+local ServerEvents = ReplicatedStorage:WaitForChild("ServerEvents")
+local PlayerDataReady = ServerEvents:WaitForChild("PlayerDataReady")
+
+local function awaitPlayerData(player, timeoutSeconds)
+	if _G.DeepDig_playerData and _G.DeepDig_playerData[player.UserId] then
+		return _G.DeepDig_playerData[player.UserId]
+	end
+	local readyForThisPlayer = false
+	local connection
+	connection = PlayerDataReady.Event:Connect(function(p)
+		if p == player then
+			readyForThisPlayer = true
+		end
+	end)
+	local elapsed = 0
+	local step = 0.1
+	local cap = timeoutSeconds or 30
+	while not readyForThisPlayer and elapsed < cap and player.Parent do
+		task.wait(step)
+		elapsed = elapsed + step
+	end
+	connection:Disconnect()
+	if _G.DeepDig_playerData then
+		return _G.DeepDig_playerData[player.UserId]
+	end
+	return nil
+end
+
 -- ─── Personal best tracking ──────────────────────────────────────────────────
 -- We track the session-start deepestBlock per player so we can fire a
 -- notification only when a new all-time record is actually broken.
@@ -35,8 +65,8 @@ end
 local sessionDeepest = {} -- { [userId] = number } — value at join time
 
 local function onPlayerAdded(player)
-	task.wait(3) -- let GameManager load data first
-	local data = getSharedData(player)
+	-- Wait for GameManager via PlayerDataReady BindableEvent (cap 30s).
+	local data = awaitPlayerData(player, 30)
 	if data then
 		sessionDeepest[player.UserId] = data.deepestBlock or 0
 	end
