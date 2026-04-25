@@ -278,6 +278,103 @@ local function playLegendaryFindFlash()
 	end)
 end
 
+local eventShakeBindingName = "DeepDigEventCameraShake"
+local eventShakeSequence = 0
+local eventShakeBaseCFrame = nil
+local eventShakeBound = false
+local eventShakeState = nil
+
+local function clearEventCameraShake(sequence)
+	if sequence and sequence ~= eventShakeSequence then
+		return
+	end
+
+	local camera = workspace.CurrentCamera
+	if camera and eventShakeBaseCFrame then
+		camera.CFrame = eventShakeBaseCFrame
+	end
+
+	eventShakeBaseCFrame = nil
+	eventShakeState = nil
+
+	if eventShakeBound then
+		RunService:UnbindFromRenderStep(eventShakeBindingName)
+		eventShakeBound = false
+	end
+end
+
+local function getEventShakeProfile(eventName)
+	if eventName == "Earthquake" then
+		return 0.52, 0.22, 0.85, 24
+	end
+
+	if eventName == "CaveSystem" then
+		return 0.34, 0.12, 0.32, 20
+	end
+
+	if eventName == "GoldVein" or eventName == "FossilLayer" then
+		return 0.28, 0.08, 0.2, 18
+	end
+
+	return 0.26, 0.1, 0.24, 18
+end
+
+local function playEventCameraShake(eventName)
+	eventShakeSequence = eventShakeSequence + 1
+	local sequence = eventShakeSequence
+	local duration, positionStrength, rotationStrength, noiseFrequency = getEventShakeProfile(eventName)
+
+	eventShakeState = {
+		sequence = sequence,
+		startTime = os.clock(),
+		duration = duration,
+		positionStrength = positionStrength,
+		rotationStrength = rotationStrength,
+		noiseFrequency = noiseFrequency,
+		seed = sequence * 37,
+	}
+
+	if eventShakeBound then
+		return
+	end
+
+	eventShakeBound = true
+	RunService:BindToRenderStep(eventShakeBindingName, Enum.RenderPriority.Camera.Value + 1, function()
+		local camera = workspace.CurrentCamera
+		local state = eventShakeState
+
+		if not camera or not state then
+			clearEventCameraShake()
+			return
+		end
+
+		local elapsed = os.clock() - state.startTime
+		local progress = elapsed / state.duration
+		if progress >= 1 then
+			clearEventCameraShake(state.sequence)
+			return
+		end
+
+		local falloff = 1 - math.clamp(progress, 0, 1)
+		local shakeTime = elapsed * state.noiseFrequency
+		local seed = state.seed
+		local xNoise = math.noise(seed * 0.01, shakeTime, 0)
+		local yNoise = math.noise(shakeTime, seed * 0.01, 1)
+		local zNoise = math.noise(0, shakeTime, seed * 0.01)
+		local rxNoise = math.noise(shakeTime, 2, seed * 0.01)
+		local ryNoise = math.noise(seed * 0.01, 3, shakeTime)
+		local rzNoise = math.noise(4, seed * 0.01, shakeTime)
+
+		eventShakeBaseCFrame = camera.CFrame
+
+		local positionOffset = Vector3.new(xNoise, yNoise, zNoise) * state.positionStrength * falloff
+		local rotationScale = math.rad(state.rotationStrength) * falloff
+		local rotationOffset = CFrame.Angles(rxNoise * rotationScale, ryNoise * rotationScale, rzNoise * rotationScale)
+
+		camera.CFrame = eventShakeBaseCFrame * CFrame.new(positionOffset) * rotationOffset
+	end)
+end
+
 local function showNotification(text, rarity)
 	local color = RARITY_COLORS[rarity] or Color3.fromRGB(200, 200, 200)
 
@@ -1027,6 +1124,7 @@ Remotes.ItemFound.OnClientEvent:Connect(function(item)
 end)
 
 Remotes.EventTriggered.OnClientEvent:Connect(function(eventName, message, duration)
+	playEventCameraShake(eventName)
 	showNotification("⚡ " .. message, "Legendary")
 end)
 
