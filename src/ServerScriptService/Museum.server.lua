@@ -272,17 +272,67 @@ DisplayItemEvent.OnServerEvent:Connect(function(player, inventoryIndex)
 	local museum = playerMuseums[player.UserId]
 	if not museum then return end
 
-	-- Get player data from GameManager
-	local playerDataFunc = Remotes:FindFirstChild("GetPlayerData")
-	if not playerDataFunc then return end
-	local data = playerDataFunc:InvokeServer and nil -- Can't invoke from server
+	local cache = _G.DeepDig_playerData
+	if not cache then return end
+	local data = cache[player.UserId]
+	if not data then return end
 
-	-- Instead, access via shared module pattern
-	-- For MVP: trust the client's inventory index and validate server-side
-	local Remotes = ReplicatedStorage:WaitForChild("Remotes")
+	local item = data.inventory[inventoryIndex]
+	if not item then return end
 
-	-- Fire to GameManager to remove from inventory and get item data
-	-- (In production, this would be a direct module call, not remote)
+	if museum.displayedItems[item.name] then
+		local NotifyEvent = Remotes:FindFirstChild("Notify")
+		if NotifyEvent then
+			NotifyEvent:FireClient(player, item.name .. " is already on display.", "Common")
+		end
+		return
+	end
+
+	local pedestal = findPedestalForItem(museum, item.name)
+	if not pedestal then return end
+
+	local rarityColor = RARITY_COLORS[item.rarity] or RARITY_COLORS.Common
+	local display = Instance.new("Part")
+	display.Name = "Display_" .. item.name
+	display.Size = DISPLAY_ITEM_SIZE
+	display.Position = pedestal.Position + Vector3.new(0, PEDESTAL_SIZE.Y / 2 + DISPLAY_ITEM_SIZE.Y / 2, 0)
+	display.Anchored = true
+	display.CanCollide = false
+	display.Material = Enum.Material.Neon
+	display.Color = rarityColor
+	display.Parent = pedestal
+
+	local label = pedestal:FindFirstChild("Label")
+	if label then
+		local txt = label:FindFirstChildOfClass("TextLabel")
+		if txt then
+			txt.Text = item.name
+			txt.TextColor3 = rarityColor
+		end
+	end
+	pedestal:SetAttribute("Occupied", true)
+
+	museum.displayedItems[item.name] = {
+		rarity = item.rarity,
+		sellValue = item.sellValue,
+		displayedAt = os.time(),
+	}
+
+	table.remove(data.inventory, inventoryIndex)
+
+	local UpdateHUDEvent = Remotes:FindFirstChild("UpdateHUD")
+	if UpdateHUDEvent then
+		UpdateHUDEvent:FireClient(player, { inventoryCount = #data.inventory })
+	end
+	MuseumUpdateEvent:FireClient(player, {
+		itemName = item.name,
+		rarity = item.rarity,
+		totalDisplayed = (function()
+			local n = 0
+			for _ in pairs(museum.displayedItems) do n = n + 1 end
+			return n
+		end)(),
+	})
 end)
 
 -- ═══════════════════════════════════════════════════════════════════

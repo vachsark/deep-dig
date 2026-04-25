@@ -68,12 +68,6 @@ end
 -- ═══════════════════════════════════════════════════════════════════
 
 ResurfaceInfoFunc.OnServerInvoke = function(player)
-	local GetPlayerDataFunc = Remotes:FindFirstChild("GetPlayerData")
-	if not GetPlayerDataFunc then return nil end
-
-	local data = GetPlayerDataFunc:InvokeServer and nil
-	-- NOTE: In production, use shared module. For MVP, return config.
-
 	return {
 		costFormula = "1M * 1.08^n",
 		multiplierPerResurface = MULTIPLIER_PER_RESURFACE,
