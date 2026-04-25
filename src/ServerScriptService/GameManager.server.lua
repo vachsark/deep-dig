@@ -59,6 +59,7 @@ local DEFAULT_DATA = {
 	fragments = 0,        -- Duplicate recycling currency
 	rebirths = 0,
 	totalEarned = 0,
+	lastSeenAt = 0,      -- Unix timestamp of the last successful save
 	lastLoginDate = "",   -- "YYYY-MM-DD" for streak tracking
 	loginStreak = 0,      -- Consecutive daily login count
 	streakReviveEligible = false,
@@ -93,6 +94,8 @@ end
 local function savePlayerData(player)
 	local data = playerData[player.UserId]
 	if not data then return end
+
+	data.lastSeenAt = os.time()
 
 	pcall(function()
 		PlayerDataStore:SetAsync("player_" .. player.UserId, data)
