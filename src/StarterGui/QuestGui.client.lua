@@ -34,7 +34,9 @@ screenGui.Parent = playerGui
 
 local panelOpen = player:GetAttribute("QuestPanelOpen") == true
 local currentQuestDay = ""
+local currentQuestWeekKey = ""
 local claimedQuestIds = {}
+local weeklyQuestClaimed = false
 local activeCards = {}
 local refreshInFlight = false
 
@@ -49,6 +51,7 @@ local COLOR_READY = Color3.fromRGB(85, 190, 95)
 local COLOR_DISABLED = Color3.fromRGB(74, 72, 82)
 local COLOR_BAR_BG = Color3.fromRGB(38, 36, 48)
 local COLOR_BAR_FILL = Color3.fromRGB(255, 196, 72)
+local COLOR_WEEKLY = Color3.fromRGB(92, 145, 255)
 
 local function destroyQuestCards()
 	for _, card in ipairs(activeCards) do
@@ -83,6 +86,15 @@ local function normalizeStatus(status)
 	return {
 		day = type(status.day) == "string" and status.day or "",
 		quests = quests,
+		weekly = type(status.weekly) == "table" and {
+			id = type(status.weekly.id) == "string" and status.weekly.id or "",
+			description = type(status.weekly.description) == "string" and status.weekly.description or "Weekly quest",
+			progress = safeNumber(status.weekly.progress),
+			target = math.max(1, safeNumber(status.weekly.target)),
+			complete = status.weekly.complete == true,
+			claimed = status.weekly.claimed == true,
+			weekKey = type(status.weekly.weekKey) == "string" and status.weekly.weekKey or "",
+		} or nil,
 	}
 end
 
@@ -94,10 +106,18 @@ local function markQuestClaimed(questId)
 	claimedQuestIds[questId] = true
 end
 
+local function isWeeklyQuestClaimed()
+	return weeklyQuestClaimed == true
+end
+
+local function markWeeklyQuestClaimed(claimed)
+	weeklyQuestClaimed = claimed == true
+end
+
 local panel = Instance.new("Frame")
 panel.Name = "QuestPanel"
-panel.Size = UDim2.fromOffset(360, 316)
-panel.Position = UDim2.new(1, -376, 1, -372)
+panel.Size = UDim2.fromOffset(360, 398)
+panel.Position = UDim2.new(1, -376, 1, -454)
 panel.BackgroundColor3 = COLOR_PANEL
 panel.BackgroundTransparency = 0.08
 panel.BorderSizePixel = 0
@@ -163,7 +183,7 @@ dayLabel.Parent = panel
 
 local cardsFrame = Instance.new("Frame")
 cardsFrame.Name = "Cards"
-cardsFrame.Size = UDim2.new(1, -20, 0, 238)
+cardsFrame.Size = UDim2.new(1, -20, 0, 320)
 cardsFrame.Position = UDim2.fromOffset(10, 76)
 cardsFrame.BackgroundTransparency = 1
 cardsFrame.ZIndex = 11
@@ -245,13 +265,20 @@ local function setLoadingVisible(isLoading, dayText)
 	end
 end
 
-local function makeCard(quest)
+local function makeCard(quest, cardConfig)
+	cardConfig = cardConfig or {}
+
 	local questId = type(quest.id) == "string" and quest.id or ""
 	local description = type(quest.description) == "string" and quest.description or "Unknown quest"
 	local progress = safeNumber(quest.progress)
 	local target = math.max(1, safeNumber(quest.target))
-	local complete = quest.complete == true
-	local claimed = questId ~= "" and isQuestClaimed(questId)
+	local complete = cardConfig.isComplete == true or quest.complete == true
+	local claimed = cardConfig.isClaimed
+	if claimed == nil then
+		claimed = questId ~= "" and isQuestClaimed(questId)
+	end
+	local isWeekly = cardConfig.isWeekly == true
+	local onClaim = cardConfig.onClaim
 	local fillRatio = math.clamp(progress / target, 0, 1)
 
 	local card = Instance.new("Frame")
@@ -261,6 +288,7 @@ local function makeCard(quest)
 	card.BackgroundTransparency = 0
 	card.BorderSizePixel = 0
 	card.ZIndex = 12
+	card.LayoutOrder = cardConfig.layoutOrder or 0
 	card.Parent = cardsFrame
 
 	local cardCorner = Instance.new("UICorner")
@@ -270,12 +298,12 @@ local function makeCard(quest)
 	local cardStroke = Instance.new("UIStroke")
 	cardStroke.Thickness = 1
 	cardStroke.Transparency = claimed and 0.1 or complete and 0.18 or 0.55
-	cardStroke.Color = claimed and COLOR_READY or complete and COLOR_ACCENT or COLOR_PANEL_EDGE
+	cardStroke.Color = claimed and COLOR_READY or complete and COLOR_ACCENT or (isWeekly and COLOR_WEEKLY or COLOR_PANEL_EDGE)
 	cardStroke.Parent = card
 
 	local accent = Instance.new("Frame")
 	accent.Size = UDim2.new(0, 6, 1, 0)
-	accent.BackgroundColor3 = claimed and COLOR_READY or complete and COLOR_ACCENT or Color3.fromRGB(88, 84, 104)
+	accent.BackgroundColor3 = claimed and COLOR_READY or complete and COLOR_ACCENT or (isWeekly and COLOR_WEEKLY or Color3.fromRGB(88, 84, 104))
 	accent.BorderSizePixel = 0
 	accent.ZIndex = 13
 	accent.Parent = card
@@ -364,7 +392,12 @@ local function makeCard(quest)
 	claimCorner.Parent = claimButton
 
 	local function applyButtonState()
-		local questClaimed = questId ~= "" and isQuestClaimed(questId)
+		local questClaimed = claimed
+		if isWeekly then
+			questClaimed = isWeeklyQuestClaimed() or claimed
+		elseif questId ~= "" then
+			questClaimed = isQuestClaimed(questId) or claimed
+		end
 		local questComplete = complete and not questClaimed
 
 		if questClaimed then
@@ -391,25 +424,41 @@ local function makeCard(quest)
 			claimButton.TextColor3 = Color3.fromRGB(185, 185, 185)
 			claimButton.Active = false
 			claimButton.AutoButtonColor = false
-			stateBadge.Text = "LOCKED"
-			stateBadge.TextColor3 = Color3.fromRGB(195, 192, 204)
-			stateBadge.BackgroundColor3 = Color3.fromRGB(58, 56, 68)
+			stateBadge.Text = isWeekly and "WEEKLY" or "LOCKED"
+			stateBadge.TextColor3 = isWeekly and Color3.fromRGB(235, 242, 255) or Color3.fromRGB(195, 192, 204)
+			stateBadge.BackgroundColor3 = isWeekly and COLOR_WEEKLY or Color3.fromRGB(58, 56, 68)
 		end
 	end
 
 	claimButton.MouseButton1Click:Connect(function()
-		if not complete or questId == "" or isQuestClaimed(questId) then
+		if not complete then
+			return
+		end
+
+		if isWeekly then
+			if isWeeklyQuestClaimed() then
+				return
+			end
+		elseif questId == "" or isQuestClaimed(questId) then
 			return
 		end
 
 		local ok = pcall(function()
-			claimQuest:FireServer(questId)
+			if onClaim then
+				onClaim()
+			else
+				claimQuest:FireServer(questId)
+			end
 		end)
 		if not ok then
 			return
 		end
 
-		markQuestClaimed(questId)
+		if isWeekly then
+			markWeeklyQuestClaimed(true)
+		else
+			markQuestClaimed(questId)
+		end
 		applyButtonState()
 	end)
 
@@ -426,7 +475,7 @@ local function renderQuestStatus(status)
 	end
 
 	local normalized = normalizeStatus(status)
-	if not normalized or #normalized.quests == 0 then
+	if not normalized or (#normalized.quests == 0 and not normalized.weekly) then
 		setLoadingVisible(true, normalized and normalized.day or "")
 		return
 	end
@@ -439,13 +488,39 @@ local function renderQuestStatus(status)
 		currentQuestDay = normalized.day
 	end
 
+	if normalized.weekly then
+		if normalized.weekly.weekKey ~= "" and normalized.weekly.weekKey ~= currentQuestWeekKey then
+			weeklyQuestClaimed = false
+		end
+
+		if normalized.weekly.weekKey ~= "" then
+			currentQuestWeekKey = normalized.weekly.weekKey
+		end
+
+		markWeeklyQuestClaimed(normalized.weekly.claimed)
+	end
+
 	setLoadingVisible(false, normalized.day)
 
 	for index, quest in ipairs(normalized.quests) do
 		if index > 3 then
 			break
 		end
-		makeCard(quest)
+		makeCard(quest, {
+			layoutOrder = index,
+		})
+	end
+
+	if normalized.weekly then
+		makeCard(normalized.weekly, {
+			isWeekly = true,
+			isComplete = normalized.weekly.complete,
+			isClaimed = normalized.weekly.claimed,
+			layoutOrder = 4,
+			onClaim = function()
+				claimQuest:FireServer(normalized.weekly.id)
+			end,
+		})
 	end
 end
 

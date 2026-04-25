@@ -46,6 +46,10 @@ local function currentDay()
 	return os.date("!%Y-%m-%d")
 end
 
+local function currentWeekKey()
+	return os.date("!%Y-W%V")
+end
+
 local function dailySeed()
 	return math.floor(os.time() / 86400)
 end
@@ -70,6 +74,29 @@ local function ensureQuestFields(data)
 	end
 	if type(data.questDay) ~= "string" then
 		data.questDay = ""
+	end
+	if type(data.weeklyQuestProgress) ~= "number" then
+		data.weeklyQuestProgress = 0
+	end
+	if type(data.weeklyQuestClaimed) ~= "boolean" then
+		data.weeklyQuestClaimed = false
+	end
+	if type(data.weeklyQuestWeekKey) ~= "string" then
+		data.weeklyQuestWeekKey = ""
+	end
+end
+
+local function ensureWeeklyQuestState(data)
+	local weeklyQuest = QuestDatabase.weeklyQuest
+	if type(weeklyQuest) ~= "table" then
+		return
+	end
+
+	local weekKey = currentWeekKey()
+	if data.weeklyQuestWeekKey ~= weekKey then
+		data.weeklyQuestWeekKey = weekKey
+		data.weeklyQuestProgress = 0
+		data.weeklyQuestClaimed = false
 	end
 end
 
@@ -109,6 +136,7 @@ local function ensureTodayQuests(player)
 	end
 
 	ensureQuestFields(data)
+	ensureWeeklyQuestState(data)
 
 	local day = currentDay()
 	if data.questDay ~= day or #data.questAssignedIds == 0 then
@@ -211,6 +239,21 @@ local function addProgress(data, questId, amount)
 	setProgress(data, questId, current + amount)
 end
 
+local function incrementWeeklyQuestProgress(data)
+	local weeklyQuest = QuestDatabase.weeklyQuest
+	if type(weeklyQuest) ~= "table" then
+		return
+	end
+
+	ensureWeeklyQuestState(data)
+	if data.weeklyQuestClaimed then
+		return
+	end
+
+	local current = getNumber(data.weeklyQuestProgress, 0)
+	data.weeklyQuestProgress = math.min(weeklyQuest.target, current + 1)
+end
+
 local function applyProgress(player, eventType, eventData)
 	local data = ensureTodayQuests(player)
 	if not data then
@@ -291,11 +334,27 @@ local function buildQuestStatus(player)
 	local data = ensureTodayQuests(player)
 	local day = currentDay()
 	local quests = {}
+	local weeklyStatus = nil
+	local weeklyQuest = QuestDatabase.weeklyQuest
 
 	if not data then
+		if type(weeklyQuest) == "table" then
+			weeklyStatus = {
+				id = weeklyQuest.id,
+				description = weeklyQuest.description,
+				progress = 0,
+				target = weeklyQuest.target,
+				complete = false,
+				claimed = false,
+				reward = weeklyQuest.reward,
+				weekKey = currentWeekKey(),
+			}
+		end
+
 		return {
 			quests = quests,
 			day = day,
+			weekly = weeklyStatus,
 		}
 	end
 
@@ -313,9 +372,24 @@ local function buildQuestStatus(player)
 		end
 	end
 
+	if type(weeklyQuest) == "table" then
+		local progress = math.min(weeklyQuest.target, getNumber(data.weeklyQuestProgress, 0))
+		weeklyStatus = {
+			id = weeklyQuest.id,
+			description = weeklyQuest.description,
+			progress = progress,
+			target = weeklyQuest.target,
+			complete = progress >= weeklyQuest.target,
+			claimed = data.weeklyQuestClaimed == true,
+			reward = weeklyQuest.reward,
+			weekKey = data.weeklyQuestWeekKey ~= "" and data.weeklyQuestWeekKey or currentWeekKey(),
+		}
+	end
+
 	return {
 		quests = quests,
 		day = data.questDay ~= "" and data.questDay or day,
+		weekly = weeklyStatus,
 	}
 end
 
@@ -349,6 +423,25 @@ local function claimQuest(player, questId)
 	if not data then
 		return
 	end
+	ensureWeeklyQuestState(data)
+
+	local weeklyQuest = QuestDatabase.weeklyQuest
+	if type(weeklyQuest) == "table" and questId == weeklyQuest.id then
+		local progress = getNumber(data.weeklyQuestProgress, 0)
+		if data.weeklyQuestClaimed then
+			NotifyEvent:FireClient(player, "Weekly quest already claimed.", "Common")
+			return
+		end
+		if progress < weeklyQuest.target then
+			NotifyEvent:FireClient(player, "Weekly quest is not complete yet.", "Common")
+			return
+		end
+
+		data.weeklyQuestClaimed = true
+		data.weeklyQuestProgress = weeklyQuest.target
+		grantQuestReward(player, data, weeklyQuest)
+		return
+	end
 
 	local quest = questById[questId]
 	if not quest then
@@ -373,6 +466,7 @@ local function claimQuest(player, questId)
 	end
 
 	data.questClaimed[questId] = true
+	incrementWeeklyQuestProgress(data)
 	grantQuestReward(player, data, quest)
 end
 

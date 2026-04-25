@@ -65,6 +65,14 @@ local module = {
 	},
 }
 
+module.weeklyQuest = {
+	id = "weekly_daily_claims",
+	description = "Complete 5 daily quest claims",
+	type = "daily_claims",
+	target = 5,
+	reward = { coins = 2000, fragments = 12 },
+}
+
 local function makeRng(seed)
 	local state = math.floor(math.abs(tonumber(seed) or 0)) % 2147483647
 	if state == 0 then
