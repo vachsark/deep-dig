@@ -11,6 +11,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
 local MarketplaceService = game:GetService("MarketplaceService")
+local Lighting = game:GetService("Lighting")
 
 local player = Players.LocalPlayer
 local Remotes = ReplicatedStorage:WaitForChild("Remotes")
@@ -46,6 +47,42 @@ coinsLabel.TextSize = 22
 coinsLabel.Font = Enum.Font.GothamBold
 coinsLabel.TextXAlignment = Enum.TextXAlignment.Left
 coinsLabel.Parent = topBar
+
+-- ─── Coin counter pulse ──────────────────────────────────────────────────────
+-- Scale-pop the coin label on every gain (gold), red pulse on losses
+-- (upgrade purchases). Closure-scoped previousCoins so we only pulse on
+-- a real delta, not on every UpdateHUD broadcast.
+
+local COIN_TEXT_BASE_SIZE = coinsLabel.TextSize  -- 22
+local previousCoinValue = nil
+local coinPulseSequence = 0
+
+local function pulseCoinLabel(direction)
+	coinPulseSequence = coinPulseSequence + 1
+	local sequence = coinPulseSequence
+
+	-- Snap the label up large + tinted, then ease back to baseline.
+	-- EasingStyle.Back gives the satisfying "pop and settle" feel.
+	local accentColor = direction == "loss"
+		and Color3.fromRGB(255, 90, 90)   -- red — coins spent
+		or Color3.fromRGB(255, 230, 110)  -- bright gold — coins gained
+	local restColor = Color3.fromRGB(255, 200, 50)
+
+	coinsLabel.TextColor3 = accentColor
+	coinsLabel.TextSize = COIN_TEXT_BASE_SIZE + 8
+
+	local settle = TweenService:Create(
+		coinsLabel,
+		TweenInfo.new(0.15, Enum.EasingStyle.Back, Enum.EasingDirection.Out),
+		{ TextSize = COIN_TEXT_BASE_SIZE, TextColor3 = restColor }
+	)
+	settle:Play()
+	settle.Completed:Connect(function()
+		if sequence ~= coinPulseSequence then return end
+		coinsLabel.TextSize = COIN_TEXT_BASE_SIZE
+		coinsLabel.TextColor3 = restColor
+	end)
+end
 
 -- Depth display
 local depthLabel = Instance.new("TextLabel")
@@ -282,6 +319,75 @@ local function playLegendaryFindFlash()
 			end
 
 			findFlashOverlay.BackgroundTransparency = 1
+		end)
+	end)
+end
+
+-- ─── Lighting pulse on rare finds ────────────────────────────────────────────
+-- Briefly tweens Lighting.Brightness up and back. A single guard
+-- (lightingPulseSequence + lightingPulseBaseBrightness) ensures two finds in
+-- quick succession don't stack — we always restore to the *original* value
+-- captured before the first pulse, and the previous tweens are cancelled.
+
+local LIGHTING_PULSE_PROFILES = {
+	-- target peak Brightness, total duration in seconds
+	Epic      = { peak = 2.4, duration = 0.30 },
+	Legendary = { peak = 3.0, duration = 0.40 },
+	Mythic    = { peak = 3.5, duration = 0.50 },
+}
+
+local lightingPulseSequence = 0
+local lightingPulseBaseBrightness = nil
+local lightingPulseInTween = nil
+local lightingPulseOutTween = nil
+
+local function playLightingPulse(rarity)
+	local profile = LIGHTING_PULSE_PROFILES[rarity]
+	if not profile then return end
+
+	lightingPulseSequence = lightingPulseSequence + 1
+	local sequence = lightingPulseSequence
+
+	if lightingPulseInTween then lightingPulseInTween:Cancel() end
+	if lightingPulseOutTween then lightingPulseOutTween:Cancel() end
+
+	-- Capture the baseline brightness only on the first pulse (or after a
+	-- previous pulse fully restored it). Otherwise reuse the saved one so
+	-- a rapid second hit can't bake the elevated value in as the new base.
+	if lightingPulseBaseBrightness == nil then
+		lightingPulseBaseBrightness = Lighting.Brightness
+	end
+
+	local base = lightingPulseBaseBrightness
+	local upTime = profile.duration * 0.4
+	local downTime = profile.duration * 0.6
+
+	lightingPulseInTween = TweenService:Create(
+		Lighting,
+		TweenInfo.new(upTime, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+		{ Brightness = profile.peak }
+	)
+	lightingPulseInTween:Play()
+	lightingPulseInTween.Completed:Connect(function(playbackState)
+		if sequence ~= lightingPulseSequence or playbackState ~= Enum.PlaybackState.Completed then
+			return
+		end
+
+		lightingPulseOutTween = TweenService:Create(
+			Lighting,
+			TweenInfo.new(downTime, Enum.EasingStyle.Quad, Enum.EasingDirection.In),
+			{ Brightness = base }
+		)
+		lightingPulseOutTween:Play()
+		lightingPulseOutTween.Completed:Connect(function(outPlaybackState)
+			if sequence ~= lightingPulseSequence then return end
+			-- Force-restore to the captured baseline regardless of how the
+			-- tween ended (cancelled or completed) so we never leave the
+			-- world permanently brighter.
+			Lighting.Brightness = base
+			if outPlaybackState == Enum.PlaybackState.Completed then
+				lightingPulseBaseBrightness = nil
+			end
 		end)
 	end)
 end
@@ -1238,7 +1344,13 @@ end
 
 Remotes.UpdateHUD.OnClientEvent:Connect(function(data)
 	if data.coins then
-		coinsLabel.Text = "🪙 " .. tostring(math.floor(data.coins))
+		local newCoins = math.floor(data.coins)
+		coinsLabel.Text = "🪙 " .. tostring(newCoins)
+		if previousCoinValue ~= nil and newCoins ~= previousCoinValue then
+			-- gain → gold pulse; loss (upgrade purchase) → red pulse
+			pulseCoinLabel(newCoins > previousCoinValue and "gain" or "loss")
+		end
+		previousCoinValue = newCoins
 	end
 	if data.depth then
 		local tierText = data.tierName or "Surface"
@@ -1283,6 +1395,10 @@ end)
 Remotes.ItemFound.OnClientEvent:Connect(function(item)
 	if item and LEGENDARY_FIND_FLASH_RARITIES[item.rarity] then
 		playLegendaryFindFlash()
+	end
+
+	if item and LIGHTING_PULSE_PROFILES[item.rarity] then
+		playLightingPulse(item.rarity)
 	end
 
 	showNotification("Found: " .. item.name .. " (+" .. item.sellValue .. " coins)", item.rarity)
@@ -1466,6 +1582,7 @@ task.spawn(function()
 	local data = Remotes.GetPlayerData:InvokeServer()
 	if data then
 		coinsLabel.Text = "🪙 " .. tostring(math.floor(data.coins))
+		previousCoinValue = math.floor(data.coins)
 		toolLabel.Text = "🔧 " .. data.toolName
 		blocksLabel.Text = "Blocks: " .. tostring(data.totalBlocksDug)
 		invLabel.Text = "Items: " .. tostring(#data.inventory)
