@@ -62,6 +62,7 @@ local DEFAULT_DATA = {
 	lastLoginDate = "",   -- "YYYY-MM-DD" for streak tracking
 	loginStreak = 0,      -- Consecutive daily login count
 	ownedGamepasses = {}, -- { [passId] = true }
+	firstSellAffordabilityGrantUsed = false, -- FTUE: one-time first-sell catch-up
 }
 
 local function loadPlayerData(player)
@@ -95,6 +96,27 @@ end
 
 local function getPlayerData(player)
 	return playerData[player.UserId]
+end
+
+local function applyFirstSellAffordabilityGrant(player, data)
+	if data.toolTier ~= 1 then return end
+	if data.firstSellAffordabilityGrantUsed then return end
+
+	local nextTool = Config.TOOLS[data.toolTier + 1]
+	if not nextTool then return end
+
+	data.firstSellAffordabilityGrantUsed = true
+
+	if data.coins >= nextTool.cost then return end
+
+	local grantAmount = nextTool.cost - data.coins
+	data.coins = data.coins + grantAmount
+
+	NotifyEvent:FireClient(
+		player,
+		"FTUE boost: you can now afford the " .. nextTool.name .. ". Upgrade to dig faster.",
+		"Uncommon"
+	)
 end
 
 -- ═══════════════════════════════════════════════════════════════════
@@ -242,6 +264,8 @@ SellItemEvent.OnServerEvent:Connect(function(player, inventoryIndex)
 	data.totalEarned = data.totalEarned + item.sellValue
 	table.remove(data.inventory, inventoryIndex)
 
+	applyFirstSellAffordabilityGrant(player, data)
+
 	UpdateHUDEvent:FireClient(player, {
 		coins = data.coins,
 		inventoryCount = #data.inventory,
@@ -260,6 +284,8 @@ SellAllEvent.OnServerEvent:Connect(function(player)
 	data.coins = data.coins + total
 	data.totalEarned = data.totalEarned + total
 	data.inventory = {}
+
+	applyFirstSellAffordabilityGrant(player, data)
 
 	-- SOUND HOOK: coin clink/jingle on sell
 	-- Remotes.PlaySound:FireClient(player, "sell_coins")
