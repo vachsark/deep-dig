@@ -45,59 +45,17 @@ local TradeUIEvent = Instance.new("RemoteEvent")
 TradeUIEvent.Name = "TradeUI"
 TradeUIEvent.Parent = Remotes
 
-local RecycleItemEvent = Instance.new("RemoteEvent")
-RecycleItemEvent.Name = "RecycleItem"
-RecycleItemEvent.Parent = Remotes
+-- NOTE: RecycleItem, RecycleAllDupes, CraftFromFrags are created and handled
+-- by GameManager.server.lua (which owns playerData mutations). Earlier versions
+-- of this file created duplicate RemoteEvents with the same names + stub
+-- handlers, which silently shadowed the real handlers. Keep them out of here.
 
-local RecycleAllDupesEvent = Instance.new("RemoteEvent")
-RecycleAllDupesEvent.Name = "RecycleAllDupes"
-RecycleAllDupesEvent.Parent = Remotes
-
-local CraftFromFragsEvent = Instance.new("RemoteEvent")
-CraftFromFragsEvent.Name = "CraftFromFrags"
-CraftFromFragsEvent.Parent = Remotes
-
--- ═══════════════════════════════════════════════════════════════════
--- Duplicate / Fragment System
--- ═══════════════════════════════════════════════════════════════════
-
-local FRAGMENT_VALUES = {
-	Common    = 1,
-	Uncommon  = 3,
-	Rare      = 10,
-	Epic      = 30,
-	Legendary = 100,
-	Mythic    = 500,
-}
-
-local CRAFT_COSTS = {
-	-- Spend fragments for a guaranteed rarity roll
-	Uncommon  = 5,
-	Rare      = 15,
-	Epic      = 50,
-	Legendary = 200,
-	Mythic    = 1000,
-}
-
--- Get player data (shares the same in-memory store as GameManager)
--- In production, use a shared module. For MVP, we use RemoteFunction.
-local function getPlayerInventory(player)
-	local data = Remotes:FindFirstChild("GetPlayerData"):InvokeServer()
-	return data
+-- Shared player-data accessor: same pattern as Rebirth/AdminCommands.
+local function getData(player)
+	local cache = _G.DeepDig_playerData
+	if not cache then return nil end
+	return cache[player.UserId]
 end
-
-RecycleItemEvent.OnServerEvent:Connect(function(player, inventoryIndex)
-	-- Access shared player data
-	-- NOTE: In the actual game, GameManager exposes a module-level API.
-	-- For this MVP, we fire a custom internal event.
-
-	local NotifyEvent = Remotes:FindFirstChild("Notify")
-	if not NotifyEvent then return end
-
-	-- This needs to integrate with GameManager's playerData table.
-	-- For now, we define the recycling logic and trust the integration.
-	NotifyEvent:FireClient(player, "Recycling system ready — integrate with GameManager", "Common")
-end)
 
 -- ═══════════════════════════════════════════════════════════════════
 -- Trading State Machine
@@ -262,24 +220,67 @@ ConfirmTradeEvent.OnServerEvent:Connect(function(player, tradeId)
 	end
 end)
 
-function executeTrade(tradeId)
+local function executeTrade(tradeId)
 	local trade = activeTrades[tradeId]
 	if not trade then return end
 
+	local dataA = getData(trade.playerA)
+	local dataB = getData(trade.playerB)
+	if not dataA or not dataB then
+		cancelTrade(tradeId, "trade aborted — player data not available")
+		return
+	end
+
+	-- Validate that the offered indices are still in each player's inventory.
+	-- Sort offer indices descending so removal doesn't shift later positions.
+	local offerA = {}
+	for _, idx in ipairs(trade.offerA) do
+		local item = dataA.inventory[idx]
+		if item then table.insert(offerA, { idx = idx, item = item }) end
+	end
+	local offerB = {}
+	for _, idx in ipairs(trade.offerB) do
+		local item = dataB.inventory[idx]
+		if item then table.insert(offerB, { idx = idx, item = item }) end
+	end
+
+	table.sort(offerA, function(a, b) return a.idx > b.idx end)
+	table.sort(offerB, function(a, b) return a.idx > b.idx end)
+
+	-- Remove from each player's inventory.
+	for _, entry in ipairs(offerA) do
+		table.remove(dataA.inventory, entry.idx)
+	end
+	for _, entry in ipairs(offerB) do
+		table.remove(dataB.inventory, entry.idx)
+	end
+
+	-- Add to opposite inventories. Update collections for new finds.
+	for _, entry in ipairs(offerA) do
+		local clone = { name = entry.item.name, rarity = entry.item.rarity, sellValue = entry.item.sellValue }
+		table.insert(dataB.inventory, clone)
+		dataB.collections[clone.name] = true
+	end
+	for _, entry in ipairs(offerB) do
+		local clone = { name = entry.item.name, rarity = entry.item.rarity, sellValue = entry.item.sellValue }
+		table.insert(dataA.inventory, clone)
+		dataA.collections[clone.name] = true
+	end
+
 	trade.state = "confirmed"
 
-	-- NOTE: In production, this directly manipulates the shared playerData
-	-- table from GameManager. For MVP, we send the trade result via events
-	-- and GameManager processes the inventory swap.
-
-	-- Notify both players
 	Remotes.Notify:FireClient(trade.playerA, "Trade complete with " .. trade.playerB.Name .. "!", "Rare")
 	Remotes.Notify:FireClient(trade.playerB, "Trade complete with " .. trade.playerA.Name .. "!", "Rare")
 
 	TradeUIEvent:FireClient(trade.playerA, "complete", { tradeId = tradeId })
 	TradeUIEvent:FireClient(trade.playerB, "complete", { tradeId = tradeId })
 
-	-- Cleanup
+	local UpdateHUD = Remotes:FindFirstChild("UpdateHUD")
+	if UpdateHUD then
+		UpdateHUD:FireClient(trade.playerA, { inventoryCount = #dataA.inventory })
+		UpdateHUD:FireClient(trade.playerB, { inventoryCount = #dataB.inventory })
+	end
+
 	playerTradeMap[trade.playerA.UserId] = nil
 	playerTradeMap[trade.playerB.UserId] = nil
 	activeTrades[tradeId] = nil
@@ -292,44 +293,6 @@ CancelTradeEvent.OnServerEvent:Connect(function(player, tradeId)
 	if player ~= trade.playerA and player ~= trade.playerB then return end
 
 	cancelTrade(tradeId, player.Name .. " cancelled the trade")
-end)
-
--- ═══════════════════════════════════════════════════════════════════
--- Duplicate Detection + Recycling
--- ═══════════════════════════════════════════════════════════════════
-
--- This integrates into GameManager's player data. The fragments field
--- is added to the player data schema:
---   data.fragments = 0  (integer, fragment currency)
---   data.collections = { ["Old Coin"] = true, ... }
---
--- Recycling a duplicate: item is removed from inventory, fragments added.
--- Crafting: spend fragments for a guaranteed rarity roll from any unlocked tier.
-
-RecycleAllDupesEvent.OnServerEvent:Connect(function(player)
-	-- NOTE: Needs GameManager integration
-	-- Logic: scan inventory, find items already in collections{}, recycle them
-	-- For each dupe: remove from inventory, add FRAGMENT_VALUES[rarity] to data.fragments
-
-	Remotes.Notify:FireClient(player, "Recycle system active — duplicates converted to fragments", "Uncommon")
-end)
-
-CraftFromFragsEvent.OnServerEvent:Connect(function(player, targetRarity)
-	local cost = CRAFT_COSTS[targetRarity]
-	if not cost then
-		Remotes.Notify:FireClient(player, "Invalid rarity: " .. tostring(targetRarity), "Common")
-		return
-	end
-
-	-- NOTE: Needs GameManager integration
-	-- Logic:
-	-- 1. Check data.fragments >= cost
-	-- 2. Deduct fragments
-	-- 3. Pick random unlocked tier, roll item of targetRarity
-	-- 4. Add to inventory
-	-- 5. Notify player
-
-	Remotes.Notify:FireClient(player, "Crafting: " .. targetRarity .. " costs " .. cost .. " fragments", "Rare")
 end)
 
 -- ═══════════════════════════════════════════════════════════════════
