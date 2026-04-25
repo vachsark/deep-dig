@@ -199,6 +199,10 @@ SetTradeOfferEvent.OnServerEvent:Connect(function(player, tradeId, itemIndices)
 	})
 end)
 
+-- Forward declaration so the ConfirmTrade handler can call executeTrade
+-- before its definition appears below.
+local executeTrade
+
 -- Player confirms their side of the trade
 ConfirmTradeEvent.OnServerEvent:Connect(function(player, tradeId)
 	local trade = activeTrades[tradeId]
@@ -220,7 +224,7 @@ ConfirmTradeEvent.OnServerEvent:Connect(function(player, tradeId)
 	end
 end)
 
-local function executeTrade(tradeId)
+executeTrade = function(tradeId)
 	local trade = activeTrades[tradeId]
 	if not trade then return end
 
