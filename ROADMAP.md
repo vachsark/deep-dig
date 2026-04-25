@@ -15,37 +15,50 @@
 
 ## Phase 1: Launch Week (highest impact, easiest to build)
 
-### 1. FTUE Tuning (Day 1)
+### 1. FTUE Tuning (Day 1) — COMPLETE
 
-- Guarantee first item drop within 10 blocks
-- Tune economy so first sell = enough for Tier 2 tool
-- Add arrow guide: dig → sell → upgrade flow
-- First gamepass prompt only after 4 minutes
+- [x] Guarantee first item drop within 10 blocks (commit 36a0183)
+- [x] Tune economy so first sell = enough for Tier 2 tool (commit ca1eb9e)
+- [x] Add arrow guide: dig → sell → upgrade flow (commit 43def6d)
+- [x] First gamepass prompt only after 4 minutes (commit 15a1d76)
+- [x] First-time tutorial popup (commit bc91223)
 
-### 2. Screen Effects for Rare Finds (Day 1-2)
+### 2. Screen Effects for Rare Finds (Day 1-2) — IN PROGRESS
 
-- Full-screen gold flash on Legendary+ finds
-- Screen shake on events
-- Particle burst at finder's position (visible server-wide)
-- Sound effects for dig, find, sell, upgrade
+- [ ] Full-screen gold flash on Legendary+ finds
+- [ ] Screen shake on events
+- [x] Particle burst at finder's position (commit 8af4007 — every block break)
+- [x] Sound effects scaffolding (commit 03ff2f8 — block_break + resurface_fanfare; remaining hooks: item_found, rare_reveal, sell_coins, upgrade_whoosh, event_alarm)
 
-### 3. Daily Login Streak (Day 2-3)
+### 3. Daily Login Streak (Day 2-3) — COMPLETE
 
-- 7-day cycle: coins → coins → coins → fragments → coins → fragments → guaranteed Rare
-- Streak counter in HUD
-- Streak revival for 50 Robux
+- [x] 7-day cycle reward ladder
+- [x] Streak counter in HUD
+- [ ] Streak revival for 50 Robux (Robux dev product not yet wired)
 
-### 4. Gamepasses (Day 2-3)
+### 4. Gamepasses (Day 2-3) — COMPLETE (placeholder asset IDs — needs real Roblox passes)
 
-- 2x Loot Value — 199 R$
-- VIP Pass — 349 R$ (cosmetic + 50% coins)
-- Lucky Digger — 499 R$ (+25% drop chance)
+- [x] 2x Loot Value gamepass effect wired
+- [x] VIP gamepass effect wired
+- [x] Lucky Digger gamepass effect wired
+- [ ] Replace placeholder pass IDs (1, 2, 3) with real Creator Hub IDs before launch
 
-### 5. Depth Leaderboard (Day 3-4)
+### 5. Depth Leaderboard (Day 3-4) — COMPLETE
 
-- In-world board showing top 5 on current server
-- Global leaderboard via OrderedDataStore
-- "New Personal Best!" notifications
+- [x] In-world board showing top 5 on current server (commit abcd57e)
+- [x] Global leaderboard via OrderedDataStore
+- [x] "New Personal Best!" notifications
+
+### 6. Stability + UX gaps shipped 2026-04-25
+
+- [x] Resurface (prestige) fully wired end-to-end (commit 77976db) — was a stub
+- [x] Trading.executeTrade actually swaps inventory (commit 117abaf) — was a no-op
+- [x] PromoCodes actually applies rewards (commit 7ea3916) — was a phantom toast
+- [x] Museum.server.lua + Rebirth.server.lua parse-error fix (commit 3441a2c)
+- [x] Museum + Resurface buttons in HUD (commits bc91223, 77976db)
+- [x] AdminCommands chat gate (commit 5233dfe) — game owner can /maxall, /coins, /tool
+- [x] 60-stud range check on dig (commit 8af4007)
+- [x] PlayerAdded race fix across 4 server scripts (commit 744f2b3)
 
 ## Phase 2: First Month (retention + monetization)
 
