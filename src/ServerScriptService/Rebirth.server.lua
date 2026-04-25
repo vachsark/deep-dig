@@ -178,17 +178,36 @@ local function applyAura(player, resurfaces)
 end
 
 -- Apply aura on character spawn
-Players.PlayerAdded:Connect(function(player)
+local function onCharacterAdded(player, character)
+	task.wait(1)
+	-- Get resurface count from player data
+	local GetPlayerDataFunc = Remotes:FindFirstChild("GetPlayerData")
+	if GetPlayerDataFunc then
+		-- In production: local data = PlayerDataModule.get(player)
+		-- For MVP: aura applied when GameManager sends resurface count via HUD update
+	end
+end
+
+local function onPlayerAdded(player)
 	player.CharacterAdded:Connect(function(character)
-		task.wait(1)
-		-- Get resurface count from player data
-		local GetPlayerDataFunc = Remotes:FindFirstChild("GetPlayerData")
-		if GetPlayerDataFunc then
-			-- In production: local data = PlayerDataModule.get(player)
-			-- For MVP: aura applied when GameManager sends resurface count via HUD update
-		end
+		onCharacterAdded(player, character)
 	end)
-end)
+	-- Studio playtest: handle the case where character already exists at script load.
+	if player.Character then
+		task.spawn(function()
+			onCharacterAdded(player, player.Character)
+		end)
+	end
+end
+
+Players.PlayerAdded:Connect(onPlayerAdded)
+
+-- Handle players already in the game when the script loads (Studio playtest)
+for _, player in ipairs(Players:GetPlayers()) do
+	task.spawn(function()
+		onPlayerAdded(player)
+	end)
+end
 
 -- Listen for HUD updates that include resurface info
 Remotes.UpdateHUD.OnServerEvent:Connect(function() end) -- Client-only event, no-op on server

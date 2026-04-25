@@ -221,12 +221,29 @@ local function setupDigRemote()
 	end)
 end
 
-Players.PlayerAdded:Connect(function(player)
+local function onPlayerAdded(player)
 	player.CharacterAdded:Connect(function()
 		task.wait(1) -- Wait for character to fully load
 		giveTool(player)
 	end)
-end)
+	-- Handle players already in-game when script loads (Studio playtest):
+	-- if the character already exists, give the tool immediately.
+	if player.Character then
+		task.spawn(function()
+			task.wait(1)
+			giveTool(player)
+		end)
+	end
+end
+
+Players.PlayerAdded:Connect(onPlayerAdded)
+
+-- Handle players already in the game when the script loads (Studio playtest)
+for _, player in ipairs(Players:GetPlayers()) do
+	task.spawn(function()
+		onPlayerAdded(player)
+	end)
+end
 
 -- ═══════════════════════════════════════════════════════════════════
 -- Initialize

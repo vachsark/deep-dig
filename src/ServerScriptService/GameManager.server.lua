@@ -515,10 +515,19 @@ end
 -- Player Join / Leave
 -- ═══════════════════════════════════════════════════════════════════
 
-Players.PlayerAdded:Connect(function(player)
+local function onPlayerAdded(player)
 	local data = loadPlayerData(player)
 	print("[DeepDig] " .. player.Name .. " joined (coins: " .. data.coins .. ", tool: " .. Config.TOOLS[data.toolTier].name .. ")")
-end)
+end
+
+Players.PlayerAdded:Connect(onPlayerAdded)
+
+-- Handle players already in the game when the script loads (Studio playtest)
+for _, player in ipairs(Players:GetPlayers()) do
+	task.spawn(function()
+		onPlayerAdded(player)
+	end)
+end
 
 Players.PlayerRemoving:Connect(function(player)
 	savePlayerData(player)

@@ -34,13 +34,22 @@ end
 
 local sessionDeepest = {} -- { [userId] = number } — value at join time
 
-Players.PlayerAdded:Connect(function(player)
+local function onPlayerAdded(player)
 	task.wait(3) -- let GameManager load data first
 	local data = getSharedData(player)
 	if data then
 		sessionDeepest[player.UserId] = data.deepestBlock or 0
 	end
-end)
+end
+
+Players.PlayerAdded:Connect(onPlayerAdded)
+
+-- Handle players already in the game when the script loads (Studio playtest)
+for _, player in ipairs(Players:GetPlayers()) do
+	task.spawn(function()
+		onPlayerAdded(player)
+	end)
+end
 
 Players.PlayerRemoving:Connect(function(player)
 	sessionDeepest[player.UserId] = nil
