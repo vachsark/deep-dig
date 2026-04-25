@@ -47,6 +47,9 @@ Config.EVENTS = {
 	{ name = "Fossil Layer",   duration = 30, effect = "2x_rare",    message = "FOSSIL LAYER EXPOSED! 2x rare finds for 30 seconds!" },
 	{ name = "Cave System",    duration = 45, effect = "bonus_loot",  message = "CAVE DISCOVERED! Bonus loot for 45 seconds!" },
 	{ name = "Gold Vein",      duration = 20, effect = "gold_rush",   message = "GOLD VEIN! All finds worth 3x for 20 seconds!" },
+	{ name = "Lucky Hour",     duration = 120, effect = "lucky_hour", message = "🍀 LUCKY HOUR! Loot drops are extra generous for the next 2 minutes!" },
+	{ name = "Echoes from Below", duration = 90, effect = "echo_blocks", message = "👻 Echoes ripple through the dig site... legendary finds twice as likely!" },
+	{ name = "Earthquake",     duration = 30, effect = "earthquake",  message = "🌋 EARTHQUAKE! The ground trembles — extra coin drops for 30 seconds!" },
 	{ name = "Earthquake",     duration = 5,  effect = "instant_dig", message = "EARTHQUAKE! 5 layers crumble instantly!" },
 }
 
