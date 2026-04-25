@@ -215,6 +215,69 @@ local RARITY_COLORS = {
 	Mythic    = Color3.fromRGB(255, 50, 50),
 }
 
+local LEGENDARY_FIND_FLASH_RARITIES = {
+	Legendary = true,
+	Mythic = true,
+}
+
+local findFlashLayer = Instance.new("Frame")
+findFlashLayer.Name = "LegendaryFindFlash"
+findFlashLayer.Size = UDim2.new(1, 0, 1, 0)
+findFlashLayer.Position = UDim2.new(0, 0, 0, 0)
+findFlashLayer.BackgroundTransparency = 1
+findFlashLayer.BorderSizePixel = 0
+findFlashLayer.ZIndex = 90
+findFlashLayer.Parent = screenGui
+
+local findFlashOverlay = Instance.new("Frame")
+findFlashOverlay.Name = "Overlay"
+findFlashOverlay.Size = UDim2.new(1, 0, 1, 0)
+findFlashOverlay.BackgroundColor3 = Color3.fromRGB(255, 210, 80)
+findFlashOverlay.BackgroundTransparency = 1
+findFlashOverlay.BorderSizePixel = 0
+findFlashOverlay.ZIndex = 90
+findFlashOverlay.Parent = findFlashLayer
+
+local findFlashSequence = 0
+local findFlashInTween = nil
+local findFlashOutTween = nil
+
+local function playLegendaryFindFlash()
+	findFlashSequence = findFlashSequence + 1
+	local sequence = findFlashSequence
+
+	if findFlashInTween then
+		findFlashInTween:Cancel()
+	end
+	if findFlashOutTween then
+		findFlashOutTween:Cancel()
+	end
+
+	findFlashOverlay.BackgroundTransparency = 1
+
+	findFlashInTween = TweenService:Create(findFlashOverlay, TweenInfo.new(0.08, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+		BackgroundTransparency = 0.34,
+	})
+	findFlashInTween:Play()
+	findFlashInTween.Completed:Connect(function(playbackState)
+		if sequence ~= findFlashSequence or playbackState ~= Enum.PlaybackState.Completed then
+			return
+		end
+
+		findFlashOutTween = TweenService:Create(findFlashOverlay, TweenInfo.new(0.22, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+			BackgroundTransparency = 1,
+		})
+		findFlashOutTween:Play()
+		findFlashOutTween.Completed:Connect(function(outPlaybackState)
+			if sequence ~= findFlashSequence or outPlaybackState ~= Enum.PlaybackState.Completed then
+				return
+			end
+
+			findFlashOverlay.BackgroundTransparency = 1
+		end)
+	end)
+end
+
 local function showNotification(text, rarity)
 	local color = RARITY_COLORS[rarity] or Color3.fromRGB(200, 200, 200)
 
@@ -956,6 +1019,10 @@ Remotes.UpdateHUD.OnClientEvent:Connect(function(data)
 end)
 
 Remotes.ItemFound.OnClientEvent:Connect(function(item)
+	if item and LEGENDARY_FIND_FLASH_RARITIES[item.rarity] then
+		playLegendaryFindFlash()
+	end
+
 	showNotification("Found: " .. item.name .. " (+" .. item.sellValue .. " coins)", item.rarity)
 end)
 
