@@ -126,36 +126,40 @@ RedeemCodeEvent.OnServerEvent:Connect(function(player, inputCode)
 		return
 	end
 
-	-- Apply rewards
-	local GetPlayerDataFunc = Remotes:FindFirstChild("GetPlayerData")
-	-- Direct data access (same pattern as GameManager)
-	-- NOTE: In production, expose a shared module. For MVP, fire events.
+	-- Apply rewards directly to playerData (shared with GameManager).
+	local cache = _G.DeepDig_playerData
+	local data = cache and cache[player.UserId]
+	if not data then
+		CodeResultEvent:FireClient(player, false, "Profile still loading — try again.")
+		return
+	end
 
 	local rewards = codeDef.rewards
 	local rewardText = {}
 
-	-- Fire reward application to GameManager via a custom internal event
-	-- For now, we create a simple reward application remote
-	local ApplyRewardEvent = Remotes:FindFirstChild("ApplyCodeReward")
-	if not ApplyRewardEvent then
-		ApplyRewardEvent = Instance.new("RemoteEvent")
-		ApplyRewardEvent.Name = "ApplyCodeReward"
-		ApplyRewardEvent.Parent = Remotes
-	end
-
-	-- Mark as redeemed
-	saveRedeemedCode(player, code)
-	globalUsage[code] = (globalUsage[code] or 0) + 1
-
-	-- Build reward description
 	if rewards.coins then
+		data.coins = (data.coins or 0) + rewards.coins
+		data.totalEarned = (data.totalEarned or 0) + rewards.coins
 		table.insert(rewardText, "+" .. rewards.coins .. " coins")
 	end
 	if rewards.fragments then
+		data.fragments = (data.fragments or 0) + rewards.fragments
 		table.insert(rewardText, "+" .. rewards.fragments .. " fragments")
 	end
 
-	-- Notify player
+	-- Mark as redeemed AFTER successful application (no double-apply on retry).
+	saveRedeemedCode(player, code)
+	globalUsage[code] = (globalUsage[code] or 0) + 1
+
+	-- Push the new totals to the HUD.
+	local UpdateHUD = Remotes:FindFirstChild("UpdateHUD")
+	if UpdateHUD then
+		UpdateHUD:FireClient(player, {
+			coins = data.coins,
+			fragments = data.fragments,
+		})
+	end
+
 	local msg = codeDef.message or ("Code redeemed: " .. table.concat(rewardText, ", "))
 	CodeResultEvent:FireClient(player, true, msg)
 	NotifyEvent:FireClient(player, "CODE REDEEMED: " .. msg, "Legendary")
