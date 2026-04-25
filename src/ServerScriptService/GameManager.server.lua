@@ -41,6 +41,7 @@ local ItemFoundEvent = createRemote("ItemFound")
 local EventTriggeredEvent = createRemote("EventTriggered")
 local NotifyEvent = createRemote("Notify")
 local GetPlayerDataFunc = createRemote("GetPlayerData", "RemoteFunction")
+local PlaySound = Remotes:WaitForChild("PlaySound", 5)
 
 -- ═══════════════════════════════════════════════════════════════════
 -- Player Data Management
@@ -93,13 +94,26 @@ end
 
 local function savePlayerData(player)
 	local data = playerData[player.UserId]
-	if not data then return end
+	if not data then return true end
 
 	data.lastSeenAt = os.time()
 
-	pcall(function()
+	local success, err = pcall(function()
 		PlayerDataStore:SetAsync("player_" .. player.UserId, data)
 	end)
+
+	if success then
+		return true
+	end
+
+	warn(string.format("[DeepDig] save FAILED for %s (UserId %d): %s", player.Name, player.UserId, tostring(err)))
+	task.wait(1)
+
+	success, err = pcall(function()
+		PlayerDataStore:SetAsync("player_" .. player.UserId, data)
+	end)
+
+	return success
 end
 
 local function getPlayerData(player)
@@ -145,7 +159,9 @@ local function triggerRandomEvent(player)
 	activeEvents[event.effect] = tick() + event.duration
 
 	-- SOUND HOOK: alarm horn when a world event triggers (handled client-side via EventTriggeredEvent)
-	-- Remotes.PlaySound:FireAllClients("event_alarm")
+	if PlaySound then
+		PlaySound:FireAllClients("event_alarm")
+	end
 
 	-- Notify all players
 	EventTriggeredEvent:FireAllClients(event.name, event.message, event.duration)
@@ -170,7 +186,9 @@ BlockBrokenEvent.Event:Connect(function(player, blockPosition)
 	end
 
 	-- SOUND HOOK: short crunch on every block break
-	-- Remotes.PlaySound:FireClient(player, "block_break")
+	if PlaySound then
+		PlaySound:FireClient(player, "block_break")
+	end
 
 	-- ── FTUE: First 10 blocks guarantee a drop ──────────────────────
 	-- New players get an item every block for the first 10 digs so the
@@ -227,12 +245,16 @@ BlockBrokenEvent.Event:Connect(function(player, blockPosition)
 			-- Notify player
 			ItemFoundEvent:FireClient(player, item)
 			-- SOUND HOOK: sparkle chime for any item find
-			-- Remotes.PlaySound:FireClient(player, "item_found")
+			if PlaySound then
+				PlaySound:FireClient(player, "item_found")
+			end
 			-- SOUND HOOK: dramatic reveal for Rare+
-			-- if item.rarity == "Rare" or item.rarity == "Epic"
-			--    or item.rarity == "Legendary" or item.rarity == "Mythic" then
-			--     Remotes.PlaySound:FireClient(player, "rare_reveal")
-			-- end
+			if item.rarity == "Rare" or item.rarity == "Epic"
+				or item.rarity == "Legendary" or item.rarity == "Mythic" then
+				if PlaySound then
+					PlaySound:FireClient(player, "rare_reveal")
+				end
+			end
 
 			-- Notify all players for rare+ finds
 			if item.rarity == "Epic" or item.rarity == "Legendary" or item.rarity == "Mythic" then
@@ -296,7 +318,9 @@ SellAllEvent.OnServerEvent:Connect(function(player)
 	applyFirstSellAffordabilityGrant(player, data)
 
 	-- SOUND HOOK: coin clink/jingle on sell
-	-- Remotes.PlaySound:FireClient(player, "sell_coins")
+	if PlaySound then
+		PlaySound:FireClient(player, "sell_coins")
+	end
 
 	NotifyEvent:FireClient(player, "Sold all items for " .. total .. " coins!", "Common")
 	UpdateHUDEvent:FireClient(player, {
@@ -483,7 +507,9 @@ BuyToolEvent.OnServerEvent:Connect(function(player, toolTier)
 	data.toolTier = toolTier
 
 	-- SOUND HOOK: power-up whoosh on tool upgrade
-	-- Remotes.PlaySound:FireClient(player, "upgrade_whoosh")
+	if PlaySound then
+		PlaySound:FireClient(player, "upgrade_whoosh")
+	end
 	NotifyEvent:FireClient(player, "Upgraded to " .. tool.name .. "!", "Rare")
 	UpdateHUDEvent:FireClient(player, {
 		coins = data.coins,
@@ -543,7 +569,9 @@ for _, player in ipairs(Players:GetPlayers()) do
 end
 
 Players.PlayerRemoving:Connect(function(player)
-	savePlayerData(player)
+	if not savePlayerData(player) then
+		warn(string.format("[DeepDig] final save FAILED on PlayerRemoving for %s (UserId %d)", player.Name, player.UserId))
+	end
 	playerData[player.UserId] = nil
 end)
 
@@ -560,7 +588,9 @@ end)
 -- Save all on shutdown
 game:BindToClose(function()
 	for _, player in ipairs(Players:GetPlayers()) do
-		savePlayerData(player)
+		if not savePlayerData(player) then
+			warn(string.format("[DeepDig] final save FAILED on BindToClose for %s (UserId %d)", player.Name, player.UserId))
+		end
 	end
 end)
 
