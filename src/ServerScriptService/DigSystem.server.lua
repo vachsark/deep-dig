@@ -143,26 +143,72 @@ local function revealBelow(gridX, gridZ, depthBlock)
 	createBlock(gridX, gridZ, nextDepth)
 end
 
+local Debris = game:GetService("Debris")
+local TweenService = game:GetService("TweenService")
+
+-- Spawn a satisfying poof: bright flash + a few falling shards that fade.
+local function spawnBreakVFX(blockPos, blockColor)
+	-- Central flash: scales up briefly then fades.
+	local flash = Instance.new("Part")
+	flash.Size = Vector3.new(0.5, 0.5, 0.5)
+	flash.CFrame = CFrame.new(blockPos)
+	flash.Anchored = true
+	flash.CanCollide = false
+	flash.Material = Enum.Material.Neon
+	flash.Color = blockColor
+	flash.Transparency = 0.2
+	flash.Parent = workspace
+
+	TweenService:Create(flash, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+		Size = Vector3.new(Config.BLOCK_SIZE * 1.6, Config.BLOCK_SIZE * 1.6, Config.BLOCK_SIZE * 1.6),
+		Transparency = 1,
+	}):Play()
+	Debris:AddItem(flash, 0.25)
+
+	-- Shards: 5 small bits flying outward + falling under gravity.
+	for i = 1, 5 do
+		local shard = Instance.new("Part")
+		local s = 0.5 + math.random() * 0.5
+		shard.Size = Vector3.new(s, s, s)
+		shard.CFrame = CFrame.new(blockPos)
+		shard.Anchored = false
+		shard.CanCollide = false
+		shard.Material = Enum.Material.Slate
+		shard.Color = blockColor
+		shard.Velocity = Vector3.new(
+			(math.random() - 0.5) * 30,
+			15 + math.random() * 10,
+			(math.random() - 0.5) * 30
+		)
+		shard.RotVelocity = Vector3.new(math.random() * 12, math.random() * 12, math.random() * 12)
+		shard.Parent = workspace
+
+		TweenService:Create(shard, TweenInfo.new(0.55, Enum.EasingStyle.Linear), {
+			Transparency = 1,
+		}):Play()
+		Debris:AddItem(shard, 0.6)
+	end
+end
+
+local DIG_RANGE_STUDS = 60 -- conservative; tune later
+
 local function breakBlock(player, block)
 	if not block then return end
 	if not block:GetAttribute("Depth") then return end
 	if not block:IsDescendantOf(digSiteFolder) then return end
 
+	-- Range check: prevent click-anywhere exploits.
+	local character = player.Character
+	local hrp = character and character:FindFirstChild("HumanoidRootPart")
+	if hrp and (hrp.Position - block.Position).Magnitude > DIG_RANGE_STUDS then
+		return
+	end
+
 	local gridX = block:GetAttribute("GridX")
 	local gridZ = block:GetAttribute("GridZ")
 	local depthBlock = block:GetAttribute("Depth")
 
-	-- Break effect
-	local breakEffect = Instance.new("Part")
-	breakEffect.Size = Vector3.new(0.5, 0.5, 0.5)
-	breakEffect.Position = block.Position
-	breakEffect.Anchored = true
-	breakEffect.CanCollide = false
-	breakEffect.Material = Enum.Material.Neon
-	breakEffect.Color = block.Color
-	breakEffect.Transparency = 0.5
-	breakEffect.Parent = workspace
-	game:GetService("Debris"):AddItem(breakEffect, 0.3)
+	spawnBreakVFX(block.Position, block.Color)
 
 	-- Remove block from grid
 	if blockGrid[gridX] and blockGrid[gridX][gridZ] then
