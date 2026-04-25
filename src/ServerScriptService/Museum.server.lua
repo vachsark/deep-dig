@@ -19,10 +19,6 @@ local DisplayItemEvent = Instance.new("RemoteEvent")
 DisplayItemEvent.Name = "DisplayItem"
 DisplayItemEvent.Parent = Remotes
 
-local VisitMuseumEvent = Instance.new("RemoteEvent")
-VisitMuseumEvent.Name = "VisitMuseum"
-VisitMuseumEvent.Parent = Remotes
-
 local GetMuseumDataFunc = Instance.new("RemoteFunction")
 GetMuseumDataFunc.Name = "GetMuseumData"
 GetMuseumDataFunc.Parent = Remotes
@@ -279,6 +275,8 @@ DisplayItemEvent.OnServerEvent:Connect(function(player, inventoryIndex)
 
 	local item = data.inventory[inventoryIndex]
 	if not item then return end
+
+	if not data.collections[item.name] then return end
 
 	if museum.displayedItems[item.name] then
 		local NotifyEvent = Remotes:FindFirstChild("Notify")

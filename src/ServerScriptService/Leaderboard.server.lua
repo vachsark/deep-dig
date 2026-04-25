@@ -89,16 +89,28 @@ end)
 
 -- ─── Global leaderboard — save on leave ──────────────────────────────────────
 
+-- Idempotency guard: PlayerRemoving and BindToClose both fire on clean shutdown
+-- with players still in. Without this, both invocations write the same depth
+-- back-to-back, burning DataStore quota. Once a player's depth has been
+-- persisted this session, never write it again — flag is intentionally never
+-- cleared so BindToClose skips after PlayerRemoving has already saved.
+local savedThisSession = {}
+
 local function saveDepthToLeaderboard(player)
+	if savedThisSession[player.UserId] then return end
+
 	local data = getSharedData(player)
 	if not data then return end
 
 	local depth = data.deepestBlock or 0
 	if depth <= 0 then return end
 
-	pcall(function()
+	local ok = pcall(function()
 		DepthStore:SetAsync("player_" .. player.UserId, depth)
 	end)
+	if ok then
+		savedThisSession[player.UserId] = true
+	end
 end
 
 Players.PlayerRemoving:Connect(function(player)

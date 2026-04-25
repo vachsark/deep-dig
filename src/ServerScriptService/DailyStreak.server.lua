@@ -33,6 +33,8 @@ if not RequestStreakReviveEvent then
 end
 
 local STREAK_REVIVE_PRODUCT_ID = 1234567890 -- TODO replace placeholder before launch
+assert(STREAK_REVIVE_PRODUCT_ID ~= 1234567890,
+	"[DeepDig] STREAK_REVIVE_PRODUCT_ID is the placeholder; replace with a real Roblox developer product id before shipping the streak revive flow")
 local STREAK_REVIVE_PRICE = 50
 
 -- ─── Helpers ────────────────────────────────────────────────────────────────

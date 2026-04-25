@@ -198,7 +198,6 @@ local function checkPassesForPlayer(player)
 	-- Fire HUD with gamepass status so client can show badges
 	UpdateHUDEvent:FireClient(player, {
 		ownedGamepasses = data.ownedGamepasses,
-		gamepaseDefs = GAMEPASSES, -- client uses this to render badges
 	})
 
 	if #owned > 0 then
