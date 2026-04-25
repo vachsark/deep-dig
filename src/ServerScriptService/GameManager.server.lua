@@ -174,6 +174,49 @@ local function isEventActive(effectName)
 	return endTick and tick() < endTick
 end
 
+-- echo_blocks world event: re-implements ItemDatabase.rollItem locally so we can
+-- double the rarity weight on Legendary / Mythic for this single roll, without
+-- mutating the shared RARITY table. Mirrors ItemDatabase.rollItem() semantics
+-- (weighted pool, cumulative roll, returns same shape) — keep in sync if the
+-- source roll ever changes. Falls back to nil if the tier is unknown.
+local function rollItemEchoBoosted(tierName)
+	local tierItems = ItemDatabase.ITEMS[tierName]
+	if not tierItems then return nil end
+
+	local pool = {}
+	local totalWeight = 0
+	for _, item in ipairs(tierItems) do
+		local rarityData = ItemDatabase.RARITY[item.rarity]
+		if rarityData then
+			local w = rarityData.weight
+			if item.rarity == "Legendary" or item.rarity == "Mythic" then
+				w = w * 2
+			end
+			totalWeight = totalWeight + w
+			table.insert(pool, { item = item, cumWeight = totalWeight })
+		end
+	end
+
+	if totalWeight == 0 then return nil end
+
+	local roll = math.random() * totalWeight
+	for _, entry in ipairs(pool) do
+		if roll <= entry.cumWeight then
+			local item = entry.item
+			local rarityData = ItemDatabase.RARITY[item.rarity]
+			return {
+				name = item.name,
+				rarity = item.rarity,
+				baseValue = item.baseValue,
+				sellValue = item.baseValue * rarityData.multiplier,
+				color = rarityData.color,
+			}
+		end
+	end
+
+	return nil
+end
+
 local function triggerRandomEvent(player)
 	if math.random() > Config.EVENT_CHANCE then return end
 
@@ -255,6 +298,8 @@ BlockBrokenEvent.Event:Connect(function(player, blockPosition)
 	local dropChance = Config.LOOT_DROP_CHANCE
 	if isEventActive("2x_rare") then dropChance = dropChance * 1.5 end
 	if isEventActive("bonus_loot") then dropChance = dropChance * 2 end
+	-- lucky_hour world event: 1.5x drop chance multiplier
+	if isEventActive("lucky_hour") then dropChance = dropChance * 1.5 end
 
 	-- Apply LUCKY gamepass bonus (+25% drop chance)
 	if data.ownedGamepasses and data.ownedGamepasses[3] then
@@ -264,6 +309,10 @@ BlockBrokenEvent.Event:Connect(function(player, blockPosition)
 	-- Apply equipped pet luck multiplier (capped at 5x above)
 	dropChance = dropChance * petLuck
 
+	-- Cap drop chance at 1.0 to prevent overflow when multiple multipliers stack
+	-- (FTUE override below intentionally also sets to 1.0).
+	if dropChance > 1.0 then dropChance = 1.0 end
+
 	-- Guarantee a drop for the first 10 blocks (FTUE)
 	if isNewPlayer then dropChance = 1.0 end
 
@@ -272,7 +321,11 @@ BlockBrokenEvent.Event:Connect(function(player, blockPosition)
 		-- Save the big dopamine spike for after the loop is understood.
 		local item
 		if isFirstEverFind then
+			-- FTUE caps at Uncommon so echo_blocks (Legendary/Mythic boost) is a no-op here.
 			item = ItemDatabase.rollItemWithMaxRarity(tierName, "Uncommon")
+		elseif isEventActive("echo_blocks") then
+			-- echo_blocks: Legendary/Mythic weights doubled for this roll only.
+			item = rollItemEchoBoosted(tierName)
 		else
 			item = ItemDatabase.rollItem(tierName)
 		end
@@ -330,6 +383,17 @@ BlockBrokenEvent.Event:Connect(function(player, blockPosition)
 				)
 			end
 		end
+	end
+
+	-- earthquake world event: 5-15 bonus "rumble" coins on EVERY block break,
+	-- regardless of whether the loot roll yielded an item. No toast (event fires
+	-- often) — the HUD coin counter animates via the UpdateHUDEvent below.
+	-- Counts toward the coins_earned quest objective.
+	if isEventActive("earthquake") then
+		local rumble = math.random(5, 15)
+		data.coins = data.coins + rumble
+		data.totalEarned = data.totalEarned + rumble
+		fireQuestProgress(player, "coins_earned", { amount = rumble })
 	end
 
 	-- Random events
