@@ -16,6 +16,7 @@
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local MarketplaceService = game:GetService("MarketplaceService")
 
 local ItemDatabase = require(ReplicatedStorage:WaitForChild("ItemDatabase"))
 
@@ -23,6 +24,16 @@ local Remotes = ReplicatedStorage:WaitForChild("Remotes")
 local NotifyEvent = Remotes:WaitForChild("Notify")
 local UpdateHUDEvent = Remotes:WaitForChild("UpdateHUD")
 local GetPlayerDataFunc = Remotes:WaitForChild("GetPlayerData")
+
+local RequestStreakReviveEvent = Remotes:FindFirstChild("RequestStreakRevive")
+if not RequestStreakReviveEvent then
+	RequestStreakReviveEvent = Instance.new("RemoteEvent")
+	RequestStreakReviveEvent.Name = "RequestStreakRevive"
+	RequestStreakReviveEvent.Parent = Remotes
+end
+
+local STREAK_REVIVE_PRODUCT_ID = 1234567890 -- TODO replace placeholder before launch
+local STREAK_REVIVE_PRICE = 50
 
 -- ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -148,6 +159,30 @@ local function getSharedData(player)
 	return nil
 end
 
+local function getStreakHudPayload(data)
+	return {
+		coins = data.coins,
+		fragments = data.fragments or 0,
+		inventoryCount = #data.inventory,
+		loginStreak = data.loginStreak,
+		streakReviveEligible = data.streakReviveEligible == true,
+		streakRevivePending = data.streakRevivePending == true,
+		streakReviveBaseStreak = data.streakReviveBaseStreak or 0,
+		streakRevivePrice = STREAK_REVIVE_PRICE,
+	}
+end
+
+local function clearStreakReviveState(data)
+	data.streakReviveEligible = false
+	data.streakRevivePending = false
+	data.streakReviveBaseStreak = 0
+	data.streakReviveOfferDate = ""
+end
+
+local function applyStreakHudUpdate(player, data)
+	UpdateHUDEvent:FireClient(player, getStreakHudPayload(data))
+end
+
 local function applyReward(player, reward)
 	local data = getSharedData(player)
 	if not data then return end
@@ -171,6 +206,39 @@ local function applyReward(player, reward)
 	end
 end
 
+local function grantDailyStreakReward(player, data, rewardSource)
+	local streak = data.loginStreak or 0
+	local day = cycleDay(streak)
+	local reward = buildReward(streak, data.deepestBlock)
+
+	applyReward(player, reward)
+	applyStreakHudUpdate(player, data)
+
+	local streakEmoji = day == 7 and "🏆" or "🔥"
+	local cycleNum = math.floor((streak - 1) / 7) + 1
+	local cycleLabel = cycleNum > 1 and (" (Cycle " .. cycleNum .. ", ×" .. string.format("%.1f", cycleMultiplier(streak)) .. ")") or ""
+	local rewardPrefix = rewardSource == "revive" and "Streak revived! " or ""
+
+	NotifyEvent:FireClient(
+		player,
+		rewardPrefix .. streakEmoji .. " Day " .. day .. " Streak!" .. cycleLabel .. "  Reward: " .. reward.label,
+		day >= 7 and "Legendary" or (day >= 5 and "Epic" or (day >= 3 and "Rare" or "Uncommon"))
+	)
+
+	if day == 7 then
+		NotifyEvent:FireAllClients(
+			"🏆 " .. player.Name .. " hit a 7-day login streak!",
+			"Legendary"
+		)
+	end
+
+	print("[DailyStreak] " .. player.Name .. " — streak: " .. streak ..
+		", day: " .. day .. ", reward: " .. reward.label ..
+		(rewardSource == "revive" and " (revived)" or ""))
+
+	return reward
+end
+
 -- ─── Streak processing ───────────────────────────────────────────────────────
 
 local function processLoginStreak(player)
@@ -189,6 +257,7 @@ local function processLoginStreak(player)
 
 	if lastDate == today then
 		-- Already logged in today — nothing to do
+		applyStreakHudUpdate(player, data)
 		return
 	end
 
@@ -197,51 +266,101 @@ local function processLoginStreak(player)
 	if days == 1 then
 		-- Consecutive day — increment streak
 		data.loginStreak = (data.loginStreak or 0) + 1
+		data.lastLoginDate = today
+		clearStreakReviveState(data)
+		grantDailyStreakReward(player, data)
+		return
+	elseif days == 2 and (data.loginStreak or 0) >= 2 then
+		-- Missed exactly one day. Offer a one-time revive before resetting.
+		data.streakReviveEligible = true
+		data.streakRevivePending = true
+		data.streakReviveBaseStreak = data.loginStreak or 0
+		data.streakReviveOfferDate = today
+		applyStreakHudUpdate(player, data)
+		NotifyEvent:FireClient(
+			player,
+			"Missed one day. Revive your streak for 50 Robux to keep your momentum.",
+			"Epic"
+		)
+		return
 	else
 		-- Missed one or more days (or first ever login) — reset to 1
 		data.loginStreak = 1
+		data.lastLoginDate = today
+		clearStreakReviveState(data)
+		grantDailyStreakReward(player, data)
+		return
+	end
+end
+
+local function finalizeStreakDecline(player, data)
+	data.loginStreak = 1
+	data.lastLoginDate = todayString()
+	clearStreakReviveState(data)
+	grantDailyStreakReward(player, data)
+end
+
+local function completeStreakRevive(player, data, receiptId)
+	if data.streakReviveProcessedReceiptId == receiptId then
+		return Enum.ProductPurchaseDecision.PurchaseGranted
 	end
 
-	data.lastLoginDate = today
-
-	local streak = data.loginStreak
-	local day = cycleDay(streak)
-	local reward = buildReward(streak, data.deepestBlock)
-
-	applyReward(player, reward)
-
-	-- Fire HUD update with new coin/fragment totals
-	UpdateHUDEvent:FireClient(player, {
-		coins = data.coins,
-		fragments = data.fragments,
-		inventoryCount = #data.inventory,
-		loginStreak = streak,
-	})
-
-	-- ── Notification ────────────────────────────────────────────────
-	local streakEmoji = day == 7 and "🏆" or "🔥"
-	local cycleNum = math.floor((streak - 1) / 7) + 1
-	local cycleLabel = cycleNum > 1 and (" (Cycle " .. cycleNum .. ", ×" .. string.format("%.1f", cycleMultiplier(streak)) .. ")") or ""
-
-	NotifyEvent:FireClient(
-		player,
-		streakEmoji .. " Day " .. day .. " Streak!" .. cycleLabel .. "  Reward: " .. reward.label,
-		day >= 7 and "Legendary" or (day >= 5 and "Epic" or (day >= 3 and "Rare" or "Uncommon"))
-	)
-
-	if day == 7 then
-		-- Announce a 7-day streak to the server
-		NotifyEvent:FireAllClients(
-			"🏆 " .. player.Name .. " hit a 7-day login streak!",
-			"Legendary"
-		)
+	if (data.streakReviveBaseStreak or 0) < 2 then
+		return Enum.ProductPurchaseDecision.NotProcessedYet
 	end
 
-	print("[DailyStreak] " .. player.Name .. " — streak: " .. streak ..
-		", day: " .. day .. ", reward: " .. reward.label)
+	data.loginStreak = (data.streakReviveBaseStreak or 0) + 1
+	data.lastLoginDate = todayString()
+	data.streakReviveProcessedReceiptId = receiptId
+	clearStreakReviveState(data)
+
+	grantDailyStreakReward(player, data, "revive")
+
+	return Enum.ProductPurchaseDecision.PurchaseGranted
+end
+
+local previousProcessReceipt = MarketplaceService.ProcessReceipt
+MarketplaceService.ProcessReceipt = function(receiptInfo)
+	if receiptInfo.ProductId ~= STREAK_REVIVE_PRODUCT_ID then
+		if previousProcessReceipt then
+			local ok, decision = pcall(previousProcessReceipt, receiptInfo)
+			if ok and decision ~= nil then
+				return decision
+			end
+		end
+		return Enum.ProductPurchaseDecision.NotProcessedYet
+	end
+
+	local player = Players:GetPlayerByUserId(receiptInfo.PlayerId)
+	if not player then
+		return Enum.ProductPurchaseDecision.NotProcessedYet
+	end
+
+	local data = getSharedData(player)
+	if not data then
+		return Enum.ProductPurchaseDecision.NotProcessedYet
+	end
+
+	return completeStreakRevive(player, data, receiptInfo.PurchaseId)
 end
 
 -- ─── Hooks ───────────────────────────────────────────────────────────────────
+
+RequestStreakReviveEvent.OnServerEvent:Connect(function(player, action)
+	local data = getSharedData(player)
+	if not data then return end
+	if not data.streakRevivePending then return end
+
+	if action == "decline" then
+		finalizeStreakDecline(player, data)
+		return
+	end
+
+	if action ~= "buy" then return end
+	if not data.streakReviveEligible then return end
+
+	MarketplaceService:PromptProductPurchase(player, STREAK_REVIVE_PRODUCT_ID)
+end)
 
 Players.PlayerAdded:Connect(function(player)
 	task.spawn(function()

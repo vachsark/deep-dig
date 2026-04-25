@@ -127,6 +127,14 @@ streakLabel.Font = Enum.Font.GothamBold
 streakLabel.TextXAlignment = Enum.TextXAlignment.Left
 streakLabel.Parent = screenGui
 
+local RequestStreakReviveEvent = Remotes:WaitForChild("RequestStreakRevive")
+
+local currentLoginStreak = 0
+local currentStreakReviveEligible = false
+local currentStreakRevivePending = false
+local currentStreakReviveBaseStreak = 0
+local currentStreakRevivePrice = 50
+
 -- ─── Gamepass badge row ──────────────────────────────────────────────────────
 -- Small pills shown when a gamepass is active.
 
@@ -407,6 +415,167 @@ local function showNotification(text, rarity)
 		end)
 	end)
 end
+
+local function refreshStreakLabel()
+	if currentLoginStreak > 0 then
+		local day = (currentLoginStreak - 1) % 7 + 1
+		local emoji = day == 7 and "🏆" or "🔥"
+		local reviveSuffix = currentStreakReviveEligible and currentStreakRevivePending and " • Revive ready" or ""
+		streakLabel.Text = emoji .. " Streak: Day " .. day .. " (×" .. currentLoginStreak .. ")" .. reviveSuffix
+	else
+		streakLabel.Text = "🔥 Streak: –"
+	end
+end
+
+local streakRevivePanel = Instance.new("Frame")
+streakRevivePanel.Name = "StreakRevivePrompt"
+streakRevivePanel.AnchorPoint = Vector2.new(0.5, 0.5)
+streakRevivePanel.Size = UDim2.new(0, 440, 0, 210)
+streakRevivePanel.Position = UDim2.new(0.5, 0, 0.42, 0)
+streakRevivePanel.BackgroundColor3 = Color3.fromRGB(24, 20, 18)
+streakRevivePanel.BackgroundTransparency = 0.05
+streakRevivePanel.BorderSizePixel = 0
+streakRevivePanel.Visible = false
+streakRevivePanel.ZIndex = 70
+streakRevivePanel.Parent = screenGui
+
+local streakReviveCorner = Instance.new("UICorner")
+streakReviveCorner.CornerRadius = UDim.new(0, 14)
+streakReviveCorner.Parent = streakRevivePanel
+
+local streakReviveStroke = Instance.new("UIStroke")
+streakReviveStroke.Color = Color3.fromRGB(255, 200, 50)
+streakReviveStroke.Thickness = 2
+streakReviveStroke.Parent = streakRevivePanel
+
+local streakReviveTitle = Instance.new("TextLabel")
+streakReviveTitle.Name = "Title"
+streakReviveTitle.Size = UDim2.new(1, -30, 0, 44)
+streakReviveTitle.Position = UDim2.new(0, 15, 0, 10)
+streakReviveTitle.BackgroundTransparency = 1
+streakReviveTitle.Text = "🔥 Streak Revive"
+streakReviveTitle.TextColor3 = Color3.fromRGB(255, 200, 50)
+streakReviveTitle.TextSize = 24
+streakReviveTitle.Font = Enum.Font.GothamBlack
+streakReviveTitle.TextXAlignment = Enum.TextXAlignment.Left
+streakReviveTitle.ZIndex = 71
+streakReviveTitle.Parent = streakRevivePanel
+
+local streakReviveBody = Instance.new("TextLabel")
+streakReviveBody.Name = "Body"
+streakReviveBody.Size = UDim2.new(1, -30, 0, 68)
+streakReviveBody.Position = UDim2.new(0, 15, 0, 54)
+streakReviveBody.BackgroundTransparency = 1
+streakReviveBody.Text = "You missed one day. Revive your streak for 50 Robux to keep your momentum and today's reward."
+streakReviveBody.TextColor3 = Color3.fromRGB(230, 225, 215)
+streakReviveBody.TextSize = 16
+streakReviveBody.Font = Enum.Font.GothamMedium
+streakReviveBody.TextWrapped = true
+streakReviveBody.TextXAlignment = Enum.TextXAlignment.Left
+streakReviveBody.TextYAlignment = Enum.TextYAlignment.Top
+streakReviveBody.ZIndex = 71
+streakReviveBody.Parent = streakRevivePanel
+
+local streakReviveDetail = Instance.new("TextLabel")
+streakReviveDetail.Name = "Detail"
+streakReviveDetail.Size = UDim2.new(1, -30, 0, 24)
+streakReviveDetail.Position = UDim2.new(0, 15, 0, 122)
+streakReviveDetail.BackgroundTransparency = 1
+streakReviveDetail.Text = "Current streak: Day 1 (×1)"
+streakReviveDetail.TextColor3 = Color3.fromRGB(180, 170, 150)
+streakReviveDetail.TextSize = 14
+streakReviveDetail.Font = Enum.Font.Gotham
+streakReviveDetail.TextXAlignment = Enum.TextXAlignment.Left
+streakReviveDetail.ZIndex = 71
+streakReviveDetail.Parent = streakRevivePanel
+
+local streakReviveBuyButton = Instance.new("TextButton")
+streakReviveBuyButton.Name = "Buy"
+streakReviveBuyButton.Size = UDim2.new(0, 190, 0, 40)
+streakReviveBuyButton.Position = UDim2.new(0, 15, 1, -54)
+streakReviveBuyButton.BackgroundColor3 = Color3.fromRGB(255, 200, 50)
+streakReviveBuyButton.BorderSizePixel = 0
+streakReviveBuyButton.Text = "Revive for 50 Robux"
+streakReviveBuyButton.TextColor3 = Color3.fromRGB(40, 20, 0)
+streakReviveBuyButton.TextSize = 15
+streakReviveBuyButton.Font = Enum.Font.GothamBlack
+streakReviveBuyButton.ZIndex = 71
+streakReviveBuyButton.Parent = streakRevivePanel
+
+local streakReviveBuyCorner = Instance.new("UICorner")
+streakReviveBuyCorner.CornerRadius = UDim.new(0, 8)
+streakReviveBuyCorner.Parent = streakReviveBuyButton
+
+local streakReviveDeclineButton = Instance.new("TextButton")
+streakReviveDeclineButton.Name = "Decline"
+streakReviveDeclineButton.Size = UDim2.new(0, 140, 0, 40)
+streakReviveDeclineButton.Position = UDim2.new(1, -155, 1, -54)
+streakReviveDeclineButton.BackgroundColor3 = Color3.fromRGB(70, 60, 55)
+streakReviveDeclineButton.BorderSizePixel = 0
+streakReviveDeclineButton.Text = "Start Over"
+streakReviveDeclineButton.TextColor3 = Color3.fromRGB(245, 235, 220)
+streakReviveDeclineButton.TextSize = 14
+streakReviveDeclineButton.Font = Enum.Font.GothamBold
+streakReviveDeclineButton.ZIndex = 71
+streakReviveDeclineButton.Parent = streakRevivePanel
+
+local streakReviveDeclineCorner = Instance.new("UICorner")
+streakReviveDeclineCorner.CornerRadius = UDim.new(0, 8)
+streakReviveDeclineCorner.Parent = streakReviveDeclineButton
+
+local function refreshStreakRevivePrompt(data)
+	if data then
+		if data.loginStreak ~= nil then
+			currentLoginStreak = data.loginStreak
+		end
+		if data.streakReviveEligible ~= nil then
+			currentStreakReviveEligible = data.streakReviveEligible
+		end
+		if data.streakRevivePending ~= nil then
+			currentStreakRevivePending = data.streakRevivePending
+		end
+		if data.streakReviveBaseStreak ~= nil then
+			currentStreakReviveBaseStreak = data.streakReviveBaseStreak
+		end
+		if data.streakRevivePrice ~= nil then
+			currentStreakRevivePrice = data.streakRevivePrice
+		end
+	end
+
+	refreshStreakLabel()
+
+	local shouldShow = currentStreakReviveEligible and currentStreakRevivePending
+	streakRevivePanel.Visible = shouldShow
+
+	if not shouldShow then
+		return
+	end
+
+	local streak = math.max(currentStreakReviveBaseStreak, currentLoginStreak)
+	local day = streak > 0 and ((streak - 1) % 7 + 1) or 1
+	local cycle = streak > 0 and math.floor((streak - 1) / 7) + 1 or 1
+
+	streakReviveTitle.Text = "🔥 Streak Revive"
+	streakReviveBody.Text = "You missed one day. Revive your streak for " .. currentStreakRevivePrice .. " Robux to keep your momentum and today's reward."
+	streakReviveDetail.Text = "Current streak: Day " .. day .. " (×" .. streak .. ", Cycle " .. cycle .. ")"
+	streakReviveBuyButton.Text = "Revive for " .. currentStreakRevivePrice .. " Robux"
+end
+
+streakReviveBuyButton.MouseButton1Click:Connect(function()
+	if not currentStreakReviveEligible or not currentStreakRevivePending then
+		return
+	end
+
+	RequestStreakReviveEvent:FireServer("buy")
+end)
+
+streakReviveDeclineButton.MouseButton1Click:Connect(function()
+	if not currentStreakRevivePending then
+		return
+	end
+
+	RequestStreakReviveEvent:FireServer("decline")
+end)
 
 -- ═══════════════════════════════════════════════════════════════════
 -- Sell All Button
@@ -1090,11 +1259,6 @@ Remotes.UpdateHUD.OnClientEvent:Connect(function(data)
 	if data.fragments then
 		fragLabel.Text = "Fragments: " .. tostring(data.fragments)
 	end
-	if data.loginStreak then
-		local day = (data.loginStreak - 1) % 7 + 1
-		local emoji = day == 7 and "🏆" or "🔥"
-		streakLabel.Text = emoji .. " Streak: Day " .. day .. " (×" .. data.loginStreak .. ")"
-	end
 	if data.nextToolCost and data.nextToolName then
 		upgradeButton.Text = "⬆️ " .. data.nextToolName .. " ($" .. data.nextToolCost .. ")"
 	elseif data.nextToolCost == nil and data.toolTier then
@@ -1112,6 +1276,7 @@ Remotes.UpdateHUD.OnClientEvent:Connect(function(data)
 		-- Could show a star or depth update — handled by notification
 	end
 
+	refreshStreakRevivePrompt(data)
 	updateFtueGuideFromHUD(data)
 end)
 
@@ -1306,6 +1471,7 @@ task.spawn(function()
 		invLabel.Text = "Items: " .. tostring(#data.inventory)
 		currentToolTier = data.toolTier
 		initializeFtueGuide(data)
+		refreshStreakRevivePrompt(data)
 
 		-- First-time tutorial: only on truly fresh profile (zero blocks dug, no inventory).
 		if (data.totalBlocksDug or 0) == 0 and #data.inventory == 0 then
@@ -1314,12 +1480,6 @@ task.spawn(function()
 
 		if data.nextToolCost and data.nextToolName then
 			upgradeButton.Text = "⬆️ " .. data.nextToolName .. " ($" .. data.nextToolCost .. ")"
-		end
-
-		if data.loginStreak and data.loginStreak > 0 then
-			local day = (data.loginStreak - 1) % 7 + 1
-			local emoji = day == 7 and "🏆" or "🔥"
-			streakLabel.Text = emoji .. " Streak: Day " .. day .. " (×" .. data.loginStreak .. ")"
 		end
 
 		if data.ownedGamepasses then

@@ -61,6 +61,11 @@ local DEFAULT_DATA = {
 	totalEarned = 0,
 	lastLoginDate = "",   -- "YYYY-MM-DD" for streak tracking
 	loginStreak = 0,      -- Consecutive daily login count
+	streakReviveEligible = false,
+	streakRevivePending = false,
+	streakReviveBaseStreak = 0,
+	streakReviveOfferDate = "",
+	streakReviveProcessedReceiptId = "",
 	ownedGamepasses = {}, -- { [passId] = true }
 	firstSellAffordabilityGrantUsed = false, -- FTUE: one-time first-sell catch-up
 }
@@ -505,6 +510,11 @@ GetPlayerDataFunc.OnServerInvoke = function(player)
 		collections = data.collections,
 		rebirths = data.rebirths,
 		loginStreak = data.loginStreak,
+		streakReviveEligible = data.streakReviveEligible,
+		streakRevivePending = data.streakRevivePending,
+		streakReviveBaseStreak = data.streakReviveBaseStreak,
+		streakReviveOfferDate = data.streakReviveOfferDate,
+		streakRevivePrice = 50,
 		ownedGamepasses = data.ownedGamepasses,
 		nextToolCost = Config.TOOLS[data.toolTier + 1] and Config.TOOLS[data.toolTier + 1].cost or nil,
 		nextToolName = Config.TOOLS[data.toolTier + 1] and Config.TOOLS[data.toolTier + 1].name or nil,
