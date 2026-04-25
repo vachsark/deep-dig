@@ -38,6 +38,10 @@ if not (HatchEggEvent and EquipPetEvent and GetPetInventoryFunction and NotifyEv
 	return
 end
 
+-- FeedPet is optional — if PetFeed.server.lua hasn't loaded, the Feed
+-- Mode toggle button is hidden so the rest of the UI stays usable.
+local FeedPetEvent = Remotes:WaitForChild("FeedPet", 5)
+
 -- PetDatabase lives in ReplicatedStorage and is safe to require from the
 -- client. We use it for rarity colors, multiplier lookups, and egg metadata.
 local petDatabaseModule = ReplicatedStorage:WaitForChild("PetDatabase", 5)
@@ -67,6 +71,17 @@ local CARD_BG = Color3.fromRGB(34, 34, 40)
 local TEXT_PRIMARY = Color3.fromRGB(235, 235, 235)
 local TEXT_MUTED = Color3.fromRGB(160, 160, 160)
 local ACCENT_GOLD = Color3.fromRGB(255, 200, 50)
+
+-- Feed Mode visuals — matches PetFeed.server.lua semantics: green = target,
+-- red = sacrifice, gold = same-species candidate to the selected target.
+local FEED_TARGET_COLOR = Color3.fromRGB(60, 220, 90)
+local FEED_SACRIFICE_COLOR = Color3.fromRGB(240, 70, 70)
+local FEED_CANDIDATE_COLOR = Color3.fromRGB(255, 215, 80)
+local FEED_HEADER_COLOR = Color3.fromRGB(255, 130, 80)
+
+-- Server caps level at 20 (PetFeed MAX_LEVEL). Mirrored here so we can
+-- mark MAX cards in the grid without burning a server round-trip per click.
+local MAX_PET_LEVEL = 20
 
 -- ═══════════════════════════════════════════════════════════════════
 -- Screen GUI scaffolding
@@ -156,14 +171,16 @@ titleBar.BackgroundTransparency = 1
 titleBar.Parent = panel
 
 local titleLabel = Instance.new("TextLabel")
-titleLabel.Size = UDim2.new(1, -60, 1, 0)
+-- Reserve 200px on the right for the Feed-Mode toggle (124px) + close (32px) + padding.
+titleLabel.Size = UDim2.new(1, -200, 1, 0)
 titleLabel.Position = UDim2.new(0, 15, 0, 0)
 titleLabel.BackgroundTransparency = 1
 titleLabel.Text = "🐾 Pet Collection"
 titleLabel.TextColor3 = TEXT_PRIMARY
-titleLabel.TextSize = 20
+titleLabel.TextSize = 18
 titleLabel.Font = Enum.Font.GothamBold
 titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+titleLabel.TextTruncate = Enum.TextTruncate.AtEnd
 titleLabel.Parent = titleBar
 
 local closeButton = Instance.new("TextButton")
@@ -182,6 +199,123 @@ closeButton.Parent = titleBar
 local closeCorner = Instance.new("UICorner")
 closeCorner.CornerRadius = UDim.new(0, 6)
 closeCorner.Parent = closeButton
+
+-- ─── Feed Mode toggle button ─────────────────────────────────────────────────
+-- Sits to the left of the close button. Hidden if FeedPet remote is missing.
+
+local feedModeButton = Instance.new("TextButton")
+feedModeButton.Name = "FeedModeToggle"
+feedModeButton.Size = UDim2.new(0, 124, 0, 28)
+feedModeButton.AnchorPoint = Vector2.new(1, 0.5)
+feedModeButton.Position = UDim2.new(1, -50, 0.5, 0)
+feedModeButton.BackgroundColor3 = Color3.fromRGB(50, 30, 30)
+feedModeButton.BackgroundTransparency = 0.15
+feedModeButton.BorderSizePixel = 0
+feedModeButton.Text = "🍖 Feed Mode"
+feedModeButton.TextColor3 = TEXT_PRIMARY
+feedModeButton.TextSize = 13
+feedModeButton.Font = Enum.Font.GothamBold
+feedModeButton.AutoButtonColor = true
+feedModeButton.Visible = FeedPetEvent ~= nil
+feedModeButton.Parent = titleBar
+
+local feedModeCorner = Instance.new("UICorner")
+feedModeCorner.CornerRadius = UDim.new(0, 6)
+feedModeCorner.Parent = feedModeButton
+
+local feedModeStroke = Instance.new("UIStroke")
+feedModeStroke.Color = Color3.fromRGB(120, 60, 60)
+feedModeStroke.Thickness = 1
+feedModeStroke.Parent = feedModeButton
+
+-- ─── Feed Mode confirmation modal (hidden by default) ────────────────────────
+-- Overlays the panel so the player must explicitly confirm an irreversible feed.
+
+local feedConfirm = Instance.new("Frame")
+feedConfirm.Name = "FeedConfirm"
+feedConfirm.Size = UDim2.new(1, -40, 0, 160)
+feedConfirm.Position = UDim2.new(0, 20, 0.5, -80)
+feedConfirm.BackgroundColor3 = Color3.fromRGB(28, 22, 22)
+feedConfirm.BackgroundTransparency = 0.05
+feedConfirm.BorderSizePixel = 0
+feedConfirm.Visible = false
+feedConfirm.ZIndex = 50
+feedConfirm.Parent = panel
+
+local feedConfirmCorner = Instance.new("UICorner")
+feedConfirmCorner.CornerRadius = UDim.new(0, 10)
+feedConfirmCorner.Parent = feedConfirm
+
+local feedConfirmStroke = Instance.new("UIStroke")
+feedConfirmStroke.Color = FEED_HEADER_COLOR
+feedConfirmStroke.Thickness = 2
+feedConfirmStroke.Parent = feedConfirm
+
+local feedConfirmTitle = Instance.new("TextLabel")
+feedConfirmTitle.Name = "Title"
+feedConfirmTitle.Size = UDim2.new(1, -20, 0, 26)
+feedConfirmTitle.Position = UDim2.new(0, 10, 0, 10)
+feedConfirmTitle.BackgroundTransparency = 1
+feedConfirmTitle.Text = "🍖 Confirm Feed"
+feedConfirmTitle.TextColor3 = FEED_HEADER_COLOR
+feedConfirmTitle.TextSize = 17
+feedConfirmTitle.Font = Enum.Font.GothamBold
+feedConfirmTitle.TextXAlignment = Enum.TextXAlignment.Left
+feedConfirmTitle.ZIndex = 51
+feedConfirmTitle.Parent = feedConfirm
+
+local feedConfirmText = Instance.new("TextLabel")
+feedConfirmText.Name = "Body"
+feedConfirmText.Size = UDim2.new(1, -20, 0, 70)
+feedConfirmText.Position = UDim2.new(0, 10, 0, 40)
+feedConfirmText.BackgroundTransparency = 1
+feedConfirmText.Text = ""
+feedConfirmText.TextColor3 = TEXT_PRIMARY
+feedConfirmText.TextSize = 14
+feedConfirmText.Font = Enum.Font.Gotham
+feedConfirmText.TextWrapped = true
+feedConfirmText.TextXAlignment = Enum.TextXAlignment.Left
+feedConfirmText.TextYAlignment = Enum.TextYAlignment.Top
+feedConfirmText.ZIndex = 51
+feedConfirmText.Parent = feedConfirm
+
+local feedConfirmYes = Instance.new("TextButton")
+feedConfirmYes.Name = "Confirm"
+feedConfirmYes.Size = UDim2.new(0.5, -16, 0, 34)
+feedConfirmYes.Position = UDim2.new(0, 10, 1, -44)
+feedConfirmYes.BackgroundColor3 = FEED_TARGET_COLOR
+feedConfirmYes.BackgroundTransparency = 0.1
+feedConfirmYes.BorderSizePixel = 0
+feedConfirmYes.Text = "Confirm"
+feedConfirmYes.TextColor3 = Color3.fromRGB(20, 25, 20)
+feedConfirmYes.TextSize = 14
+feedConfirmYes.Font = Enum.Font.GothamBold
+feedConfirmYes.AutoButtonColor = true
+feedConfirmYes.ZIndex = 51
+feedConfirmYes.Parent = feedConfirm
+
+local feedConfirmYesCorner = Instance.new("UICorner")
+feedConfirmYesCorner.CornerRadius = UDim.new(0, 6)
+feedConfirmYesCorner.Parent = feedConfirmYes
+
+local feedConfirmNo = Instance.new("TextButton")
+feedConfirmNo.Name = "Cancel"
+feedConfirmNo.Size = UDim2.new(0.5, -16, 0, 34)
+feedConfirmNo.Position = UDim2.new(0.5, 6, 1, -44)
+feedConfirmNo.BackgroundColor3 = Color3.fromRGB(60, 60, 70)
+feedConfirmNo.BackgroundTransparency = 0.1
+feedConfirmNo.BorderSizePixel = 0
+feedConfirmNo.Text = "Cancel"
+feedConfirmNo.TextColor3 = TEXT_PRIMARY
+feedConfirmNo.TextSize = 14
+feedConfirmNo.Font = Enum.Font.GothamBold
+feedConfirmNo.AutoButtonColor = true
+feedConfirmNo.ZIndex = 51
+feedConfirmNo.Parent = feedConfirm
+
+local feedConfirmNoCorner = Instance.new("UICorner")
+feedConfirmNoCorner.CornerRadius = UDim.new(0, 6)
+feedConfirmNoCorner.Parent = feedConfirmNo
 
 -- ─── Inventory section (scrollable grid) ─────────────────────────────────────
 
@@ -395,6 +529,26 @@ end
 local inventoryPets = {}
 local equippedPetId = nil
 
+-- ─── Feed Mode state ─────────────────────────────────────────────────────────
+-- feedMode: bool — toggled via feedModeButton, persisted in PetFeedMode attribute
+-- feedTargetId: string|nil — first-clicked pet (the one that gains XP)
+-- feedSacrificeId: string|nil — second-clicked same-species pet (gets consumed)
+-- feedConfirmActive: bool — modal is open; pet card clicks suppressed
+local feedMode = false
+local feedTargetId = nil
+local feedSacrificeId = nil
+local feedConfirmActive = false
+
+local function findPetById(petId)
+	if petId == nil then return nil end
+	for _, record in ipairs(inventoryPets) do
+		if record.id == petId then
+			return record
+		end
+	end
+	return nil
+end
+
 local function applyInventory(payload)
 	if type(payload) ~= "table" then
 		return false
@@ -463,6 +617,8 @@ local function formatMultiplierPreview(multipliers)
 	return bestLine or "no buffs"
 end
 
+local handleFeedCardClick
+
 local function buildPetCard(entry)
 	local card = Instance.new("Frame")
 	card.Name = "Pet_" .. tostring(entry.id)
@@ -476,18 +632,60 @@ local function buildPetCard(entry)
 
 	local rarityColor = RarityColors[entry.rarity] or RarityColors.Common
 	local isEquipped = (equippedPetId == entry.id)
+	local isMaxLevel = (entry.level or 1) >= MAX_PET_LEVEL
+
+	-- Feed mode classification — used for stroke + dimming + click intent.
+	local isFeedTarget = feedMode and feedTargetId == entry.id
+	local isFeedSacrifice = feedMode and feedSacrificeId == entry.id
+	local targetRecord = feedMode and feedTargetId and findPetById(feedTargetId) or nil
+	local isSameSpeciesCandidate = feedMode
+		and targetRecord
+		and not isFeedTarget
+		and not isFeedSacrifice
+		and targetRecord.name == entry.name
+		and not isMaxLevel
+	-- Pets that cannot participate in the current feed flow (cross-species
+	-- relative to a selected target, or max-level when no target picked yet).
+	local isFeedDimmed = false
+	if feedMode then
+		if targetRecord and not isFeedTarget and not isFeedSacrifice then
+			-- Once a target exists, anything that's not same-species + sub-cap is dim.
+			isFeedDimmed = not isSameSpeciesCandidate
+		elseif isMaxLevel then
+			-- No target picked yet: max-level pets can't be targets, dim them.
+			isFeedDimmed = true
+		end
+	end
 
 	local cardStroke = Instance.new("UIStroke")
-	cardStroke.Color = isEquipped and ACCENT_GOLD or rarityColor
-	cardStroke.Thickness = isEquipped and 3 or 2
+	if isFeedTarget then
+		cardStroke.Color = FEED_TARGET_COLOR
+		cardStroke.Thickness = 3
+	elseif isFeedSacrifice then
+		cardStroke.Color = FEED_SACRIFICE_COLOR
+		cardStroke.Thickness = 3
+	elseif isSameSpeciesCandidate then
+		cardStroke.Color = FEED_CANDIDATE_COLOR
+		cardStroke.Thickness = 2
+	elseif isEquipped then
+		cardStroke.Color = ACCENT_GOLD
+		cardStroke.Thickness = 3
+	else
+		cardStroke.Color = rarityColor
+		cardStroke.Thickness = 2
+	end
 	cardStroke.Parent = card
+
+	if isFeedDimmed then
+		card.BackgroundTransparency = 0.6
+	end
 
 	-- Rarity tint bar across the top
 	local tintBar = Instance.new("Frame")
 	tintBar.Size = UDim2.new(1, 0, 0, 6)
 	tintBar.Position = UDim2.new(0, 0, 0, 0)
 	tintBar.BackgroundColor3 = rarityColor
-	tintBar.BackgroundTransparency = 0.1
+	tintBar.BackgroundTransparency = isFeedDimmed and 0.5 or 0.1
 	tintBar.BorderSizePixel = 0
 	tintBar.Parent = card
 
@@ -500,7 +698,7 @@ local function buildPetCard(entry)
 	nameLabel.Position = UDim2.new(0, 5, 0, 10)
 	nameLabel.BackgroundTransparency = 1
 	nameLabel.Text = entry.name
-	nameLabel.TextColor3 = TEXT_PRIMARY
+	nameLabel.TextColor3 = isFeedDimmed and TEXT_MUTED or TEXT_PRIMARY
 	nameLabel.TextSize = 13
 	nameLabel.Font = Enum.Font.GothamBold
 	nameLabel.TextXAlignment = Enum.TextXAlignment.Left
@@ -511,7 +709,7 @@ local function buildPetCard(entry)
 	rarityLabel.Size = UDim2.new(1, -10, 0, 14)
 	rarityLabel.Position = UDim2.new(0, 5, 0, 28)
 	rarityLabel.BackgroundTransparency = 1
-	rarityLabel.Text = entry.rarity
+	rarityLabel.Text = string.format("%s • Lv %d", entry.rarity, entry.level or 1)
 	rarityLabel.TextColor3 = rarityColor
 	rarityLabel.TextSize = 11
 	rarityLabel.Font = Enum.Font.GothamMedium
@@ -529,37 +727,140 @@ local function buildPetCard(entry)
 	mulLabel.TextXAlignment = Enum.TextXAlignment.Left
 	mulLabel.Parent = card
 
-	local equipButton = Instance.new("TextButton")
-	equipButton.Size = UDim2.new(1, -10, 0, 26)
-	equipButton.Position = UDim2.new(0, 5, 1, -32)
-	equipButton.BackgroundColor3 = isEquipped and ACCENT_GOLD or rarityColor
-	equipButton.BackgroundTransparency = 0.1
-	equipButton.BorderSizePixel = 0
-	equipButton.Text = isEquipped and "EQUIPPED" or "Equip"
-	equipButton.TextColor3 = isEquipped and Color3.fromRGB(20, 20, 25) or Color3.fromRGB(20, 20, 25)
-	equipButton.TextSize = 12
-	equipButton.Font = Enum.Font.GothamBold
-	equipButton.AutoButtonColor = true
-	equipButton.Parent = card
+	-- MAX badge — only shown in feed mode, since equip mode doesn't care.
+	if feedMode and isMaxLevel then
+		local maxBadge = Instance.new("TextLabel")
+		maxBadge.Name = "MaxBadge"
+		maxBadge.Size = UDim2.new(0, 36, 0, 16)
+		maxBadge.AnchorPoint = Vector2.new(1, 0)
+		maxBadge.Position = UDim2.new(1, -4, 0, 10)
+		maxBadge.BackgroundColor3 = ACCENT_GOLD
+		maxBadge.BackgroundTransparency = 0.05
+		maxBadge.BorderSizePixel = 0
+		maxBadge.Text = "MAX"
+		maxBadge.TextColor3 = Color3.fromRGB(20, 20, 25)
+		maxBadge.TextSize = 10
+		maxBadge.Font = Enum.Font.GothamBlack
+		maxBadge.Parent = card
 
-	local equipCorner = Instance.new("UICorner")
-	equipCorner.CornerRadius = UDim.new(0, 4)
-	equipCorner.Parent = equipButton
+		local maxCorner = Instance.new("UICorner")
+		maxCorner.CornerRadius = UDim.new(0, 3)
+		maxCorner.Parent = maxBadge
+	end
 
-	equipButton.Activated:Connect(function()
-		if equippedPetId == entry.id then
-			-- Toggle off (unequip)
-			EquipPetEvent:FireServer(nil)
+	-- Action button — text + behavior depends on mode. In Feed Mode it
+	-- doubles as the click-zone for the feed flow.
+	local actionButton = Instance.new("TextButton")
+	actionButton.Name = "Action"
+	actionButton.Size = UDim2.new(1, -10, 0, 26)
+	actionButton.Position = UDim2.new(0, 5, 1, -32)
+	actionButton.BorderSizePixel = 0
+	actionButton.TextSize = 12
+	actionButton.Font = Enum.Font.GothamBold
+	actionButton.AutoButtonColor = true
+	actionButton.Parent = card
+
+	local actionCorner = Instance.new("UICorner")
+	actionCorner.CornerRadius = UDim.new(0, 4)
+	actionCorner.Parent = actionButton
+
+	if feedMode then
+		-- Feed-mode action label reflects what clicking will do next.
+		if isFeedTarget then
+			actionButton.BackgroundColor3 = FEED_TARGET_COLOR
+			actionButton.BackgroundTransparency = 0.1
+			actionButton.Text = "TARGET"
+			actionButton.TextColor3 = Color3.fromRGB(20, 25, 20)
+		elseif isFeedSacrifice then
+			actionButton.BackgroundColor3 = FEED_SACRIFICE_COLOR
+			actionButton.BackgroundTransparency = 0.1
+			actionButton.Text = "SACRIFICE"
+			actionButton.TextColor3 = Color3.fromRGB(25, 20, 20)
+		elseif isMaxLevel then
+			actionButton.BackgroundColor3 = Color3.fromRGB(60, 60, 70)
+			actionButton.BackgroundTransparency = 0.3
+			actionButton.Text = "MAX"
+			actionButton.TextColor3 = TEXT_MUTED
+			actionButton.AutoButtonColor = false
+		elseif isSameSpeciesCandidate then
+			actionButton.BackgroundColor3 = FEED_CANDIDATE_COLOR
+			actionButton.BackgroundTransparency = 0.15
+			actionButton.Text = "Sacrifice"
+			actionButton.TextColor3 = Color3.fromRGB(30, 25, 15)
+		elseif targetRecord then
+			-- Cross-species while a target is selected — not clickable.
+			actionButton.BackgroundColor3 = Color3.fromRGB(50, 50, 60)
+			actionButton.BackgroundTransparency = 0.4
+			actionButton.Text = "—"
+			actionButton.TextColor3 = TEXT_MUTED
+			actionButton.AutoButtonColor = false
 		else
-			EquipPetEvent:FireServer(entry.id)
+			-- No target picked yet — every non-max card is a possible target.
+			actionButton.BackgroundColor3 = rarityColor
+			actionButton.BackgroundTransparency = 0.2
+			actionButton.Text = "Select Target"
+			actionButton.TextColor3 = Color3.fromRGB(20, 20, 25)
 		end
 
-		task.delay(0.15, function()
-			refreshInventory()
+		actionButton.Activated:Connect(function()
+			handleFeedCardClick(entry)
 		end)
-	end)
+	else
+		-- Equip-mode behavior (preserved verbatim from prior implementation).
+		actionButton.BackgroundColor3 = isEquipped and ACCENT_GOLD or rarityColor
+		actionButton.BackgroundTransparency = 0.1
+		actionButton.Text = isEquipped and "EQUIPPED" or "Equip"
+		actionButton.TextColor3 = Color3.fromRGB(20, 20, 25)
+
+		actionButton.Activated:Connect(function()
+			if equippedPetId == entry.id then
+				EquipPetEvent:FireServer(nil)
+			else
+				EquipPetEvent:FireServer(entry.id)
+			end
+
+			task.delay(0.15, function()
+				refreshInventory()
+			end)
+		end)
+	end
 
 	return card
+end
+
+-- Update header + empty-state text + title to reflect the current mode.
+-- Called from renderInventory (mode-aware redraws) and from setFeedMode.
+local function refreshHeaderForMode()
+	if feedMode then
+		titleLabel.Text = "🍖 FEEDING — Pet Collection"
+		titleLabel.TextColor3 = FEED_HEADER_COLOR
+		feedModeButton.Text = "Equip Mode"
+		feedModeButton.BackgroundColor3 = Color3.fromRGB(40, 50, 35)
+		feedModeStroke.Color = FEED_HEADER_COLOR
+		if feedTargetId then
+			local target = findPetById(feedTargetId)
+			if target then
+				inventoryHeader.Text = string.format(
+					"🍖 Feeding %s — pick a same-species sacrifice (gold border)",
+					tostring(target.name))
+			else
+				inventoryHeader.Text = "🍖 Feed Mode — pick a target pet"
+			end
+		else
+			inventoryHeader.Text = "🍖 Feed Mode — pick a target pet"
+		end
+		inventoryHeader.TextColor3 = FEED_HEADER_COLOR
+		emptyPlaceholder.Text = "No pets to feed yet."
+	else
+		titleLabel.Text = "🐾 Pet Collection"
+		titleLabel.TextColor3 = TEXT_PRIMARY
+		feedModeButton.Text = "🍖 Feed Mode"
+		feedModeButton.BackgroundColor3 = Color3.fromRGB(50, 30, 30)
+		feedModeStroke.Color = Color3.fromRGB(120, 60, 60)
+		inventoryHeader.Text = "Your Pets"
+		inventoryHeader.TextColor3 = TEXT_MUTED
+		emptyPlaceholder.Text = "Hatch your first egg below!"
+	end
 end
 
 renderInventory = function()
@@ -570,6 +871,8 @@ renderInventory = function()
 		end
 	end
 
+	refreshHeaderForMode()
+
 	if #inventoryPets == 0 then
 		emptyPlaceholder.Visible = true
 		inventoryScroll.Visible = false
@@ -577,8 +880,15 @@ renderInventory = function()
 		return
 	end
 
-	emptyPlaceholder.Visible = false
-	inventoryScroll.Visible = true
+	-- Single-pet edge case in feed mode — duplicates are required, so warn.
+	if feedMode and #inventoryPets == 1 then
+		emptyPlaceholder.Visible = true
+		emptyPlaceholder.Text = "Need duplicates to feed."
+		inventoryScroll.Visible = true
+	else
+		emptyPlaceholder.Visible = false
+		inventoryScroll.Visible = true
+	end
 
 	-- Sort: equipped first, then by rarity strength, then by id
 	local rarityRank = {
@@ -603,6 +913,131 @@ renderInventory = function()
 
 	updateToggleBadge()
 end
+
+-- ═══════════════════════════════════════════════════════════════════
+-- Feed Mode flow
+-- ═══════════════════════════════════════════════════════════════════
+
+local function clearFeedSelection()
+	feedTargetId = nil
+	feedSacrificeId = nil
+end
+
+local function hideFeedConfirm()
+	feedConfirmActive = false
+	feedConfirm.Visible = false
+end
+
+local function showFeedConfirm(target, sacrifice)
+	feedConfirmActive = true
+	feedConfirmText.Text = string.format(
+		"Feed %s (Lv %d) to %s (Lv %d)?\nThe target will gain XP and may level up. The sacrifice will be consumed permanently.",
+		tostring(sacrifice.name), sacrifice.level or 1,
+		tostring(target.name), target.level or 1)
+	feedConfirm.Visible = true
+end
+
+handleFeedCardClick = function(entry)
+	if not feedMode or feedConfirmActive then
+		return
+	end
+
+	-- No selections yet → set as target (if not maxed).
+	if feedTargetId == nil then
+		if (entry.level or 1) >= MAX_PET_LEVEL then
+			-- Max-level pets can't gain XP; ignore the click silently
+			-- (the card is already greyed with the MAX badge).
+			return
+		end
+		feedTargetId = entry.id
+		renderInventory()
+		return
+	end
+
+	-- Clicking the existing target again deselects it (back to step 1).
+	if feedTargetId == entry.id then
+		clearFeedSelection()
+		renderInventory()
+		return
+	end
+
+	-- Have a target, picking a sacrifice. Must be same-species.
+	local target = findPetById(feedTargetId)
+	if not target then
+		-- Target vanished (e.g. inventory refresh raced) — restart.
+		clearFeedSelection()
+		renderInventory()
+		return
+	end
+
+	if entry.name ~= target.name then
+		-- Cross-species click while target picked — ignore (server would
+		-- reject anyway). Card is already dimmed + non-interactive label.
+		return
+	end
+
+	feedSacrificeId = entry.id
+	renderInventory()
+	showFeedConfirm(target, entry)
+end
+
+local function commitFeed()
+	if not feedTargetId or not feedSacrificeId then
+		hideFeedConfirm()
+		return
+	end
+
+	local targetId = feedTargetId
+	local sacrificeId = feedSacrificeId
+
+	if FeedPetEvent then
+		FeedPetEvent:FireServer(targetId, sacrificeId)
+	end
+
+	-- Reset selection state regardless — a successful feed makes the
+	-- sacrifice id stale, and on failure the user can restart cleanly.
+	clearFeedSelection()
+	hideFeedConfirm()
+
+	task.delay(0.2, function()
+		refreshInventory()
+	end)
+end
+
+local function setFeedMode(enabled)
+	if not FeedPetEvent then
+		-- Defensive: if the remote was never wired, ignore the toggle.
+		feedMode = false
+		feedModeButton.Visible = false
+		return
+	end
+
+	feedMode = enabled and true or false
+	clearFeedSelection()
+	hideFeedConfirm()
+	player:SetAttribute("PetFeedMode", feedMode)
+
+	if panel.Visible then
+		renderInventory()
+	else
+		refreshHeaderForMode()
+	end
+end
+
+feedModeButton.Activated:Connect(function()
+	setFeedMode(not feedMode)
+end)
+
+feedConfirmYes.Activated:Connect(function()
+	commitFeed()
+end)
+
+feedConfirmNo.Activated:Connect(function()
+	-- Cancel: drop the sacrifice, keep the target highlighted, stay in mode.
+	feedSacrificeId = nil
+	hideFeedConfirm()
+	renderInventory()
+end)
 
 -- ═══════════════════════════════════════════════════════════════════
 -- Inventory refresh + event handling
@@ -685,6 +1120,14 @@ end)
 local savedOpen = player:GetAttribute("PetPanelOpen")
 if savedOpen == true then
 	setPanelVisible(true)
+end
+
+-- Restore feed-mode preference (only meaningful if the remote loaded).
+if FeedPetEvent then
+	local savedFeedMode = player:GetAttribute("PetFeedMode")
+	if savedFeedMode == true then
+		setFeedMode(true)
+	end
 end
 
 -- Auto-refresh inventory every 5 seconds while open. This keeps the
