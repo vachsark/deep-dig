@@ -12,9 +12,14 @@
 --   * Replacing badgeId=0 placeholders with real Creator Dashboard ids.
 --   * Persisting `data.badgesAwarded` lives in GameManager's DEFAULT_DATA
 --     merge; new players are initialized lazily here on first event.
---   * A dedicated server→server BindableEvent for "rare item found" —
---     currently we sniff the latest inventory entry after each
---     BlockBrokenEvent. Race-resistant via badgesAwarded idempotency.
+--
+-- Rare-find detection now uses ServerEvents.ItemFoundBindable (fired by
+-- GameManager on every inventory add), so the rarity_found badges no
+-- longer depend on inspecting data.inventory[last] after a BlockBroken
+-- event — that approach was vulnerable to re-processing old finds when
+-- a block break didn't drop a new item. blocks_dug / depth_tier still
+-- listen to BlockBroken; resurface_count / museum_displays are still
+-- on the slow polling loop until those systems expose dedicated events.
 
 local Players = game:GetService("Players")
 local BadgeService = game:GetService("BadgeService")
@@ -27,13 +32,18 @@ local NotifyEvent = Remotes:WaitForChild("Notify")
 -- GameManager. Wait so we don't race the load order on hot-reload.
 local ServerEvents = ReplicatedStorage:WaitForChild("ServerEvents")
 local BlockBrokenEvent = ServerEvents:WaitForChild("BlockBroken")
+-- ItemFoundBindable is also created by GameManager (idempotent find-or-create)
+-- and fired on every inventory add. WaitForChild blocks until present —
+-- safe even if BadgeSystem somehow loads before GameManager.
+local ItemFoundBindable = ServerEvents:WaitForChild("ItemFoundBindable")
 
 -- ═══════════════════════════════════════════════════════════════════
 -- Badge definitions
 -- ═══════════════════════════════════════════════════════════════════
 -- trigger.type values handled below:
 --   blocks_dug              → data.totalBlocksDug >= value
---   rarity_found            → latest inventory item rarity == value
+--   rarity_found            → ItemFoundBindable payload rarity == value
+--                             (driven by dedicated listener — NOT evaluateAll)
 --   depth_tier              → tier name reached (uses data.deepestBlock)
 --   resurface_count         → data.rebirths >= value
 --   museum_displays         → count(data.collections) >= value
@@ -171,15 +181,15 @@ end
 -- Evaluate every badge for a player. Cheap (8 entries, simple comparisons)
 -- and idempotency-protected by awardBadge, so we just brute-force on every
 -- relevant signal.
+--
+-- NOTE: rarity_found triggers are NOT evaluated here — they're driven by
+-- the dedicated ItemFoundBindable listener below, so we don't accidentally
+-- re-process old finds when an unrelated BlockBroken event (or polling tick)
+-- runs evaluateAll.
 local function evaluateAll(player)
 	local data = getData(player)
 	if not data then return end
 	ensureBadgeField(data)
-
-	local latestItem
-	if data.inventory and #data.inventory > 0 then
-		latestItem = data.inventory[#data.inventory]
-	end
 
 	for _, entry in ipairs(BADGES) do
 		if not data.badgesAwarded[entry.id] then
@@ -192,9 +202,7 @@ local function evaluateAll(player)
 				end
 
 			elseif trigger.type == "rarity_found" then
-				if latestItem and latestItem.rarity == trigger.value then
-					fired = true
-				end
+				-- Skip — handled by ItemFoundBindable listener (race-free).
 
 			elseif trigger.type == "depth_tier" then
 				local needed = TIER_MIN_DEPTH[trigger.value]
@@ -223,6 +231,26 @@ local function evaluateAll(player)
 		end
 	end
 end
+
+-- Dedicated rare-find handler. Fires once per real inventory add. Idempotency
+-- comes from awardBadge's badgesAwarded check, so even if Rare→Epic→Legendary
+-- arrive in a single dig sequence, each badge awards at most once.
+ItemFoundBindable.Event:Connect(function(player, item)
+	if not player or not item then return end
+	local data = getData(player)
+	if not data then return end
+	ensureBadgeField(data)
+
+	local rarity = item.rarity
+	if rarity == "Rare" or rarity == "Epic" or rarity == "Legendary" or rarity == "Mythic" then
+		if not data.badgesAwarded.first_rare_find then
+			awardBadge(player, "first_rare_find")
+		end
+		if (rarity == "Legendary" or rarity == "Mythic") and not data.badgesAwarded.first_legendary then
+			awardBadge(player, "first_legendary")
+		end
+	end
+end)
 
 -- ═══════════════════════════════════════════════════════════════════
 -- Wire up signals

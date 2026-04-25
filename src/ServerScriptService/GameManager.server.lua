@@ -40,6 +40,19 @@ BlockBrokenEvent.Parent = ServerEvents
 local PlayerDataReady = Instance.new("BindableEvent")
 PlayerDataReady.Name = "PlayerDataReady"
 PlayerDataReady.Parent = ServerEvents
+
+-- Fires (player, item) every time an item is added to data.inventory.
+-- Race-free signal for systems that need to react to a new find — e.g.
+-- BadgeSystem awarding first_rare_find / first_legendary. Subscribers
+-- should expect the same record shape that goes into inventory:
+--   { name, rarity, sellValue, ... }
+-- Idempotent find-or-create: if another script created it first, reuse it.
+local ItemFoundBindable = ServerEvents:FindFirstChild("ItemFoundBindable")
+if not ItemFoundBindable then
+	ItemFoundBindable = Instance.new("BindableEvent")
+	ItemFoundBindable.Name = "ItemFoundBindable"
+	ItemFoundBindable.Parent = ServerEvents
+end
 local SellItemEvent = createRemote("SellItem")
 local BuyToolEvent = createRemote("BuyTool")
 local SellAllEvent = createRemote("SellAll")
@@ -359,6 +372,10 @@ BlockBrokenEvent.Event:Connect(function(player, blockPosition)
 
 			-- Notify player
 			ItemFoundEvent:FireClient(player, item)
+			-- Race-free server-side signal for BadgeSystem etc. The client
+			-- toast (ItemFoundEvent above) wins the visual race; this fires
+			-- just after for server consumers that need the find record.
+			ItemFoundBindable:Fire(player, item)
 			-- Quest progress: items_found (always +1) and rarity_found (+1 with rarity tag).
 			-- QuestSystem listener filters by quest.rarityFilter == eventData.rarity.
 			fireQuestProgress(player, "items_found", { amount = 1 })
@@ -625,6 +642,9 @@ CraftFromFragsEvent.OnServerEvent:Connect(function(player, targetRarity, tierNam
 		sellValue = newItem.sellValue,
 		color = rarityData.color,
 	})
+	-- Race-free server-side signal for BadgeSystem (mirrors normal drop path).
+	-- Crafted items count as a "find" for first_rare_find / first_legendary.
+	ItemFoundBindable:Fire(player, newItem)
 
 	UpdateHUDEvent:FireClient(player, {
 		coins = data.coins,
