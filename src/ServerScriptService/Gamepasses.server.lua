@@ -6,6 +6,7 @@
 --   2 — VIP         : +50% coins from all sources + VIP chat tag
 --   3 — LUCKY       : +25% loot drop chance (applied in GameManager DigBlock)
 --   4 — FOREMAN     : offline income cap extends from 8h to 24h
+--   5 — AUTO_COLLECTOR : duplicate finds sell immediately
 --
 -- On player join:
 --   1. Check MarketplaceService:UserOwnsGamePassAsync for each pass
@@ -32,7 +33,7 @@ local AUTO_PROMPT_DELAY = 240
 local autoPromptSessions = {}
 
 -- ─── Gamepass definitions ─────────────────────────────────────────────────────
--- Replace placeholder IDs (1, 2, 3, 4) with your real Roblox gamepass IDs.
+-- Replace placeholder IDs (1, 2, 3, 4, 5) with your real Roblox gamepass IDs.
 
 local GAMEPASSES = {
 	{
@@ -66,6 +67,15 @@ local GAMEPASSES = {
 		icon = "rbxassetid://0",
 		price = 499,
 		tag = "FOREMAN",
+	},
+	{
+		id = Config.GAMEPASS_AUTO_COLLECTOR_ID, -- placeholder; replace with the real Creator Hub pass id
+		key = Config.GAMEPASS_AUTO_COLLECTOR,
+		name = "Auto Collector",
+		description = "Duplicate finds sell instantly while new discoveries stay in your bag.",
+		icon = "rbxassetid://0",
+		price = 349,
+		tag = "AUTO_COLLECTOR",
 	},
 }
 

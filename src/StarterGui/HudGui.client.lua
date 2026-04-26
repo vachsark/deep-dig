@@ -178,7 +178,7 @@ local currentStreakRevivePrice = 50
 
 local badgeRow = Instance.new("Frame")
 badgeRow.Name = "PassBadges"
-badgeRow.Size = UDim2.new(0, 300, 0, 24)
+badgeRow.Size = UDim2.new(0, 390, 0, 24)
 badgeRow.Position = UDim2.new(0, 20, 0, 142)
 badgeRow.BackgroundTransparency = 1
 badgeRow.Parent = screenGui
@@ -194,9 +194,10 @@ local PASS_UI_STYLES = {
 	[2] = { color = Color3.fromRGB(255, 200, 0), label = "★ VIP" },
 	[3] = { color = Color3.fromRGB(80, 220, 80), label = "🍀 LUCKY" },
 	[4] = { color = Color3.fromRGB(90, 170, 255), label = "⛏ FOREMAN" },
+	[Config.GAMEPASS_AUTO_COLLECTOR_ID] = { color = Color3.fromRGB(80, 230, 210), label = "⚙ AUTO" },
 }
 
-local PASS_UI_ORDER = { 1, 2, 3, 4 }
+local PASS_UI_ORDER = { 1, 2, 3, 4, Config.GAMEPASS_AUTO_COLLECTOR_ID }
 
 local badgeInstances = {} -- passId → TextLabel
 
@@ -1080,11 +1081,15 @@ shopCloseCorner.CornerRadius = UDim.new(0, 6)
 shopCloseCorner.Parent = shopClose
 
 -- Pass cards container
-local cardsFrame = Instance.new("Frame")
+local cardsFrame = Instance.new("ScrollingFrame")
 cardsFrame.Name = "Cards"
 cardsFrame.Size = UDim2.new(1, -20, 1, -60)
 cardsFrame.Position = UDim2.new(0, 10, 0, 54)
 cardsFrame.BackgroundTransparency = 1
+cardsFrame.BorderSizePixel = 0
+cardsFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
+cardsFrame.AutomaticCanvasSize = Enum.AutomaticSize.Y
+cardsFrame.ScrollBarThickness = 6
 cardsFrame.ZIndex = 11
 cardsFrame.Parent = shopPanel
 

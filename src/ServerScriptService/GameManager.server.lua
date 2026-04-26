@@ -155,6 +155,15 @@ local function getPlayerData(player)
 	return playerData[player.UserId]
 end
 
+local function hasOwnedGamepass(data, passId, passKey)
+	local ownedGamepasses = data and data.ownedGamepasses
+	if not ownedGamepasses then
+		return false
+	end
+
+	return ownedGamepasses[passId] == true or (passKey and ownedGamepasses[passKey] == true)
+end
+
 local function applyFirstSellAffordabilityGrant(player, data)
 	if data.toolTier ~= 1 then return end
 	if data.firstSellAffordabilityGrantUsed then return end
@@ -391,6 +400,8 @@ BlockBrokenEvent.Event:Connect(function(player, blockPosition)
 		end
 
 		if item then
+			local wasAlreadyCollected = data.collections[item.name] == true
+
 			-- winter_loot: 25% chance to promote the rolled rarity one tier
 			-- (Common → Uncommon, …, Legendary → Mythic; Mythic doesn't
 			-- promote). FTUE rolls cap at Uncommon — we still allow the
@@ -426,44 +437,64 @@ BlockBrokenEvent.Event:Connect(function(player, blockPosition)
 			-- client toast shows the bumped value.
 			item.sellValue = math.floor(item.sellValue * petLoot)
 
-			-- Add to inventory
-			table.insert(data.inventory, {
-				name = item.name,
-				rarity = item.rarity,
-				sellValue = item.sellValue,
-			})
-
 			-- Track collection
 			data.collections[item.name] = true
 
-			-- Notify player
-			ItemFoundEvent:FireClient(player, item)
-			-- Race-free server-side signal for BadgeSystem etc. The client
-			-- toast (ItemFoundEvent above) wins the visual race; this fires
-			-- just after for server consumers that need the find record.
-			ItemFoundBindable:Fire(player, item)
 			-- Quest progress: items_found (always +1) and rarity_found (+1 with rarity tag).
 			-- QuestSystem listener filters by quest.rarityFilter == eventData.rarity.
 			fireQuestProgress(player, "items_found", { amount = 1 })
 			fireQuestProgress(player, "rarity_found", { amount = 1, rarity = item.rarity })
-			-- SOUND HOOK: sparkle chime for any item find
-			if PlaySound then
-				PlaySound:FireClient(player, "item_found")
-			end
-			-- SOUND HOOK: dramatic reveal for Rare+
-			if item.rarity == "Rare" or item.rarity == "Epic"
-				or item.rarity == "Legendary" or item.rarity == "Mythic" then
-				if PlaySound then
-					PlaySound:FireClient(player, "rare_reveal")
-				end
-			end
 
-			-- Notify all players for rare+ finds
-			if item.rarity == "Epic" or item.rarity == "Legendary" or item.rarity == "Mythic" then
-				NotifyEvent:FireAllClients(
-					player.Name .. " found a " .. item.rarity .. " " .. item.name .. "!",
-					item.rarity
-				)
+			local autoCollectDuplicate = wasAlreadyCollected and hasOwnedGamepass(
+				data,
+				Config.GAMEPASS_AUTO_COLLECTOR_ID,
+				Config.GAMEPASS_AUTO_COLLECTOR
+			)
+
+			if autoCollectDuplicate then
+				local earned = item.sellValue
+				data.coins = data.coins + earned
+				data.totalEarned = (data.totalEarned or 0) + earned
+				fireQuestProgress(player, "coins_earned", { amount = earned })
+				applyFirstSellAffordabilityGrant(player, data)
+
+				NotifyEvent:FireClient(player, "Auto Collector sold duplicate " .. item.name .. " for " .. earned .. " coins.", item.rarity)
+				if PlaySound then
+					PlaySound:FireClient(player, "sell_coins")
+				end
+			else
+				-- Add to inventory
+				table.insert(data.inventory, {
+					name = item.name,
+					rarity = item.rarity,
+					sellValue = item.sellValue,
+				})
+
+				-- Notify player
+				ItemFoundEvent:FireClient(player, item)
+				-- Race-free server-side signal for BadgeSystem etc. The client
+				-- toast (ItemFoundEvent above) wins the visual race; this fires
+				-- just after for server consumers that need the find record.
+				ItemFoundBindable:Fire(player, item)
+				-- SOUND HOOK: sparkle chime for any item find
+				if PlaySound then
+					PlaySound:FireClient(player, "item_found")
+				end
+				-- SOUND HOOK: dramatic reveal for Rare+
+				if item.rarity == "Rare" or item.rarity == "Epic"
+					or item.rarity == "Legendary" or item.rarity == "Mythic" then
+					if PlaySound then
+						PlaySound:FireClient(player, "rare_reveal")
+					end
+				end
+
+				-- Notify all players for rare+ finds
+				if item.rarity == "Epic" or item.rarity == "Legendary" or item.rarity == "Mythic" then
+					NotifyEvent:FireAllClients(
+						player.Name .. " found a " .. item.rarity .. " " .. item.name .. "!",
+						item.rarity
+					)
+				end
 			end
 		end
 	end
