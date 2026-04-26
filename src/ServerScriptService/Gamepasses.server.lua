@@ -8,6 +8,7 @@
 --   4 — FOREMAN     : offline income cap extends from 8h to 24h
 --   5 — AUTO_COLLECTOR : duplicate finds sell immediately
 --   6 — INFINITE_BACKPACK : inventory has no item cap
+--   7 — ARTIFACT_DETECTOR : weak finds sometimes become Rare+ artifacts
 --
 -- On player join:
 --   1. Check MarketplaceService:UserOwnsGamePassAsync for each pass
@@ -34,7 +35,7 @@ local AUTO_PROMPT_DELAY = 240
 local autoPromptSessions = {}
 
 -- ─── Gamepass definitions ─────────────────────────────────────────────────────
--- Replace placeholder IDs (1, 2, 3, 4, 5, 6) with your real Roblox gamepass IDs.
+-- Replace placeholder IDs (1, 2, 3, 4, 5, 6, 7) with your real Roblox gamepass IDs.
 
 local GAMEPASSES = {
 	{
@@ -86,6 +87,15 @@ local GAMEPASSES = {
 		icon = "rbxassetid://0",
 		price = 799,
 		tag = "INFINITE_BACKPACK",
+	},
+	{
+		id = Config.GAMEPASS_ARTIFACT_DETECTOR_ID, -- placeholder; replace with the real Creator Hub pass id
+		key = Config.GAMEPASS_ARTIFACT_DETECTOR,
+		name = "Artifact Detector",
+		description = "Weak finds sometimes ping into Rare+ artifacts from your current depth.",
+		icon = "rbxassetid://0",
+		price = 999,
+		tag = "ARTIFACT_DETECTOR",
 	},
 }
 

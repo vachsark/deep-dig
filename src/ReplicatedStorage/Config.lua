@@ -41,6 +41,8 @@ Config.GAMEPASS_AUTO_COLLECTOR_ID = 5
 Config.GAMEPASS_AUTO_COLLECTOR = "auto_collector"
 Config.GAMEPASS_INFINITE_BACKPACK_ID = 6
 Config.GAMEPASS_INFINITE_BACKPACK = "infinite_backpack"
+Config.GAMEPASS_ARTIFACT_DETECTOR_ID = 7
+Config.GAMEPASS_ARTIFACT_DETECTOR = "artifact_detector"
 
 -- Admin / testing
 -- UserIds in this list (in addition to game.CreatorId) can run /coins, /tool,

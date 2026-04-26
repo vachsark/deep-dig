@@ -263,6 +263,8 @@ end
 -- ═══════════════════════════════════════════════════════════════════
 
 local activeEvents = {} -- { [eventName] = endTick }
+local ARTIFACT_DETECTOR_CHANCE = 0.10
+local ARTIFACT_DETECTOR_MIN_RANK = 3
 
 local function isEventActive(effectName)
 	local endTick = activeEvents[effectName]
@@ -288,6 +290,50 @@ local function rollItemEchoBoosted(tierName)
 				w = w * 2
 			end
 			totalWeight = totalWeight + w
+			table.insert(pool, { item = item, cumWeight = totalWeight })
+		end
+	end
+
+	if totalWeight == 0 then return nil end
+
+	local roll = math.random() * totalWeight
+	for _, entry in ipairs(pool) do
+		if roll <= entry.cumWeight then
+			local item = entry.item
+			local rarityData = ItemDatabase.RARITY[item.rarity]
+			return {
+				name = item.name,
+				rarity = item.rarity,
+				baseValue = item.baseValue,
+				sellValue = item.baseValue * rarityData.multiplier,
+				color = rarityData.color,
+			}
+		end
+	end
+
+	return nil
+end
+
+local RARITY_RANK = {
+	Common = 1,
+	Uncommon = 2,
+	Rare = 3,
+	Epic = 4,
+	Legendary = 5,
+	Mythic = 6,
+}
+
+local function rollRarePlusItem(tierName)
+	local tierItems = ItemDatabase.ITEMS[tierName]
+	if not tierItems then return nil end
+
+	local pool = {}
+	local totalWeight = 0
+	for _, item in ipairs(tierItems) do
+		local rarityData = ItemDatabase.RARITY[item.rarity]
+		local rank = RARITY_RANK[item.rarity] or 0
+		if rarityData and rank >= ARTIFACT_DETECTOR_MIN_RANK then
+			totalWeight = totalWeight + rarityData.weight
 			table.insert(pool, { item = item, cumWeight = totalWeight })
 		end
 	end
@@ -473,6 +519,21 @@ BlockBrokenEvent.Event:Connect(function(player, blockPosition)
 		end
 
 		if item then
+			if not isFirstEverFind
+				and (item.rarity == "Common" or item.rarity == "Uncommon")
+				and hasOwnedGamepass(
+					data,
+					Config.GAMEPASS_ARTIFACT_DETECTOR_ID,
+					Config.GAMEPASS_ARTIFACT_DETECTOR
+				)
+				and math.random() < ARTIFACT_DETECTOR_CHANCE then
+				local detectorItem = rollRarePlusItem(tierName)
+				if detectorItem then
+					item = detectorItem
+					NotifyEvent:FireClient(player, "Artifact Detector pinged: " .. item.name .. "!", item.rarity)
+				end
+			end
+
 			local wasAlreadyCollected = data.collections[item.name] == true
 
 			-- winter_loot: 25% chance to promote the rolled rarity one tier

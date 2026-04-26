@@ -200,7 +200,7 @@ local currentStreakRevivePrice = 50
 
 local badgeRow = Instance.new("Frame")
 badgeRow.Name = "PassBadges"
-badgeRow.Size = UDim2.new(0, 480, 0, 24)
+badgeRow.Size = UDim2.new(0, 560, 0, 24)
 badgeRow.Position = UDim2.new(0, 20, 0, 142)
 badgeRow.BackgroundTransparency = 1
 badgeRow.Parent = screenGui
@@ -218,9 +218,18 @@ local PASS_UI_STYLES = {
 	[4] = { color = Color3.fromRGB(90, 170, 255), label = "⛏ FOREMAN" },
 	[Config.GAMEPASS_AUTO_COLLECTOR_ID] = { color = Color3.fromRGB(80, 230, 210), label = "⚙ AUTO" },
 	[Config.GAMEPASS_INFINITE_BACKPACK_ID] = { color = Color3.fromRGB(190, 120, 255), label = "∞ BAG" },
+	[Config.GAMEPASS_ARTIFACT_DETECTOR_ID] = { color = Color3.fromRGB(60, 210, 255), label = "⌁ SCAN" },
 }
 
-local PASS_UI_ORDER = { 1, 2, 3, 4, Config.GAMEPASS_AUTO_COLLECTOR_ID, Config.GAMEPASS_INFINITE_BACKPACK_ID }
+local PASS_UI_ORDER = {
+	1,
+	2,
+	3,
+	4,
+	Config.GAMEPASS_AUTO_COLLECTOR_ID,
+	Config.GAMEPASS_INFINITE_BACKPACK_ID,
+	Config.GAMEPASS_ARTIFACT_DETECTOR_ID,
+}
 
 local badgeInstances = {} -- passId → TextLabel
 
