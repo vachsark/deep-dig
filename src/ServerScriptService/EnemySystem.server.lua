@@ -227,6 +227,7 @@ local function handleTouched(record, hit)
 	end
 
 	record.nextTouchDamageAtByUserId[player.UserId] = now + TOUCH_DAMAGE_COOLDOWN
+	player:SetAttribute("DeepDig_LastEnemyDamageAt", now)
 	humanoid:TakeDamage(record.enemy.damage)
 end
 
