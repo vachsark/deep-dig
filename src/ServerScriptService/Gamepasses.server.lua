@@ -5,6 +5,7 @@
 --   1 — DOUBLE_LOOT : all item sellValues ×2 (applied in GameManager DigBlock)
 --   2 — VIP         : +50% coins from all sources + VIP chat tag
 --   3 — LUCKY       : +25% loot drop chance (applied in GameManager DigBlock)
+--   4 — FOREMAN     : offline income cap extends from 8h to 24h
 --
 -- On player join:
 --   1. Check MarketplaceService:UserOwnsGamePassAsync for each pass
@@ -31,7 +32,7 @@ local AUTO_PROMPT_DELAY = 240
 local autoPromptSessions = {}
 
 -- ─── Gamepass definitions ─────────────────────────────────────────────────────
--- Replace placeholder IDs (1, 2, 3, 0) with your real Roblox gamepass IDs.
+-- Replace placeholder IDs (1, 2, 3, 4) with your real Roblox gamepass IDs.
 
 local GAMEPASSES = {
 	{
@@ -57,6 +58,14 @@ local GAMEPASSES = {
 		icon = "rbxassetid://0",
 		price = 199,
 		tag = "LUCKY",
+	},
+	{
+		id = 4,
+		name = "Foreman's Pass",
+		description = "Offline income cap extends to 24 hours.",
+		icon = "rbxassetid://0",
+		price = 499,
+		tag = "FOREMAN",
 	},
 }
 

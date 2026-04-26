@@ -8,7 +8,10 @@ local Remotes = ReplicatedStorage:WaitForChild("Remotes")
 local NotifyEvent = Remotes:WaitForChild("Notify")
 local UpdateHUDEvent = Remotes:WaitForChild("UpdateHUD")
 
-local OFFLINE_SECONDS_CAP = 8 * 3600
+local FOREMAN_PASS_ID = 4
+local DEFAULT_OFFLINE_SECONDS_CAP = 8 * 3600
+local FOREMAN_OFFLINE_SECONDS_CAP = 24 * 3600
+
 local OFFLINE_RATES = {
 	[1] = 30,   -- Rusty Shovel
 	[2] = 80,   -- Iron Pickaxe
@@ -38,6 +41,31 @@ local function loadDataWithRetry(player)
 	return getData(player)
 end
 
+local function getOfflineSecondsCap(data)
+	if data and data.ownedGamepasses and data.ownedGamepasses[FOREMAN_PASS_ID] then
+		return FOREMAN_OFFLINE_SECONDS_CAP
+	end
+
+	return DEFAULT_OFFLINE_SECONDS_CAP
+end
+
+local function formatOfflineDuration(seconds)
+	seconds = math.max(0, math.floor(seconds))
+
+	local hours = math.floor(seconds / 3600)
+	local minutes = math.floor((seconds % 3600) / 60)
+
+	if hours > 0 and minutes > 0 then
+		return hours .. "h " .. minutes .. "m"
+	end
+
+	if hours > 0 then
+		return hours .. "h"
+	end
+
+	return minutes .. "m"
+end
+
 local function grantOfflineIncome(player)
 	if processedPlayers[player.UserId] then return end
 	processedPlayers[player.UserId] = true
@@ -52,7 +80,8 @@ local function grantOfflineIncome(player)
 		return
 	end
 
-	local elapsed = math.clamp(os.time() - previousLastSeenAt, 0, OFFLINE_SECONDS_CAP)
+	local offlineSecondsCap = getOfflineSecondsCap(data)
+	local elapsed = math.clamp(os.time() - previousLastSeenAt, 0, offlineSecondsCap)
 	local coinsPerHour = OFFLINE_RATES[data.toolTier] or 0
 	local reward = math.floor(coinsPerHour * elapsed / 3600)
 	local processedAt = os.time()
@@ -70,10 +99,11 @@ local function grantOfflineIncome(player)
 		return
 	end
 
-	local minutes = math.floor(elapsed / 60)
+	local countedDuration = formatOfflineDuration(elapsed)
+	local capDuration = formatOfflineDuration(offlineSecondsCap)
 	NotifyEvent:FireClient(
 		player,
-		"Welcome back! You earned " .. reward .. " coins while offline (" .. minutes .. " min).",
+		"Welcome back! You earned " .. reward .. " coins while offline (" .. countedDuration .. " counted, capped at " .. capDuration .. ").",
 		"Rare"
 	)
 	UpdateHUDEvent:FireClient(player, {

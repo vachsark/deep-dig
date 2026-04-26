@@ -189,19 +189,20 @@ badgeLayout.SortOrder = Enum.SortOrder.LayoutOrder
 badgeLayout.Padding = UDim.new(0, 4)
 badgeLayout.Parent = badgeRow
 
-local PASS_BADGE_COLORS = {
-	[1] = Color3.fromRGB(255, 80,  80),  -- DOUBLE_LOOT  — red
-	[2] = Color3.fromRGB(255, 200, 0),   -- VIP          — gold
-	[3] = Color3.fromRGB(80,  220, 80),  -- LUCKY        — green
+local PASS_UI_STYLES = {
+	[1] = { color = Color3.fromRGB(255, 80, 80), label = "2× LOOT" },
+	[2] = { color = Color3.fromRGB(255, 200, 0), label = "★ VIP" },
+	[3] = { color = Color3.fromRGB(80, 220, 80), label = "🍀 LUCKY" },
+	[4] = { color = Color3.fromRGB(90, 170, 255), label = "⛏ FOREMAN" },
 }
 
-local PASS_BADGE_LABELS = {
-	[1] = "2× LOOT",
-	[2] = "★ VIP",
-	[3] = "🍀 LUCKY",
-}
+local PASS_UI_ORDER = { 1, 2, 3, 4 }
 
 local badgeInstances = {} -- passId → TextLabel
+
+local function getPassUiStyle(passId)
+	return PASS_UI_STYLES[passId] or { color = Color3.fromRGB(100, 100, 100), label = "PASS" }
+end
 
 local function updatePassBadges(ownedGamepasses)
 	-- Clear old badges
@@ -212,14 +213,15 @@ local function updatePassBadges(ownedGamepasses)
 
 	if not ownedGamepasses then return end
 
-	for passId = 1, 3 do
+	for _, passId in ipairs(PASS_UI_ORDER) do
 		if ownedGamepasses[passId] then
+			local passUi = getPassUiStyle(passId)
 			local badge = Instance.new("TextLabel")
 			badge.Size = UDim2.new(0, 72, 0, 20)
-			badge.BackgroundColor3 = PASS_BADGE_COLORS[passId]
+			badge.BackgroundColor3 = passUi.color
 			badge.BackgroundTransparency = 0.2
 			badge.BorderSizePixel = 0
-			badge.Text = PASS_BADGE_LABELS[passId]
+			badge.Text = passUi.label
 			badge.TextColor3 = Color3.fromRGB(20, 15, 0)
 			badge.TextSize = 11
 			badge.Font = Enum.Font.GothamBlack
@@ -1091,16 +1093,11 @@ cardsLayout.SortOrder = Enum.SortOrder.LayoutOrder
 cardsLayout.Padding = UDim.new(0, 8)
 cardsLayout.Parent = cardsFrame
 
--- Gamepass card colours (matching badge row)
-local CARD_COLORS = {
-	[1] = Color3.fromRGB(180, 40, 40),
-	[2] = Color3.fromRGB(160, 130, 0),
-	[3] = Color3.fromRGB(30, 130, 30),
-}
-
 local passCards = {} -- passId → { frame, buyBtn, statusLabel }
 
 local function buildPassCard(passInfo)
+	local passUi = getPassUiStyle(passInfo.id)
+
 	local card = Instance.new("Frame")
 	card.Name = "Card_" .. passInfo.id
 	card.Size = UDim2.new(1, 0, 0, 70)
@@ -1118,7 +1115,7 @@ local function buildPassCard(passInfo)
 	-- Left accent strip
 	local strip = Instance.new("Frame")
 	strip.Size = UDim2.new(0, 6, 1, 0)
-	strip.BackgroundColor3 = CARD_COLORS[passInfo.id] or Color3.fromRGB(100, 100, 100)
+	strip.BackgroundColor3 = passUi.color
 	strip.BorderSizePixel = 0
 	strip.ZIndex = 12
 	strip.Parent = card
@@ -1159,7 +1156,7 @@ local function buildPassCard(passInfo)
 	buyBtn.Name = "BuyBtn"
 	buyBtn.Size = UDim2.new(0, 110, 0, 40)
 	buyBtn.Position = UDim2.new(1, -120, 0.5, -20)
-	buyBtn.BackgroundColor3 = CARD_COLORS[passInfo.id] or Color3.fromRGB(80, 80, 80)
+	buyBtn.BackgroundColor3 = passUi.color
 	buyBtn.BorderSizePixel = 0
 	buyBtn.Text = "R$ " .. passInfo.price
 	buyBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
