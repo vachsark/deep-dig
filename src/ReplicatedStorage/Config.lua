@@ -21,12 +21,12 @@ Config.TIERS = {
 
 -- Tools
 Config.TOOLS = {
-	{ name = "Rusty Shovel",      power = 1, speed = 1.0, cost = 0,      tier = 1 },
-	{ name = "Iron Pickaxe",      power = 2, speed = 0.8, cost = 500,    tier = 2 },
-	{ name = "Steel Drill",       power = 3, speed = 0.6, cost = 2500,   tier = 3 },
-	{ name = "Dynamite Kit",      power = 5, speed = 0.4, cost = 10000,  tier = 4 },
-	{ name = "Laser Cutter",      power = 8, speed = 0.25,cost = 50000,  tier = 5 },
-	{ name = "Quantum Excavator", power = 15,speed = 0.15,cost = 250000, tier = 6 },
+	{ name = "Rusty Shovel",      power = 1, speed = 1.0, cost = 0,      tier = 1, damage = 1 },
+	{ name = "Iron Pickaxe",      power = 2, speed = 0.8, cost = 500,    tier = 2, damage = 5 },
+	{ name = "Steel Drill",       power = 3, speed = 0.6, cost = 2500,   tier = 3, damage = 9 },
+	{ name = "Dynamite Kit",      power = 5, speed = 0.4, cost = 10000,  tier = 4, damage = 14 },
+	{ name = "Laser Cutter",      power = 8, speed = 0.25,cost = 50000,  tier = 5, damage = 19 },
+	{ name = "Quantum Excavator", power = 15,speed = 0.15,cost = 250000, tier = 6, damage = 25 },
 }
 
 -- Loot
