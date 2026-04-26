@@ -62,6 +62,19 @@
 
 ## Phase 2: First Month (retention + monetization)
 
+### TOP PRIORITY — Enemies / Combat (added 2026-04-26, build first)
+
+The dig site is too peaceful and the mid-game loop is grinding without tension. Add buried creatures that spawn deeper than X depth and have to be defeated to keep digging. Existing tools become weapons (higher tool tier = more damage), enemies drop coins / fragments / occasionally a tier-appropriate item. Death just respawns at the surface — keep it forgiving.
+
+- [ ] **EnemyDatabase.lua** (ReplicatedStorage ModuleScript): 6 enemy types tagged to depth tier — Bone Crawler (Stone), Bronze Sentinel (Bronze), Rusted Construct (Iron), Iron Wraith (Iron+), Voidling (Unknown), and a tier-Unknown miniboss "Hollow King". Each has `{name, tier, hp, damage, coinDrop, fragmentDrop, itemDropChance, color, model = "BasicNPC"}`.
+- [ ] **EnemySystem.server.lua**: spawns one enemy per active player every 30s if their `data.deepestBlock` is past the tier threshold. Cap of 5 alive per player. Random walk AI with a 16-stud aggro radius. Damages player if it touches them (no projectiles for v1). Listens to `BlockBrokenEvent` or a new `EnemyHitEvent` so the player's tool counts as the weapon — damage = `Config.TOOLS[data.toolTier].damage` (add a `damage` field to each tool record). On death: pay coins/fragments via `_G.DeepDig_playerData`, occasionally roll a tier-appropriate item via existing `ItemDatabase` helpers.
+- [ ] **Tool damage wiring in Config**: add `damage` field per tool — Rusty Shovel 1, all the way up to top tier ~25. No client changes needed.
+- [ ] **EnemyHitEvent** (RemoteEvent in `ReplicatedStorage.Remotes`): client fires on click/proximity-attack, server validates 8-stud range + cooldown.
+- [ ] **EnemyHealthBar** (StarterGui LocalScript or BillboardGui): floating HP bar above each enemy. Color-shifts as HP drops.
+- [ ] **Death + respawn**: if player Humanoid health hits 0, server respawns them at dig-site origin and they keep their inventory. No item loss.
+- [ ] **BadgeSystem hook**: add `first_enemy_kill` and `enemy_count_100` badges.
+- [ ] **QuestSystem hook**: add `kill_enemies` quest type and 1-2 daily quests around it.
+
 ### 6. Offline Passive Income
 
 - Earn coins while logged out (rate based on tool tier)
