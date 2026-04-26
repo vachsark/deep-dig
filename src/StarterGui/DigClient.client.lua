@@ -8,11 +8,19 @@ local player = Players.LocalPlayer
 local mouse = player:GetMouse()
 local Remotes = ReplicatedStorage:WaitForChild("Remotes")
 local DigRequest = Remotes:WaitForChild("DigRequest")
+local EnemyHitEvent = Remotes:WaitForChild("EnemyHitEvent")
 
 -- When the Excavator tool is activated (clicked), check what we're pointing at
 local function onToolActivated()
 	local target = mouse.Target
 	if not target then return end
+
+	local enemiesFolder = workspace:FindFirstChild("Enemies")
+	local enemyModel = target:FindFirstAncestorOfClass("Model")
+	if enemiesFolder and enemyModel and enemyModel:IsDescendantOf(enemiesFolder) then
+		EnemyHitEvent:FireServer(enemyModel)
+		return
+	end
 
 	-- Must be a dig site block (has Depth attribute)
 	if not target:GetAttribute("Depth") then return end
