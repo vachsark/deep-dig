@@ -7,6 +7,7 @@
 --   3 — LUCKY       : +25% loot drop chance (applied in GameManager DigBlock)
 --   4 — FOREMAN     : offline income cap extends from 8h to 24h
 --   5 — AUTO_COLLECTOR : duplicate finds sell immediately
+--   6 — INFINITE_BACKPACK : inventory has no item cap
 --
 -- On player join:
 --   1. Check MarketplaceService:UserOwnsGamePassAsync for each pass
@@ -33,7 +34,7 @@ local AUTO_PROMPT_DELAY = 240
 local autoPromptSessions = {}
 
 -- ─── Gamepass definitions ─────────────────────────────────────────────────────
--- Replace placeholder IDs (1, 2, 3, 4, 5) with your real Roblox gamepass IDs.
+-- Replace placeholder IDs (1, 2, 3, 4, 5, 6) with your real Roblox gamepass IDs.
 
 local GAMEPASSES = {
 	{
@@ -77,6 +78,15 @@ local GAMEPASSES = {
 		price = 349,
 		tag = "AUTO_COLLECTOR",
 	},
+	{
+		id = Config.GAMEPASS_INFINITE_BACKPACK_ID, -- placeholder; replace with the real Creator Hub pass id
+		key = Config.GAMEPASS_INFINITE_BACKPACK,
+		name = "Infinite Backpack",
+		description = "Carry unlimited dug items without selling between trips.",
+		icon = "rbxassetid://0",
+		price = 799,
+		tag = "INFINITE_BACKPACK",
+	},
 }
 
 -- ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -105,6 +115,17 @@ local function syncPassOwnership(data, pass, owned)
 	if pass.key then
 		data.ownedGamepasses[pass.key] = owned and true or nil
 	end
+end
+
+local function getInventoryCapacity(data)
+	local ownedGamepasses = data and data.ownedGamepasses
+	if ownedGamepasses
+		and (ownedGamepasses[Config.GAMEPASS_INFINITE_BACKPACK_ID] == true
+			or ownedGamepasses[Config.GAMEPASS_INFINITE_BACKPACK] == true) then
+		return "unlimited"
+	end
+
+	return Config.DEFAULT_BACKPACK_CAPACITY
 end
 
 local luckyEggAnnounced = {}
@@ -283,6 +304,8 @@ local function checkPassesForPlayer(player)
 	-- Fire HUD with gamepass status so client can show badges
 	UpdateHUDEvent:FireClient(player, {
 		ownedGamepasses = data.ownedGamepasses,
+		inventoryCount = data.inventory and #data.inventory or 0,
+		inventoryCapacity = getInventoryCapacity(data),
 	})
 
 	if #owned > 0 then
@@ -374,6 +397,8 @@ MarketplaceService.PromptGamePassPurchaseFinished:Connect(function(player, passI
 	NotifyEvent:FireClient(player, "Thank you for purchasing " .. passName .. "!", "Legendary")
 	UpdateHUDEvent:FireClient(player, {
 		ownedGamepasses = data.ownedGamepasses,
+		inventoryCount = data.inventory and #data.inventory or 0,
+		inventoryCapacity = getInventoryCapacity(data),
 	})
 
 	print("[Gamepasses] " .. player.Name .. " purchased passId " .. passId .. " (" .. passName .. ")")

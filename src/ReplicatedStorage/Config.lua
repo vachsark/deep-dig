@@ -35,9 +35,12 @@ Config.LOOT_DROP_CHANCE = 0.35  -- 35% chance per block
 
 -- Economy
 Config.STARTING_COINS = 50
+Config.DEFAULT_BACKPACK_CAPACITY = 50
 Config.GAMEPASS_LUCKY_EGG = "lucky_egg"
 Config.GAMEPASS_AUTO_COLLECTOR_ID = 5
 Config.GAMEPASS_AUTO_COLLECTOR = "auto_collector"
+Config.GAMEPASS_INFINITE_BACKPACK_ID = 6
+Config.GAMEPASS_INFINITE_BACKPACK = "infinite_backpack"
 
 -- Admin / testing
 -- UserIds in this list (in addition to game.CreatorId) can run /coins, /tool,

@@ -164,6 +164,79 @@ local function hasOwnedGamepass(data, passId, passKey)
 	return ownedGamepasses[passId] == true or (passKey and ownedGamepasses[passKey] == true)
 end
 
+local backpackFullNotifiedAt = {}
+
+local function hasInfiniteBackpack(data)
+	return hasOwnedGamepass(
+		data,
+		Config.GAMEPASS_INFINITE_BACKPACK_ID,
+		Config.GAMEPASS_INFINITE_BACKPACK
+	)
+end
+
+local function getBackpackCapacity(data)
+	if hasInfiniteBackpack(data) then
+		return nil
+	end
+
+	return Config.DEFAULT_BACKPACK_CAPACITY
+end
+
+local function hasInventorySpace(data, itemCount)
+	if not data or not data.inventory then
+		return false
+	end
+
+	local capacity = getBackpackCapacity(data)
+	if not capacity then
+		return true
+	end
+
+	return #data.inventory + (itemCount or 1) <= capacity
+end
+
+local function getInventoryCapacityLabel(data)
+	local capacity = getBackpackCapacity(data)
+	return capacity or "unlimited"
+end
+
+local function addInventoryHudFields(payload, data)
+	payload.inventoryCount = data.inventory and #data.inventory or 0
+	payload.inventoryCapacity = getInventoryCapacityLabel(data)
+	return payload
+end
+
+local function notifyBackpackFull(player)
+	local now = tick()
+	local last = backpackFullNotifiedAt[player]
+	if last and now - last < 2 then
+		return
+	end
+
+	backpackFullNotifiedAt[player] = now
+	NotifyEvent:FireClient(player, "Backpack full - sell items before collecting more.", "Common")
+end
+
+local function tryAddInventoryItem(player, item)
+	local data = getPlayerData(player)
+	if not data then
+		return false
+	end
+
+	if not hasInventorySpace(data, 1) then
+		notifyBackpackFull(player)
+		return false
+	end
+
+	table.insert(data.inventory, item)
+	return true
+end
+
+_G.DeepDig_tryAddInventoryItem = tryAddInventoryItem
+_G.DeepDig_hasInventorySpace = hasInventorySpace
+_G.DeepDig_getBackpackCapacity = getBackpackCapacity
+_G.DeepDig_getInventoryCapacityLabel = getInventoryCapacityLabel
+
 local function applyFirstSellAffordabilityGrant(player, data)
 	if data.toolTier ~= 1 then return end
 	if data.firstSellAffordabilityGrantUsed then return end
@@ -437,14 +510,6 @@ BlockBrokenEvent.Event:Connect(function(player, blockPosition)
 			-- client toast shows the bumped value.
 			item.sellValue = math.floor(item.sellValue * petLoot)
 
-			-- Track collection
-			data.collections[item.name] = true
-
-			-- Quest progress: items_found (always +1) and rarity_found (+1 with rarity tag).
-			-- QuestSystem listener filters by quest.rarityFilter == eventData.rarity.
-			fireQuestProgress(player, "items_found", { amount = 1 })
-			fireQuestProgress(player, "rarity_found", { amount = 1, rarity = item.rarity })
-
 			local autoCollectDuplicate = wasAlreadyCollected and hasOwnedGamepass(
 				data,
 				Config.GAMEPASS_AUTO_COLLECTOR_ID,
@@ -452,6 +517,12 @@ BlockBrokenEvent.Event:Connect(function(player, blockPosition)
 			)
 
 			if autoCollectDuplicate then
+				data.collections[item.name] = true
+				-- Quest progress: items_found (always +1) and rarity_found (+1 with rarity tag).
+				-- QuestSystem listener filters by quest.rarityFilter == eventData.rarity.
+				fireQuestProgress(player, "items_found", { amount = 1 })
+				fireQuestProgress(player, "rarity_found", { amount = 1, rarity = item.rarity })
+
 				local earned = item.sellValue
 				data.coins = data.coins + earned
 				data.totalEarned = (data.totalEarned or 0) + earned
@@ -463,37 +534,46 @@ BlockBrokenEvent.Event:Connect(function(player, blockPosition)
 					PlaySound:FireClient(player, "sell_coins")
 				end
 			else
-				-- Add to inventory
-				table.insert(data.inventory, {
+				local inventoryItem = {
 					name = item.name,
 					rarity = item.rarity,
 					sellValue = item.sellValue,
-				})
+				}
 
-				-- Notify player
-				ItemFoundEvent:FireClient(player, item)
-				-- Race-free server-side signal for BadgeSystem etc. The client
-				-- toast (ItemFoundEvent above) wins the visual race; this fires
-				-- just after for server consumers that need the find record.
-				ItemFoundBindable:Fire(player, item)
-				-- SOUND HOOK: sparkle chime for any item find
-				if PlaySound then
-					PlaySound:FireClient(player, "item_found")
-				end
-				-- SOUND HOOK: dramatic reveal for Rare+
-				if item.rarity == "Rare" or item.rarity == "Epic"
-					or item.rarity == "Legendary" or item.rarity == "Mythic" then
+				if tryAddInventoryItem(player, inventoryItem) then
+					-- Track collection
+					data.collections[item.name] = true
+
+					-- Quest progress: items_found (always +1) and rarity_found (+1 with rarity tag).
+					-- QuestSystem listener filters by quest.rarityFilter == eventData.rarity.
+					fireQuestProgress(player, "items_found", { amount = 1 })
+					fireQuestProgress(player, "rarity_found", { amount = 1, rarity = item.rarity })
+
+					-- Notify player
+					ItemFoundEvent:FireClient(player, item)
+					-- Race-free server-side signal for BadgeSystem etc. The client
+					-- toast (ItemFoundEvent above) wins the visual race; this fires
+					-- just after for server consumers that need the find record.
+					ItemFoundBindable:Fire(player, item)
+					-- SOUND HOOK: sparkle chime for any item find
 					if PlaySound then
-						PlaySound:FireClient(player, "rare_reveal")
+						PlaySound:FireClient(player, "item_found")
 					end
-				end
+					-- SOUND HOOK: dramatic reveal for Rare+
+					if item.rarity == "Rare" or item.rarity == "Epic"
+						or item.rarity == "Legendary" or item.rarity == "Mythic" then
+						if PlaySound then
+							PlaySound:FireClient(player, "rare_reveal")
+						end
+					end
 
-				-- Notify all players for rare+ finds
-				if item.rarity == "Epic" or item.rarity == "Legendary" or item.rarity == "Mythic" then
-					NotifyEvent:FireAllClients(
-						player.Name .. " found a " .. item.rarity .. " " .. item.name .. "!",
-						item.rarity
-					)
+					-- Notify all players for rare+ finds
+					if item.rarity == "Epic" or item.rarity == "Legendary" or item.rarity == "Mythic" then
+						NotifyEvent:FireAllClients(
+							player.Name .. " found a " .. item.rarity .. " " .. item.name .. "!",
+							item.rarity
+						)
+					end
 				end
 			end
 		end
@@ -514,17 +594,16 @@ BlockBrokenEvent.Event:Connect(function(player, blockPosition)
 	triggerRandomEvent(player)
 
 	-- Update client HUD
-	UpdateHUDEvent:FireClient(player, {
+	UpdateHUDEvent:FireClient(player, addInventoryHudFields({
 		coins = data.coins,
 		depth = depth,
 		tierName = tierName,
 		blocksDug = data.totalBlocksDug,
-		inventoryCount = #data.inventory,
 		totalEarned = data.totalEarned,
 		rebirths = data.rebirths or 0,
 		-- spring_loot bumps fragments per-block; keep the HUD coherent.
 		fragments = data.fragments,
-	})
+	}, data))
 end)
 
 -- ═══════════════════════════════════════════════════════════════════
@@ -544,12 +623,11 @@ SellItemEvent.OnServerEvent:Connect(function(player, inventoryIndex)
 
 	applyFirstSellAffordabilityGrant(player, data)
 
-	UpdateHUDEvent:FireClient(player, {
+	UpdateHUDEvent:FireClient(player, addInventoryHudFields({
 		coins = data.coins,
-		inventoryCount = #data.inventory,
 		totalEarned = data.totalEarned,
 		rebirths = data.rebirths or 0,
-	})
+	}, data))
 end)
 
 SellAllEvent.OnServerEvent:Connect(function(player)
@@ -578,12 +656,11 @@ SellAllEvent.OnServerEvent:Connect(function(player)
 	end
 
 	NotifyEvent:FireClient(player, "Sold all items for " .. total .. " coins!", "Common")
-	UpdateHUDEvent:FireClient(player, {
+	UpdateHUDEvent:FireClient(player, addInventoryHudFields({
 		coins = data.coins,
-		inventoryCount = 0,
 		totalEarned = data.totalEarned,
 		rebirths = data.rebirths or 0,
-	})
+	}, data))
 
 	-- ── FTUE: Post-sell upgrade nudge ───────────────────────────────
 	-- After selling, check if the player can now afford the next tool.
@@ -634,13 +711,12 @@ RecycleItemEvent.OnServerEvent:Connect(function(player, inventoryIndex)
 	table.remove(data.inventory, inventoryIndex)
 
 	NotifyEvent:FireClient(player, "Recycled " .. item.name .. " → +" .. fragValue .. " fragments (" .. data.fragments .. " total)", "Uncommon")
-	UpdateHUDEvent:FireClient(player, {
+	UpdateHUDEvent:FireClient(player, addInventoryHudFields({
 		coins = data.coins,
-		inventoryCount = #data.inventory,
 		fragments = data.fragments,
 		totalEarned = data.totalEarned,
 		rebirths = data.rebirths or 0,
-	})
+	}, data))
 end)
 
 -- Recycle ALL duplicates at once
@@ -674,13 +750,12 @@ RecycleAllDupesEvent.OnServerEvent:Connect(function(player)
 		NotifyEvent:FireClient(player, "No duplicates to recycle", "Common")
 	end
 
-	UpdateHUDEvent:FireClient(player, {
+	UpdateHUDEvent:FireClient(player, addInventoryHudFields({
 		coins = data.coins,
-		inventoryCount = #data.inventory,
 		fragments = data.fragments,
 		totalEarned = data.totalEarned,
 		rebirths = data.rebirths or 0,
-	})
+	}, data))
 end)
 
 -- Craft a guaranteed rarity item from fragments
@@ -721,8 +796,6 @@ CraftFromFragsEvent.OnServerEvent:Connect(function(player, targetRarity, tierNam
 		return
 	end
 
-	-- Deduct fragments and give item
-	data.fragments = data.fragments - cost
 	local chosen = candidates[math.random(#candidates)]
 	local rarityData = ItemDatabase.RARITY[chosen.rarity]
 
@@ -731,7 +804,13 @@ CraftFromFragsEvent.OnServerEvent:Connect(function(player, targetRarity, tierNam
 		rarity = chosen.rarity,
 		sellValue = chosen.baseValue * rarityData.multiplier,
 	}
-	table.insert(data.inventory, newItem)
+
+	if not tryAddInventoryItem(player, newItem) then
+		return
+	end
+
+	-- Deduct fragments and give item
+	data.fragments = data.fragments - cost
 	data.collections[chosen.name] = true
 
 	NotifyEvent:FireClient(player, "Crafted: " .. chosen.name .. " (" .. chosen.rarity .. ")!", targetRarity)
@@ -745,13 +824,12 @@ CraftFromFragsEvent.OnServerEvent:Connect(function(player, targetRarity, tierNam
 	-- Crafted items count as a "find" for first_rare_find / first_legendary.
 	ItemFoundBindable:Fire(player, newItem)
 
-	UpdateHUDEvent:FireClient(player, {
+	UpdateHUDEvent:FireClient(player, addInventoryHudFields({
 		coins = data.coins,
-		inventoryCount = #data.inventory,
 		fragments = data.fragments,
 		totalEarned = data.totalEarned,
 		rebirths = data.rebirths or 0,
-	})
+	}, data))
 end)
 
 BuyToolEvent.OnServerEvent:Connect(function(player, toolTier)
@@ -804,6 +882,7 @@ GetPlayerDataFunc.OnServerInvoke = function(player)
 		totalBlocksDug = data.totalBlocksDug,
 		deepestBlock = data.deepestBlock,
 		inventory = data.inventory,
+		inventoryCapacity = getInventoryCapacityLabel(data),
 		collections = data.collections,
 		rebirths = data.rebirths,
 		totalEarned = data.totalEarned or 0,
@@ -845,6 +924,7 @@ Players.PlayerRemoving:Connect(function(player)
 	if not savePlayerData(player) then
 		warn(string.format("[DeepDig] final save FAILED on PlayerRemoving for %s (UserId %d)", player.Name, player.UserId))
 	end
+	backpackFullNotifiedAt[player] = nil
 	playerData[player.UserId] = nil
 end)
 

@@ -56,6 +56,7 @@ end
 
 local function refreshHUD(player, data)
 	local tool = Config.TOOLS[data.toolTier]
+	local getInventoryCapacityLabel = _G.DeepDig_getInventoryCapacityLabel
 	UpdateHUDEvent:FireClient(player, {
 		coins = data.coins,
 		depth = data.deepestBlock,
@@ -63,6 +64,7 @@ local function refreshHUD(player, data)
 		toolTier = data.toolTier,
 		blocksDug = data.totalBlocksDug,
 		inventoryCount = #data.inventory,
+		inventoryCapacity = getInventoryCapacityLabel and getInventoryCapacityLabel(data) or Config.DEFAULT_BACKPACK_CAPACITY,
 		fragments = data.fragments,
 	})
 end
@@ -141,7 +143,16 @@ commands.give = function(player, args)
 	local item = pool[math.random(#pool)]
 	local rarityData = ItemDatabase.RARITY[item.rarity]
 	local sellValue = item.baseValue * (rarityData and rarityData.multiplier or 1)
-	table.insert(data.inventory, { name = item.name, rarity = item.rarity, sellValue = sellValue })
+	local grantedItem = { name = item.name, rarity = item.rarity, sellValue = sellValue }
+	local tryAddInventoryItem = _G.DeepDig_tryAddInventoryItem
+	if tryAddInventoryItem then
+		if not tryAddInventoryItem(player, grantedItem) then
+			refreshHUD(player, data)
+			return
+		end
+	else
+		table.insert(data.inventory, grantedItem)
+	end
 	data.collections[item.name] = true
 	ItemFoundEvent:FireClient(player, { name = item.name, rarity = item.rarity, sellValue = sellValue, color = rarityData and rarityData.color })
 	refreshHUD(player, data)

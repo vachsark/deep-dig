@@ -281,6 +281,16 @@ local function snapshotsMatch(snapshots, inventory)
 	return true
 end
 
+local function hasTradeBackpackSpace(data, outgoingCount, incomingCount)
+	local getBackpackCapacity = _G.DeepDig_getBackpackCapacity
+	local capacity = getBackpackCapacity and getBackpackCapacity(data) or Config.DEFAULT_BACKPACK_CAPACITY
+	if not capacity then
+		return true
+	end
+
+	return #data.inventory - outgoingCount + incomingCount <= capacity
+end
+
 executeTrade = function(tradeId)
 	local trade = activeTrades[tradeId]
 	if not trade then return end
@@ -312,6 +322,15 @@ executeTrade = function(tradeId)
 	table.sort(offerA, function(a, b) return a.idx > b.idx end)
 	table.sort(offerB, function(a, b) return a.idx > b.idx end)
 
+	if not hasTradeBackpackSpace(dataA, #offerA, #offerB) then
+		cancelTrade(tradeId, "trade aborted - " .. trade.playerA.Name .. "'s backpack is full")
+		return
+	end
+	if not hasTradeBackpackSpace(dataB, #offerB, #offerA) then
+		cancelTrade(tradeId, "trade aborted - " .. trade.playerB.Name .. "'s backpack is full")
+		return
+	end
+
 	for _, entry in ipairs(offerA) do
 		table.remove(dataA.inventory, entry.idx)
 	end
@@ -340,8 +359,15 @@ executeTrade = function(tradeId)
 
 	local UpdateHUD = Remotes:FindFirstChild("UpdateHUD")
 	if UpdateHUD then
-		UpdateHUD:FireClient(trade.playerA, { inventoryCount = #dataA.inventory })
-		UpdateHUD:FireClient(trade.playerB, { inventoryCount = #dataB.inventory })
+		local getInventoryCapacityLabel = _G.DeepDig_getInventoryCapacityLabel
+		UpdateHUD:FireClient(trade.playerA, {
+			inventoryCount = #dataA.inventory,
+			inventoryCapacity = getInventoryCapacityLabel and getInventoryCapacityLabel(dataA) or Config.DEFAULT_BACKPACK_CAPACITY,
+		})
+		UpdateHUD:FireClient(trade.playerB, {
+			inventoryCount = #dataB.inventory,
+			inventoryCapacity = getInventoryCapacityLabel and getInventoryCapacityLabel(dataB) or Config.DEFAULT_BACKPACK_CAPACITY,
+		})
 	end
 
 	playerTradeMap[trade.playerA.UserId] = nil

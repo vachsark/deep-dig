@@ -193,10 +193,12 @@ local function awaitPlayerData(player, timeoutSeconds)
 end
 
 local function getStreakHudPayload(data)
+	local getInventoryCapacityLabel = _G.DeepDig_getInventoryCapacityLabel
 	return {
 		coins = data.coins,
 		fragments = data.fragments or 0,
 		inventoryCount = #data.inventory,
+		inventoryCapacity = getInventoryCapacityLabel and getInventoryCapacityLabel(data) or nil,
 		loginStreak = data.loginStreak,
 		streakReviveEligible = data.streakReviveEligible == true,
 		streakRevivePending = data.streakRevivePending == true,
@@ -234,7 +236,15 @@ local function applyReward(player, reward)
 		data.fragments = (data.fragments or 0) + reward.amount
 
 	elseif reward.type == "rare_item" then
-		table.insert(data.inventory, reward.item)
+		local tryAddInventoryItem = _G.DeepDig_tryAddInventoryItem
+		if tryAddInventoryItem then
+			if not tryAddInventoryItem(player, reward.item) then
+				reward.label = reward.label .. " (backpack full)"
+				return
+			end
+		else
+			table.insert(data.inventory, reward.item)
+		end
 		data.collections[reward.item.name] = true
 	end
 end

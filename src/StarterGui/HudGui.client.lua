@@ -137,6 +137,28 @@ invLabel.Font = Enum.Font.Gotham
 invLabel.TextXAlignment = Enum.TextXAlignment.Left
 invLabel.Parent = screenGui
 
+local currentInventoryCount = 0
+local currentInventoryCapacity = Config.DEFAULT_BACKPACK_CAPACITY
+
+local function formatInventoryText(count, capacity)
+	if capacity == "unlimited" then
+		return "Items: " .. tostring(count) .. "/unlimited"
+	end
+
+	return "Items: " .. tostring(count) .. "/" .. tostring(capacity or Config.DEFAULT_BACKPACK_CAPACITY)
+end
+
+local function setInventoryDisplay(count, capacity)
+	if count ~= nil then
+		currentInventoryCount = count
+	end
+	if capacity ~= nil then
+		currentInventoryCapacity = capacity
+	end
+
+	invLabel.Text = formatInventoryText(currentInventoryCount, currentInventoryCapacity)
+end
+
 -- ─── Fragments counter ───────────────────────────────────────────────────────
 
 local fragLabel = Instance.new("TextLabel")
@@ -178,7 +200,7 @@ local currentStreakRevivePrice = 50
 
 local badgeRow = Instance.new("Frame")
 badgeRow.Name = "PassBadges"
-badgeRow.Size = UDim2.new(0, 390, 0, 24)
+badgeRow.Size = UDim2.new(0, 480, 0, 24)
 badgeRow.Position = UDim2.new(0, 20, 0, 142)
 badgeRow.BackgroundTransparency = 1
 badgeRow.Parent = screenGui
@@ -195,9 +217,10 @@ local PASS_UI_STYLES = {
 	[3] = { color = Color3.fromRGB(80, 220, 80), label = "🍀 LUCKY" },
 	[4] = { color = Color3.fromRGB(90, 170, 255), label = "⛏ FOREMAN" },
 	[Config.GAMEPASS_AUTO_COLLECTOR_ID] = { color = Color3.fromRGB(80, 230, 210), label = "⚙ AUTO" },
+	[Config.GAMEPASS_INFINITE_BACKPACK_ID] = { color = Color3.fromRGB(190, 120, 255), label = "∞ BAG" },
 }
 
-local PASS_UI_ORDER = { 1, 2, 3, 4, Config.GAMEPASS_AUTO_COLLECTOR_ID }
+local PASS_UI_ORDER = { 1, 2, 3, 4, Config.GAMEPASS_AUTO_COLLECTOR_ID, Config.GAMEPASS_INFINITE_BACKPACK_ID }
 
 local badgeInstances = {} -- passId → TextLabel
 
@@ -1372,8 +1395,8 @@ Remotes.UpdateHUD.OnClientEvent:Connect(function(data)
 	if data.blocksDug then
 		blocksLabel.Text = "Blocks: " .. tostring(data.blocksDug)
 	end
-	if data.inventoryCount then
-		invLabel.Text = "Items: " .. tostring(data.inventoryCount)
+	if data.inventoryCount ~= nil or data.inventoryCapacity ~= nil then
+		setInventoryDisplay(data.inventoryCount, data.inventoryCapacity)
 	end
 	if data.fragments then
 		fragLabel.Text = "Fragments: " .. tostring(data.fragments)
@@ -1615,7 +1638,7 @@ task.spawn(function()
 		previousCoinValue = math.floor(data.coins)
 		toolLabel.Text = "🔧 " .. data.toolName
 		blocksLabel.Text = "Blocks: " .. tostring(data.totalBlocksDug)
-		invLabel.Text = "Items: " .. tostring(#data.inventory)
+		setInventoryDisplay(#data.inventory, data.inventoryCapacity)
 		currentToolTier = data.toolTier
 		initializeFtueGuide(data)
 		refreshStreakRevivePrompt(data)
