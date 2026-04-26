@@ -79,7 +79,7 @@ local ACCENT_BLUE = Color3.fromRGB(80, 160, 255)
 local ACCENT_GREEN = Color3.fromRGB(80, 220, 140)
 local ACCENT_RED = Color3.fromRGB(240, 90, 90)
 
-local BADGE_TOTAL = 8 -- TODO: read BadgeSystem.BADGES count from a shared module if one is added.
+local BADGE_TOTAL = 10 -- TODO: read BadgeSystem.BADGES count from a shared module if one is added.
 
 -- ═══════════════════════════════════════════════════════════════════
 -- Helpers

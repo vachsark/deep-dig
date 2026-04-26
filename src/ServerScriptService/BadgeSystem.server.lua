@@ -36,6 +36,12 @@ local BlockBrokenEvent = ServerEvents:WaitForChild("BlockBroken")
 -- and fired on every inventory add. WaitForChild blocks until present —
 -- safe even if BadgeSystem somehow loads before GameManager.
 local ItemFoundBindable = ServerEvents:WaitForChild("ItemFoundBindable")
+local EnemyKilledBindable = ServerEvents:FindFirstChild("EnemyKilledBindable")
+if not EnemyKilledBindable then
+	EnemyKilledBindable = Instance.new("BindableEvent")
+	EnemyKilledBindable.Name = "EnemyKilledBindable"
+	EnemyKilledBindable.Parent = ServerEvents
+end
 
 -- ═══════════════════════════════════════════════════════════════════
 -- Badge definitions
@@ -49,6 +55,7 @@ local ItemFoundBindable = ServerEvents:WaitForChild("ItemFoundBindable")
 --   museum_displays         → count(data.collections) >= value
 --                             (proxy for "displayed in museum"; tightened
 --                             once Museum.server.lua exposes a counter)
+--   enemy_kills             → data.enemyKills >= value
 local BADGES = {
 	{
 		id = "first_dig",
@@ -97,6 +104,18 @@ local BADGES = {
 		badgeId = 0,           -- TODO: replace with real Roblox badge id; proxy on data.collections until Museum exposes a counter
 		description = "Display your first item in the museum",
 		trigger = { type = "museum_displays", value = 1 },
+	},
+	{
+		id = "first_enemy_kill",
+		badgeId = 0,           -- TODO: replace with real Roblox badge id
+		description = "Defeat your first buried enemy",
+		trigger = { type = "enemy_kills", value = 1 },
+	},
+	{
+		id = "enemy_count_100",
+		badgeId = 0,           -- TODO: replace with real Roblox badge id
+		description = "Defeat 100 buried enemies",
+		trigger = { type = "enemy_kills", value = 100 },
 	},
 }
 
@@ -178,7 +197,7 @@ local function countTable(t)
 	return n
 end
 
--- Evaluate every badge for a player. Cheap (8 entries, simple comparisons)
+-- Evaluate every badge for a player. Cheap (10 entries, simple comparisons)
 -- and idempotency-protected by awardBadge, so we just brute-force on every
 -- relevant signal.
 --
@@ -223,6 +242,11 @@ local function evaluateAll(player)
 				if countTable(data.collections) >= trigger.value then
 					fired = true
 				end
+
+			elseif trigger.type == "enemy_kills" then
+				if (data.enemyKills or 0) >= trigger.value then
+					fired = true
+				end
 			end
 
 			if fired then
@@ -249,6 +273,24 @@ ItemFoundBindable.Event:Connect(function(player, item)
 		if (rarity == "Legendary" or rarity == "Mythic") and not data.badgesAwarded.first_legendary then
 			awardBadge(player, "first_legendary")
 		end
+	end
+end)
+
+-- Enemy kill progress is driven by EnemySystem only after it resolves the
+-- rewarded player and pays the enemy coin/fragment reward.
+EnemyKilledBindable.Event:Connect(function(player, _enemy)
+	if not player then return end
+	local data = getData(player)
+	if not data then return end
+	ensureBadgeField(data)
+
+	data.enemyKills = (data.enemyKills or 0) + 1
+
+	if data.enemyKills >= 1 then
+		awardBadge(player, "first_enemy_kill")
+	end
+	if data.enemyKills >= 100 then
+		awardBadge(player, "enemy_count_100")
 	end
 end)
 

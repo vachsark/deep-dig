@@ -12,6 +12,12 @@ local Remotes = ReplicatedStorage:WaitForChild("Remotes")
 local ServerEvents = ReplicatedStorage:WaitForChild("ServerEvents")
 local PlayerDataReady = ServerEvents:WaitForChild("PlayerDataReady")
 local ItemFoundBindable = ServerEvents:WaitForChild("ItemFoundBindable")
+local EnemyKilledBindable = ServerEvents:FindFirstChild("EnemyKilledBindable")
+if not EnemyKilledBindable then
+	EnemyKilledBindable = Instance.new("BindableEvent")
+	EnemyKilledBindable.Name = "EnemyKilledBindable"
+	EnemyKilledBindable.Parent = ServerEvents
+end
 
 local EnemyHitEvent = Remotes:FindFirstChild("EnemyHitEvent")
 if not EnemyHitEvent then
@@ -184,6 +190,7 @@ local function payEnemyReward(record)
 
 	fireQuestProgress(player, "coins_earned", { amount = enemy.coinDrop })
 	-- TODO: fire kill_enemies progress once QuestSystem adds that quest type.
+	EnemyKilledBindable:Fire(player, enemy)
 
 	if math.random() < enemy.itemDropChance then
 		addItemReward(player, data, record.tierName)
