@@ -200,7 +200,7 @@ local currentStreakRevivePrice = 50
 
 local badgeRow = Instance.new("Frame")
 badgeRow.Name = "PassBadges"
-badgeRow.Size = UDim2.new(0, 560, 0, 24)
+badgeRow.Size = UDim2.new(0, 620, 0, 24)
 badgeRow.Position = UDim2.new(0, 20, 0, 142)
 badgeRow.BackgroundTransparency = 1
 badgeRow.Parent = screenGui
@@ -219,6 +219,7 @@ local PASS_UI_STYLES = {
 	[Config.GAMEPASS_AUTO_COLLECTOR_ID] = { color = Color3.fromRGB(80, 230, 210), label = "⚙ AUTO" },
 	[Config.GAMEPASS_INFINITE_BACKPACK_ID] = { color = Color3.fromRGB(190, 120, 255), label = "∞ BAG" },
 	[Config.GAMEPASS_ARTIFACT_DETECTOR_ID] = { color = Color3.fromRGB(60, 210, 255), label = "⌁ SCAN" },
+	[Config.GAMEPASS_REBIRTH_BOOST_ID] = { color = Color3.fromRGB(255, 120, 210), label = "⭐ BOOST" },
 }
 
 local PASS_UI_ORDER = {
@@ -229,12 +230,25 @@ local PASS_UI_ORDER = {
 	Config.GAMEPASS_AUTO_COLLECTOR_ID,
 	Config.GAMEPASS_INFINITE_BACKPACK_ID,
 	Config.GAMEPASS_ARTIFACT_DETECTOR_ID,
+	Config.GAMEPASS_REBIRTH_BOOST_ID,
+}
+
+local PASS_UI_KEYS = {
+	[Config.GAMEPASS_AUTO_COLLECTOR_ID] = Config.GAMEPASS_AUTO_COLLECTOR,
+	[Config.GAMEPASS_INFINITE_BACKPACK_ID] = Config.GAMEPASS_INFINITE_BACKPACK,
+	[Config.GAMEPASS_ARTIFACT_DETECTOR_ID] = Config.GAMEPASS_ARTIFACT_DETECTOR,
+	[Config.GAMEPASS_REBIRTH_BOOST_ID] = Config.GAMEPASS_REBIRTH_BOOST,
 }
 
 local badgeInstances = {} -- passId → TextLabel
 
 local function getPassUiStyle(passId)
 	return PASS_UI_STYLES[passId] or { color = Color3.fromRGB(100, 100, 100), label = "PASS" }
+end
+
+local function isPassOwnedForUi(ownedGamepasses, passId)
+	return ownedGamepasses[passId] == true
+		or (PASS_UI_KEYS[passId] and ownedGamepasses[PASS_UI_KEYS[passId]] == true)
 end
 
 local function updatePassBadges(ownedGamepasses)
@@ -247,7 +261,7 @@ local function updatePassBadges(ownedGamepasses)
 	if not ownedGamepasses then return end
 
 	for _, passId in ipairs(PASS_UI_ORDER) do
-		if ownedGamepasses[passId] then
+		if isPassOwnedForUi(ownedGamepasses, passId) then
 			local passUi = getPassUiStyle(passId)
 			local badge = Instance.new("TextLabel")
 			badge.Size = UDim2.new(0, 72, 0, 20)

@@ -9,6 +9,7 @@
 --   5 — AUTO_COLLECTOR : duplicate finds sell immediately
 --   6 — INFINITE_BACKPACK : inventory has no item cap
 --   7 — ARTIFACT_DETECTOR : weak finds sometimes become Rare+ artifacts
+--   8 — REBIRTH_BOOST : resurfaces give a stronger coin multiplier
 --
 -- On player join:
 --   1. Check MarketplaceService:UserOwnsGamePassAsync for each pass
@@ -35,7 +36,7 @@ local AUTO_PROMPT_DELAY = 240
 local autoPromptSessions = {}
 
 -- ─── Gamepass definitions ─────────────────────────────────────────────────────
--- Replace placeholder IDs (1, 2, 3, 4, 5, 6, 7) with your real Roblox gamepass IDs.
+-- Replace placeholder IDs (1, 2, 3, 4, 5, 6, 7, 8) with your real Roblox gamepass IDs.
 
 local GAMEPASSES = {
 	{
@@ -96,6 +97,15 @@ local GAMEPASSES = {
 		icon = "rbxassetid://0",
 		price = 999,
 		tag = "ARTIFACT_DETECTOR",
+	},
+	{
+		id = Config.GAMEPASS_REBIRTH_BOOST_ID, -- placeholder; replace with the real Creator Hub pass id
+		key = Config.GAMEPASS_REBIRTH_BOOST,
+		name = "Rebirth Boost",
+		description = "Each resurface doubles its permanent coin-value bonus.",
+		icon = "rbxassetid://0",
+		price = 299,
+		tag = "REBIRTH_BOOST",
 	},
 }
 

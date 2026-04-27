@@ -265,6 +265,26 @@ end
 local activeEvents = {} -- { [eventName] = endTick }
 local ARTIFACT_DETECTOR_CHANCE = 0.10
 local ARTIFACT_DETECTOR_MIN_RANK = 3
+local RESURFACE_LOOT_BONUS_PER_REBIRTH = 0.5
+local REBIRTH_BOOST_LOOT_BONUS_PER_REBIRTH = 1.0
+
+local function getResurfaceLootMultiplier(data)
+	local rebirths = data and (data.rebirths or 0) or 0
+	if rebirths <= 0 then
+		return 1
+	end
+
+	local bonusPerRebirth = RESURFACE_LOOT_BONUS_PER_REBIRTH
+	if hasOwnedGamepass(
+		data,
+		Config.GAMEPASS_REBIRTH_BOOST_ID,
+		Config.GAMEPASS_REBIRTH_BOOST
+	) then
+		bonusPerRebirth = REBIRTH_BOOST_LOOT_BONUS_PER_REBIRTH
+	end
+
+	return 1 + (rebirths * bonusPerRebirth)
+end
 
 local function isEventActive(effectName)
 	local endTick = activeEvents[effectName]
@@ -565,11 +585,11 @@ BlockBrokenEvent.Event:Connect(function(player, blockPosition)
 				item.sellValue = item.sellValue * 2
 			end
 
-			-- Apply equipped pet loot_value multiplier (capped at 5x above).
+			-- Apply resurface and equipped pet loot_value multipliers.
 			-- Mutating `item.sellValue` here propagates to both the inventory
 			-- record below AND the ItemFoundEvent:FireClient payload, so the
 			-- client toast shows the bumped value.
-			item.sellValue = math.floor(item.sellValue * petLoot)
+			item.sellValue = math.floor(item.sellValue * getResurfaceLootMultiplier(data) * petLoot)
 
 			local autoCollectDuplicate = wasAlreadyCollected and hasOwnedGamepass(
 				data,

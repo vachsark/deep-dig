@@ -43,6 +43,8 @@ Config.GAMEPASS_INFINITE_BACKPACK_ID = 6
 Config.GAMEPASS_INFINITE_BACKPACK = "infinite_backpack"
 Config.GAMEPASS_ARTIFACT_DETECTOR_ID = 7
 Config.GAMEPASS_ARTIFACT_DETECTOR = "artifact_detector"
+Config.GAMEPASS_REBIRTH_BOOST_ID = 8
+Config.GAMEPASS_REBIRTH_BOOST = "rebirth_boost"
 
 -- Admin / testing
 -- UserIds in this list (in addition to game.CreatorId) can run /coins, /tool,
