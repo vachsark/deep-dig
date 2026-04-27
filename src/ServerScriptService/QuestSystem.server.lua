@@ -7,7 +7,7 @@
 --     itemName = item.name,
 --   })
 -- Supported event types:
---   blocks_dug, items_found, rarity_found, coins_earned, depth_reached
+--   blocks_dug, items_found, rarity_found, coins_earned, kill_enemies, depth_reached
 -- Block breaks still come through ServerEvents.BlockBroken.
 
 local Players = game:GetService("Players")
@@ -211,6 +211,10 @@ local function normalizeEventType(eventType)
 		items_found = "items_found",
 		coins = "coins_earned",
 		coins_earned = "coins_earned",
+		enemy_killed = "kill_enemies",
+		enemies_killed = "kill_enemies",
+		kill_enemy = "kill_enemies",
+		kill_enemies = "kill_enemies",
 		depth = "depth_reached",
 		depth_reached = "depth_reached",
 		rarity_found = "rarity_found",
@@ -308,6 +312,17 @@ local function applyProgress(player, eventType, eventData)
 		for _, questId in ipairs(data.questAssignedIds) do
 			local quest = questById[questId]
 			if quest and quest.type == "coins_earned" then
+				addProgress(data, questId, amount)
+			end
+		end
+		return
+	end
+
+	if normalizedType == "kill_enemies" then
+		local amount = getEventAmount(eventData, 1)
+		for _, questId in ipairs(data.questAssignedIds) do
+			local quest = questById[questId]
+			if quest and quest.type == "kill_enemies" then
 				addProgress(data, questId, amount)
 			end
 		end

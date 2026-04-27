@@ -56,6 +56,22 @@ local module = {
 		reward = { coins = 500, fragments = 4 },
 	},
 	{
+		id = "defeat_3_enemies",
+		description = "Defeat 3 buried enemies",
+		type = "kill_enemies",
+		target = 3,
+		rarityFilter = nil,
+		reward = { coins = 700, fragments = 5 },
+	},
+	{
+		id = "defeat_6_enemies",
+		description = "Defeat 6 buried enemies",
+		type = "kill_enemies",
+		target = 6,
+		rarityFilter = nil,
+		reward = { coins = 1300, fragments = 9 },
+	},
+	{
 		id = "reach_depth_50",
 		description = "Reach depth 50",
 		type = "depth_reached",

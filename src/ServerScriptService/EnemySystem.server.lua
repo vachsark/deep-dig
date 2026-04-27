@@ -189,7 +189,7 @@ local function payEnemyReward(record)
 	data.totalEarned = (data.totalEarned or 0) + enemy.coinDrop
 
 	fireQuestProgress(player, "coins_earned", { amount = enemy.coinDrop })
-	-- TODO: fire kill_enemies progress once QuestSystem adds that quest type.
+	fireQuestProgress(player, "kill_enemies", { amount = 1 })
 	EnemyKilledBindable:Fire(player, enemy)
 
 	if math.random() < enemy.itemDropChance then
