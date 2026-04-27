@@ -16,6 +16,7 @@ local ENEMIES = {
 		color = Color3.fromRGB(210, 205, 180),
 		walkSpeed = 8,
 		aggroRange = 16,
+		spawnWeight = 100,
 	},
 	{
 		id = "bronze_sentinel",
@@ -29,6 +30,7 @@ local ENEMIES = {
 		color = Color3.fromRGB(170, 105, 45),
 		walkSpeed = 9,
 		aggroRange = 18,
+		spawnWeight = 100,
 	},
 	{
 		id = "rusted_construct",
@@ -42,6 +44,7 @@ local ENEMIES = {
 		color = Color3.fromRGB(120, 85, 65),
 		walkSpeed = 7,
 		aggroRange = 18,
+		spawnWeight = 100,
 	},
 	{
 		id = "iron_wraith",
@@ -55,6 +58,7 @@ local ENEMIES = {
 		color = Color3.fromRGB(85, 95, 110),
 		walkSpeed = 12,
 		aggroRange = 22,
+		spawnWeight = 100,
 	},
 	{
 		id = "voidling",
@@ -68,6 +72,7 @@ local ENEMIES = {
 		color = Color3.fromRGB(75, 35, 115),
 		walkSpeed = 13,
 		aggroRange = 24,
+		spawnWeight = 100,
 	},
 	{
 		id = "hollow_king",
@@ -81,6 +86,9 @@ local ENEMIES = {
 		color = Color3.fromRGB(30, 10, 45),
 		walkSpeed = 6,
 		aggroRange = 28,
+		spawnWeight = 8,
+		isMiniboss = true,
+		spawnScale = 1.45,
 	},
 }
 
@@ -98,13 +106,20 @@ local function enemyTierFor(tierName)
 	return TIER_ALIASES[tierName] or tierName
 end
 
-function EnemyDatabase.getEnemyForTier(tierName)
+local function isBlocked(enemy, blockedEnemyIds)
+	return blockedEnemyIds and blockedEnemyIds[enemy.id] == true
+end
+
+function EnemyDatabase.getEnemyForTier(tierName, options)
 	local enemyTier = enemyTierFor(tierName)
 	local candidates = {}
+	local totalWeight = 0
+	local blockedEnemyIds = options and options.blockedEnemyIds
 
 	for _, enemy in ipairs(ENEMIES) do
-		if enemy.tier == enemyTier then
+		if enemy.tier == enemyTier and not isBlocked(enemy, blockedEnemyIds) then
 			table.insert(candidates, enemy)
+			totalWeight = totalWeight + (enemy.spawnWeight or 100)
 		end
 	end
 
@@ -112,7 +127,16 @@ function EnemyDatabase.getEnemyForTier(tierName)
 		return nil
 	end
 
-	return candidates[math.random(#candidates)]
+	local roll = math.random() * totalWeight
+	local runningWeight = 0
+	for _, enemy in ipairs(candidates) do
+		runningWeight = runningWeight + (enemy.spawnWeight or 100)
+		if roll <= runningWeight then
+			return enemy
+		end
+	end
+
+	return candidates[#candidates]
 end
 
 function EnemyDatabase.getEnemyById(id)

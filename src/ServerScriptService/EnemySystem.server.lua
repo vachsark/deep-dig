@@ -257,6 +257,21 @@ local function compactOwnedEnemies(player)
 	return #owned
 end
 
+local function hasLivingEnemyById(player, enemyId)
+	local owned = enemiesByPlayer[player]
+	if not owned then
+		return false
+	end
+
+	for _, record in ipairs(owned) do
+		if not record.dead and record.enemy.id == enemyId and record.model and record.model.Parent then
+			return true
+		end
+	end
+
+	return false
+end
+
 local function getPlayerRoot(player)
 	local character = player.Character
 	return character and character:FindFirstChild("HumanoidRootPart")
@@ -289,20 +304,38 @@ local function spawnEnemyForPlayer(player)
 	end
 
 	local tierName = ItemDatabase.getTierForDepth(data.deepestBlock or 0)
-	local enemy = EnemyDatabase.getEnemyForTier(tierName)
+	local blockedEnemyIds = nil
+	if hasLivingEnemyById(player, "hollow_king") then
+		blockedEnemyIds = {
+			hollow_king = true,
+		}
+	end
+
+	local enemy = EnemyDatabase.getEnemyForTier(tierName, {
+		blockedEnemyIds = blockedEnemyIds,
+	})
 	if not enemy then
 		return
 	end
 
+	local spawnScale = enemy.spawnScale or 1
+	local enemyName = enemy.name
+	if enemy.isMiniboss then
+		enemyName = enemy.name .. " [Miniboss]"
+	end
+
 	local model = Instance.new("Model")
-	model.Name = enemy.name
+	model.Name = enemyName
 	model:SetAttribute("EnemyId", enemy.id)
-	model:SetAttribute("EnemyName", enemy.name)
+	model:SetAttribute("EnemyName", enemyName)
 	model:SetAttribute("OwnerUserId", player.UserId)
+	model:SetAttribute("IsMiniboss", enemy.isMiniboss == true)
+	model:SetAttribute("EnemyRank", enemy.isMiniboss and "Miniboss" or "Enemy")
+	model:SetAttribute("MaxHealth", enemy.hp)
 
 	local root = Instance.new("Part")
 	root.Name = "HumanoidRootPart"
-	root.Size = Vector3.new(3, 4, 3)
+	root.Size = Vector3.new(3, 4, 3) * spawnScale
 	root.Color = enemy.color
 	root.Material = Enum.Material.Slate
 	root.CanCollide = true
@@ -313,6 +346,7 @@ local function spawnEnemyForPlayer(player)
 	humanoid.MaxHealth = enemy.hp
 	humanoid.Health = enemy.hp
 	humanoid.WalkSpeed = enemy.walkSpeed
+	humanoid.DisplayName = enemyName
 	humanoid.Parent = model
 
 	model.PrimaryPart = root
