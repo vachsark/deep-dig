@@ -104,8 +104,24 @@ local DEFAULT_DATA = {
 	streakReviveOfferDate = "",
 	streakReviveProcessedReceiptId = "",
 	ownedGamepasses = {}, -- { [passId] = true }
+	friendReferralRewards = {}, -- { [friendUserIdString] = true }
 	firstSellAffordabilityGrantUsed = false, -- FTUE: one-time first-sell catch-up
 }
+
+local function normalizeBooleanMap(value)
+	local normalized = {}
+	if type(value) ~= "table" then
+		return normalized
+	end
+
+	for key, claimed in pairs(value) do
+		if claimed == true then
+			normalized[tostring(key)] = true
+		end
+	end
+
+	return normalized
+end
 
 local function loadPlayerData(player)
 	local success, data = pcall(function()
@@ -123,6 +139,8 @@ local function loadPlayerData(player)
 	else
 		playerData[player.UserId] = table.clone(DEFAULT_DATA)
 	end
+
+	playerData[player.UserId].friendReferralRewards = normalizeBooleanMap(playerData[player.UserId].friendReferralRewards)
 
 	return playerData[player.UserId]
 end
@@ -390,6 +408,104 @@ local function hasFriendInServer(player, excludedPlayer)
 	return false
 end
 
+local function getFriendsInServer(player, excludedPlayer)
+	local friends = {}
+	for _, otherPlayer in ipairs(Players:GetPlayers()) do
+		if otherPlayer ~= player and otherPlayer ~= excludedPlayer then
+			local success, isFriend = pcall(function()
+				return player:IsFriendsWith(otherPlayer.UserId)
+			end)
+			if success and isFriend then
+				table.insert(friends, otherPlayer)
+			end
+		end
+	end
+
+	return friends
+end
+
+local function ensureFriendReferralRewards(data)
+	if not data then
+		return nil
+	end
+
+	if type(data.friendReferralRewards) ~= "table" then
+		data.friendReferralRewards = {}
+	end
+
+	return data.friendReferralRewards
+end
+
+local addStandardHudFields
+
+local function grantFriendReferralReward(player, friendPlayer)
+	if not Config.FRIEND_REFERRAL_REWARD_ENABLED then
+		return
+	end
+
+	local data = getPlayerData(player)
+	local friendData = getPlayerData(friendPlayer)
+	if not data or not friendData then
+		return
+	end
+
+	local rewards = ensureFriendReferralRewards(data)
+	local friendRewards = ensureFriendReferralRewards(friendData)
+	local friendKey = tostring(friendPlayer.UserId)
+	local playerKey = tostring(player.UserId)
+	if rewards[friendKey] == true or friendRewards[playerKey] == true then
+		return
+	end
+
+	rewards[friendKey] = true
+	friendRewards[playerKey] = true
+
+	local coins = Config.FRIEND_REFERRAL_REWARD_COINS or 0
+	local eggType = Config.FRIEND_REFERRAL_REWARD_EGG or "Stone"
+
+	local function awardOne(recipient, recipientData, otherPlayer)
+		recipientData.coins = (recipientData.coins or 0) + coins
+		recipientData.totalEarned = (recipientData.totalEarned or 0) + coins
+		if coins > 0 then
+			fireQuestProgress(recipient, "coins_earned", { amount = coins })
+		end
+
+		NotifyEvent:FireClient(
+			recipient,
+			"Friend referral bonus with " .. otherPlayer.DisplayName .. ": +" .. coins .. " coins and a free Stone Egg!",
+			"Rare"
+		)
+
+		local grantFreeEgg = _G.DeepDig_grantFreeEggPet
+		local petAwarded = false
+		if grantFreeEgg then
+			petAwarded = grantFreeEgg(
+				recipient,
+				eggType,
+				"Referral Stone Egg hatched from playing with " .. otherPlayer.DisplayName .. "!"
+			)
+		end
+
+		if not petAwarded then
+			NotifyEvent:FireClient(
+				recipient,
+				"Free referral egg is unavailable this join, but your coin reward was saved.",
+				"Common"
+			)
+		end
+
+		UpdateHUDEvent:FireClient(recipient, addStandardHudFields({
+			coins = recipientData.coins,
+			totalEarned = recipientData.totalEarned,
+			rebirths = recipientData.rebirths or 0,
+			petCount = recipientData.pets and #recipientData.pets or 0,
+		}, recipientData, recipient))
+	end
+
+	awardOne(player, data, friendPlayer)
+	awardOne(friendPlayer, friendData, player)
+end
+
 local function getFriendBoostPayload(player)
 	local active = friendBoostActiveByUserId[player.UserId] == true
 	return {
@@ -409,7 +525,7 @@ local function addFriendBoostHudFields(payload, player)
 	return payload
 end
 
-local function addStandardHudFields(payload, data, player)
+function addStandardHudFields(payload, data, player)
 	addInventoryHudFields(payload, data)
 	addFriendBoostHudFields(payload, player)
 	addGroupBenefitHudFields(payload, player)
@@ -428,8 +544,15 @@ local function refreshFriendBoostStates(shouldNotifyClients, excludedPlayer)
 	for _, player in ipairs(Players:GetPlayers()) do
 		if player ~= excludedPlayer then
 			local wasActive = friendBoostActiveByUserId[player.UserId] == true
+			local friendsInServer = getFriendsInServer(player, excludedPlayer)
 			local isActive = hasFriendInServer(player, excludedPlayer)
 			friendBoostActiveByUserId[player.UserId] = isActive
+
+			for _, friendPlayer in ipairs(friendsInServer) do
+				if player.UserId < friendPlayer.UserId then
+					grantFriendReferralReward(player, friendPlayer)
+				end
+			end
 
 			if shouldNotifyClients and wasActive ~= isActive then
 				UpdateHUDEvent:FireClient(player, addFriendBoostHudFields({}, player))

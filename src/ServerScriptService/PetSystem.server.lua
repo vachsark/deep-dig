@@ -184,6 +184,7 @@ end
 -- Forward-declared so buildPad's ProximityPrompt callback can call it; the
 -- actual function body lives in the "Hatch handler" section below.
 local rollAndAward
+local awardHatch
 
 local petPadsFolder = Instance.new("Folder")
 petPadsFolder.Name = "PetEggPads"
@@ -267,38 +268,45 @@ end
 -- Hatch handler
 -- ═══════════════════════════════════════════════════════════════════
 
-function rollAndAward(player, eggType)
+function awardHatch(player, eggType, options)
+	options = options or {}
+
 	local egg = PetDatabase.EGGS[eggType]
 	if not egg then
 		NotifyEvent:FireClient(player, "Unknown egg type: " .. tostring(eggType), "Common")
-		return
+		return false
 	end
 
 	local data = getData(player)
 	if not data then
 		NotifyEvent:FireClient(player, "Player data not loaded — try again.", "Common")
-		return
+		return false
 	end
 	ensurePetFields(data)
 
 	-- Cost gate
-	if (data.coins or 0) < egg.cost then
+	local shouldChargeCoins = options.chargeCoins ~= false
+	if shouldChargeCoins and (data.coins or 0) < egg.cost then
 		NotifyEvent:FireClient(player,
 			string.format("Need %d coins to hatch a %s (you have %d).",
 				egg.cost, egg.name, math.floor(data.coins or 0)),
 			"Common")
-		return
+		return false
 	end
 
 	-- Deduct + roll
-	data.coins = data.coins - egg.cost
+	if shouldChargeCoins then
+		data.coins = data.coins - egg.cost
+	end
 
 	local pet = rollFromEgg(eggType, player)
 	if not pet then
 		-- Refund on roller failure (shouldn't happen but defensive).
-		data.coins = data.coins + egg.cost
+		if shouldChargeCoins then
+			data.coins = data.coins + egg.cost
+		end
 		NotifyEvent:FireClient(player, "Hatch failed — refunded.", "Common")
-		return
+		return false
 	end
 
 	-- Append to player's pet list. Pet record is the player's instance —
@@ -315,9 +323,11 @@ function rollAndAward(player, eggType)
 	table.insert(data.pets, petRecord)
 
 	-- Notify the player
-	NotifyEvent:FireClient(player,
-		"You hatched a " .. pet.rarity .. " " .. pet.name .. "!",
-		pet.rarity)
+	if options.notifyPlayer ~= false then
+		local message = options.successMessage
+			or ("You hatched a " .. pet.rarity .. " " .. pet.name .. "!")
+		NotifyEvent:FireClient(player, message, pet.rarity)
+	end
 
 	-- Server-wide announcement on Legendary or Mythic hatches
 	if pet.rarity == "Legendary" or pet.rarity == "Mythic" then
@@ -331,6 +341,21 @@ function rollAndAward(player, eggType)
 		coins = data.coins,
 		petCount = #data.pets,
 		equippedPet = data.equippedPet == false and nil or data.equippedPet,
+	})
+
+	return true, petRecord
+end
+
+function rollAndAward(player, eggType)
+	return awardHatch(player, eggType, {
+		chargeCoins = true,
+	})
+end
+
+_G.DeepDig_grantFreeEggPet = function(player, eggType, successMessage)
+	return awardHatch(player, eggType, {
+		chargeCoins = false,
+		successMessage = successMessage,
 	})
 end
 
