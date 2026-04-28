@@ -145,10 +145,10 @@ local function generateInitialTerrain()
 		wall.Parent = digSiteFolder
 	end
 
-	-- Spawn platform above the dig site
+	-- Spawn platform — small pad at center; sized so the dig site stays clickable.
 	local platform = Instance.new("Part")
 	platform.Name = "SpawnPlatform"
-	platform.Size = Vector3.new(siteSize + 20, 2, siteSize + 20)
+	platform.Size = Vector3.new(12, 2, 12)
 	platform.Position = Vector3.new(0, 5, 0)
 	platform.Anchored = true
 	platform.Material = Enum.Material.SmoothPlastic
