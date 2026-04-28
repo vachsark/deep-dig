@@ -37,13 +37,28 @@ local function getEquippedPetDigSpeed(data)
 	return math.min(digSpeed, 5)
 end
 
+local function getFriendDigSpeed(player)
+	local getMultiplier = _G.DeepDig_getFriendDigSpeedMultiplier
+	if type(getMultiplier) ~= "function" then
+		return 1
+	end
+
+	local success, multiplier = pcall(getMultiplier, player)
+	if not success or type(multiplier) ~= "number" then
+		return 1
+	end
+
+	return math.clamp(multiplier, 1, 2)
+end
+
 local function getDigInterval(player)
 	local data = getData(player)
 	local tool = data and Config.TOOLS[data.toolTier]
 	local baseInterval = (tool and tool.speed) or 1
 	local petDigSpeed = getEquippedPetDigSpeed(data)
+	local friendDigSpeed = getFriendDigSpeed(player)
 
-	return baseInterval / petDigSpeed
+	return baseInterval / (petDigSpeed * friendDigSpeed)
 end
 
 -- ═══════════════════════════════════════════════════════════════════

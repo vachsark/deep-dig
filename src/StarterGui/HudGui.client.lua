@@ -4,6 +4,7 @@
 -- Added in this version:
 --   • Login streak display (top-left, below fragments counter)
 --   • Gamepass status badges (row of small icons when passes are active)
+--   • Friend dig-speed boost indicator
 --   • Shop button + gamepass shop panel
 
 local Players = game:GetService("Players")
@@ -210,6 +211,25 @@ badgeLayout.FillDirection = Enum.FillDirection.Horizontal
 badgeLayout.SortOrder = Enum.SortOrder.LayoutOrder
 badgeLayout.Padding = UDim.new(0, 4)
 badgeLayout.Parent = badgeRow
+
+local friendBoostLabel = Instance.new("TextLabel")
+friendBoostLabel.Name = "FriendBoost"
+friendBoostLabel.Size = UDim2.new(0, 172, 0, 22)
+friendBoostLabel.Position = UDim2.new(0, 20, 0, 168)
+friendBoostLabel.BackgroundColor3 = Color3.fromRGB(70, 205, 150)
+friendBoostLabel.BackgroundTransparency = 0.15
+friendBoostLabel.BorderSizePixel = 0
+friendBoostLabel.Text = "Friend Boost +5% Speed"
+friendBoostLabel.TextColor3 = Color3.fromRGB(10, 35, 24)
+friendBoostLabel.TextSize = 12
+friendBoostLabel.Font = Enum.Font.GothamBlack
+friendBoostLabel.TextXAlignment = Enum.TextXAlignment.Center
+friendBoostLabel.Visible = false
+friendBoostLabel.Parent = screenGui
+
+local friendBoostCorner = Instance.new("UICorner")
+friendBoostCorner.CornerRadius = UDim.new(0, 5)
+friendBoostCorner.Parent = friendBoostLabel
 
 local PASS_UI_STYLES = {
 	[1] = { color = Color3.fromRGB(255, 80, 80), label = "2× LOOT" },
@@ -581,6 +601,18 @@ local function refreshStreakLabel()
 	else
 		streakLabel.Text = "🔥 Streak: –"
 	end
+end
+
+local function refreshFriendBoostIndicator(data)
+	if not data or data.friendBoostActive ~= true then
+		friendBoostLabel.Visible = false
+		return
+	end
+
+	local multiplier = data.friendBoostMultiplier or 1.05
+	local percent = math.max(1, math.floor(((multiplier - 1) * 100) + 0.5))
+	friendBoostLabel.Text = "Friend Boost +" .. tostring(percent) .. "% Speed"
+	friendBoostLabel.Visible = true
 end
 
 local streakRevivePanel = Instance.new("Frame")
@@ -1442,6 +1474,7 @@ Remotes.UpdateHUD.OnClientEvent:Connect(function(data)
 	end
 
 	refreshStreakRevivePrompt(data)
+	refreshFriendBoostIndicator(data)
 	updateFtueGuideFromHUD(data)
 	ingestResurfaceFields(data)
 end)
@@ -1665,6 +1698,7 @@ task.spawn(function()
 		currentToolTier = data.toolTier
 		initializeFtueGuide(data)
 		refreshStreakRevivePrompt(data)
+		refreshFriendBoostIndicator(data)
 
 		-- First-time tutorial: only on truly fresh profile (zero blocks dug, no inventory).
 		if (data.totalBlocksDug or 0) == 0 and #data.inventory == 0 then

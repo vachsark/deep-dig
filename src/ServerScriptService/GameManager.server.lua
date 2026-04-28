@@ -267,6 +267,70 @@ local ARTIFACT_DETECTOR_CHANCE = 0.10
 local ARTIFACT_DETECTOR_MIN_RANK = 3
 local RESURFACE_LOOT_BONUS_PER_REBIRTH = 0.5
 local REBIRTH_BOOST_LOOT_BONUS_PER_REBIRTH = 1.0
+local FRIEND_DIG_SPEED_MULTIPLIER = 1.05
+local friendBoostActiveByUserId = {}
+
+local function hasFriendInServer(player, excludedPlayer)
+	for _, otherPlayer in ipairs(Players:GetPlayers()) do
+		if otherPlayer ~= player and otherPlayer ~= excludedPlayer then
+			local success, isFriend = pcall(function()
+				return player:IsFriendsWith(otherPlayer.UserId)
+			end)
+			if success and isFriend then
+				return true
+			end
+		end
+	end
+
+	return false
+end
+
+local function getFriendBoostPayload(player)
+	local active = friendBoostActiveByUserId[player.UserId] == true
+	return {
+		friendBoostActive = active,
+		friendBoostMultiplier = active and FRIEND_DIG_SPEED_MULTIPLIER or 1,
+	}
+end
+
+local function addFriendBoostHudFields(payload, player)
+	if not player then
+		return payload
+	end
+
+	local boostPayload = getFriendBoostPayload(player)
+	payload.friendBoostActive = boostPayload.friendBoostActive
+	payload.friendBoostMultiplier = boostPayload.friendBoostMultiplier
+	return payload
+end
+
+local function addStandardHudFields(payload, data, player)
+	addInventoryHudFields(payload, data)
+	addFriendBoostHudFields(payload, player)
+	return payload
+end
+
+_G.DeepDig_getFriendDigSpeedMultiplier = function(player)
+	if not player then
+		return 1
+	end
+
+	return friendBoostActiveByUserId[player.UserId] == true and FRIEND_DIG_SPEED_MULTIPLIER or 1
+end
+
+local function refreshFriendBoostStates(shouldNotifyClients, excludedPlayer)
+	for _, player in ipairs(Players:GetPlayers()) do
+		if player ~= excludedPlayer then
+			local wasActive = friendBoostActiveByUserId[player.UserId] == true
+			local isActive = hasFriendInServer(player, excludedPlayer)
+			friendBoostActiveByUserId[player.UserId] = isActive
+
+			if shouldNotifyClients and wasActive ~= isActive then
+				UpdateHUDEvent:FireClient(player, addFriendBoostHudFields({}, player))
+			end
+		end
+	end
+end
 
 local function getResurfaceLootMultiplier(data)
 	local rebirths = data and (data.rebirths or 0) or 0
@@ -675,7 +739,7 @@ BlockBrokenEvent.Event:Connect(function(player, blockPosition)
 	triggerRandomEvent(player)
 
 	-- Update client HUD
-	UpdateHUDEvent:FireClient(player, addInventoryHudFields({
+	UpdateHUDEvent:FireClient(player, addStandardHudFields({
 		coins = data.coins,
 		depth = depth,
 		tierName = tierName,
@@ -684,7 +748,7 @@ BlockBrokenEvent.Event:Connect(function(player, blockPosition)
 		rebirths = data.rebirths or 0,
 		-- spring_loot bumps fragments per-block; keep the HUD coherent.
 		fragments = data.fragments,
-	}, data))
+	}, data, player))
 end)
 
 -- ═══════════════════════════════════════════════════════════════════
@@ -704,11 +768,11 @@ SellItemEvent.OnServerEvent:Connect(function(player, inventoryIndex)
 
 	applyFirstSellAffordabilityGrant(player, data)
 
-	UpdateHUDEvent:FireClient(player, addInventoryHudFields({
+	UpdateHUDEvent:FireClient(player, addStandardHudFields({
 		coins = data.coins,
 		totalEarned = data.totalEarned,
 		rebirths = data.rebirths or 0,
-	}, data))
+	}, data, player))
 end)
 
 SellAllEvent.OnServerEvent:Connect(function(player)
@@ -737,11 +801,11 @@ SellAllEvent.OnServerEvent:Connect(function(player)
 	end
 
 	NotifyEvent:FireClient(player, "Sold all items for " .. total .. " coins!", "Common")
-	UpdateHUDEvent:FireClient(player, addInventoryHudFields({
+	UpdateHUDEvent:FireClient(player, addStandardHudFields({
 		coins = data.coins,
 		totalEarned = data.totalEarned,
 		rebirths = data.rebirths or 0,
-	}, data))
+	}, data, player))
 
 	-- ── FTUE: Post-sell upgrade nudge ───────────────────────────────
 	-- After selling, check if the player can now afford the next tool.
@@ -792,12 +856,12 @@ RecycleItemEvent.OnServerEvent:Connect(function(player, inventoryIndex)
 	table.remove(data.inventory, inventoryIndex)
 
 	NotifyEvent:FireClient(player, "Recycled " .. item.name .. " → +" .. fragValue .. " fragments (" .. data.fragments .. " total)", "Uncommon")
-	UpdateHUDEvent:FireClient(player, addInventoryHudFields({
+	UpdateHUDEvent:FireClient(player, addStandardHudFields({
 		coins = data.coins,
 		fragments = data.fragments,
 		totalEarned = data.totalEarned,
 		rebirths = data.rebirths or 0,
-	}, data))
+	}, data, player))
 end)
 
 -- Recycle ALL duplicates at once
@@ -831,12 +895,12 @@ RecycleAllDupesEvent.OnServerEvent:Connect(function(player)
 		NotifyEvent:FireClient(player, "No duplicates to recycle", "Common")
 	end
 
-	UpdateHUDEvent:FireClient(player, addInventoryHudFields({
+	UpdateHUDEvent:FireClient(player, addStandardHudFields({
 		coins = data.coins,
 		fragments = data.fragments,
 		totalEarned = data.totalEarned,
 		rebirths = data.rebirths or 0,
-	}, data))
+	}, data, player))
 end)
 
 -- Craft a guaranteed rarity item from fragments
@@ -905,12 +969,12 @@ CraftFromFragsEvent.OnServerEvent:Connect(function(player, targetRarity, tierNam
 	-- Crafted items count as a "find" for first_rare_find / first_legendary.
 	ItemFoundBindable:Fire(player, newItem)
 
-	UpdateHUDEvent:FireClient(player, addInventoryHudFields({
+	UpdateHUDEvent:FireClient(player, addStandardHudFields({
 		coins = data.coins,
 		fragments = data.fragments,
 		totalEarned = data.totalEarned,
 		rebirths = data.rebirths or 0,
-	}, data))
+	}, data, player))
 end)
 
 BuyToolEvent.OnServerEvent:Connect(function(player, toolTier)
@@ -936,13 +1000,13 @@ BuyToolEvent.OnServerEvent:Connect(function(player, toolTier)
 		PlaySound:FireClient(player, "upgrade_whoosh")
 	end
 	NotifyEvent:FireClient(player, "Upgraded to " .. tool.name .. "!", "Rare")
-	UpdateHUDEvent:FireClient(player, {
+	UpdateHUDEvent:FireClient(player, addFriendBoostHudFields({
 		coins = data.coins,
 		toolName = tool.name,
 		toolTier = toolTier,
 		totalEarned = data.totalEarned,
 		rebirths = data.rebirths or 0,
-	})
+	}, player))
 end)
 
 -- ═══════════════════════════════════════════════════════════════════
@@ -954,7 +1018,7 @@ GetPlayerDataFunc.OnServerInvoke = function(player)
 	if not data then return nil end
 
 	local tool = Config.TOOLS[data.toolTier]
-	return {
+	local payload = {
 		coins = data.coins,
 		toolTier = data.toolTier,
 		toolName = tool and tool.name or "Rusty Shovel",
@@ -977,6 +1041,8 @@ GetPlayerDataFunc.OnServerInvoke = function(player)
 		nextToolCost = Config.TOOLS[data.toolTier + 1] and Config.TOOLS[data.toolTier + 1].cost or nil,
 		nextToolName = Config.TOOLS[data.toolTier + 1] and Config.TOOLS[data.toolTier + 1].name or nil,
 	}
+
+	return addFriendBoostHudFields(payload, player)
 end
 
 -- ═══════════════════════════════════════════════════════════════════
@@ -985,6 +1051,7 @@ end
 
 local function onPlayerAdded(player)
 	local data = loadPlayerData(player)
+	refreshFriendBoostStates(true)
 	-- Signal readiness AFTER playerData[UserId] is populated. Consumers
 	-- (DailyStreak, Gamepasses, Leaderboard, Rebirth) wait on this event
 	-- via awaitPlayerData() instead of guessing with task.wait(N).
@@ -1007,6 +1074,8 @@ Players.PlayerRemoving:Connect(function(player)
 	end
 	backpackFullNotifiedAt[player] = nil
 	playerData[player.UserId] = nil
+	friendBoostActiveByUserId[player.UserId] = nil
+	refreshFriendBoostStates(true, player)
 end)
 
 -- Auto-save every 2 minutes
