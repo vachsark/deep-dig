@@ -269,6 +269,111 @@ local RESURFACE_LOOT_BONUS_PER_REBIRTH = 0.5
 local REBIRTH_BOOST_LOOT_BONUS_PER_REBIRTH = 1.0
 local FRIEND_DIG_SPEED_MULTIPLIER = 1.05
 local friendBoostActiveByUserId = {}
+local groupBenefitActiveByUserId = {}
+local resolvedGroupBenefitGroupId = nil
+
+local function resolveGroupBenefitGroupId()
+	local configuredGroupId = Config.GROUP_BENEFIT_GROUP_ID or 0
+	if configuredGroupId ~= 0 then
+		return configuredGroupId
+	end
+
+	if game.CreatorType == Enum.CreatorType.Group then
+		return game.CreatorId
+	end
+
+	return 0
+end
+
+local function getGroupBenefitGroupId()
+	if resolvedGroupBenefitGroupId == nil then
+		resolvedGroupBenefitGroupId = resolveGroupBenefitGroupId()
+	end
+
+	return resolvedGroupBenefitGroupId
+end
+
+local function refreshGroupBenefitMembership(player)
+	local groupId = getGroupBenefitGroupId()
+	if groupId == 0 then
+		groupBenefitActiveByUserId[player.UserId] = false
+		return false
+	end
+
+	local success, isMember = pcall(function()
+		return player:IsInGroup(groupId)
+	end)
+
+	local active = success and isMember == true
+	groupBenefitActiveByUserId[player.UserId] = active
+	return active
+end
+
+local function hasGroupBenefit(player)
+	return player and groupBenefitActiveByUserId[player.UserId] == true
+end
+
+local function addGroupBenefitHudFields(payload, player)
+	local active = hasGroupBenefit(player)
+	payload.groupBenefitActive = active
+	payload.groupBenefitMultiplier = active and Config.GROUP_BENEFIT_COIN_MULTIPLIER or 1
+	payload.groupBenefitLabel = Config.GROUP_BENEFIT_DISPLAY_LABEL
+	payload.groupBenefitColor = Config.GROUP_BENEFIT_DISPLAY_COLOR
+	return payload
+end
+
+local function getGroupSellPayout(player, baseCoins)
+	if hasGroupBenefit(player) then
+		return math.floor((baseCoins or 0) * Config.GROUP_BENEFIT_COIN_MULTIPLIER)
+	end
+
+	return baseCoins or 0
+end
+
+local function awardSellPayout(player, data, baseCoins, shouldFireQuestProgress)
+	local earned = getGroupSellPayout(player, baseCoins)
+	data.coins = data.coins + earned
+	data.totalEarned = (data.totalEarned or 0) + earned
+
+	if shouldFireQuestProgress and earned > 0 then
+		fireQuestProgress(player, "coins_earned", { amount = earned })
+	end
+
+	return earned
+end
+
+local function applyGroupBenefitNameTreatment(player, character)
+	if not hasGroupBenefit(player) then
+		return
+	end
+
+	local head = character:FindFirstChild("Head") or character:WaitForChild("Head", 10)
+	if not head then return end
+
+	local existing = head:FindFirstChild("GroupSupporterTag")
+	if existing then
+		existing:Destroy()
+	end
+
+	local billboard = Instance.new("BillboardGui")
+	billboard.Name = "GroupSupporterTag"
+	billboard.Size = UDim2.new(0, 220, 0, 28)
+	billboard.StudsOffset = Vector3.new(0, 2.65, 0)
+	billboard.AlwaysOnTop = false
+	billboard.Parent = head
+
+	local label = Instance.new("TextLabel")
+	label.Size = UDim2.new(1, 0, 1, 0)
+	label.BackgroundTransparency = 1
+	label.BorderSizePixel = 0
+	label.Text = "★ " .. player.DisplayName .. " • " .. Config.GROUP_BENEFIT_DISPLAY_LABEL
+	label.TextColor3 = Config.GROUP_BENEFIT_DISPLAY_COLOR
+	label.TextStrokeTransparency = 0.45
+	label.TextScaled = true
+	label.Font = Enum.Font.GothamBlack
+	label.TextXAlignment = Enum.TextXAlignment.Center
+	label.Parent = billboard
+end
 
 local function hasFriendInServer(player, excludedPlayer)
 	for _, otherPlayer in ipairs(Players:GetPlayers()) do
@@ -307,6 +412,7 @@ end
 local function addStandardHudFields(payload, data, player)
 	addInventoryHudFields(payload, data)
 	addFriendBoostHudFields(payload, player)
+	addGroupBenefitHudFields(payload, player)
 	return payload
 end
 
@@ -668,10 +774,7 @@ BlockBrokenEvent.Event:Connect(function(player, blockPosition)
 				fireQuestProgress(player, "items_found", { amount = 1 })
 				fireQuestProgress(player, "rarity_found", { amount = 1, rarity = item.rarity })
 
-				local earned = item.sellValue
-				data.coins = data.coins + earned
-				data.totalEarned = (data.totalEarned or 0) + earned
-				fireQuestProgress(player, "coins_earned", { amount = earned })
+				local earned = awardSellPayout(player, data, item.sellValue, true)
 				applyFirstSellAffordabilityGrant(player, data)
 
 				NotifyEvent:FireClient(player, "Auto Collector sold duplicate " .. item.name .. " for " .. earned .. " coins.", item.rarity)
@@ -762,8 +865,7 @@ SellItemEvent.OnServerEvent:Connect(function(player, inventoryIndex)
 	local item = data.inventory[inventoryIndex]
 	if not item then return end
 
-	data.coins = data.coins + item.sellValue
-	data.totalEarned = data.totalEarned + item.sellValue
+	awardSellPayout(player, data, item.sellValue, false)
 	table.remove(data.inventory, inventoryIndex)
 
 	applyFirstSellAffordabilityGrant(player, data)
@@ -784,14 +886,8 @@ SellAllEvent.OnServerEvent:Connect(function(player)
 		total = total + item.sellValue
 	end
 
-	data.coins = data.coins + total
-	data.totalEarned = data.totalEarned + total
+	local earned = awardSellPayout(player, data, total, true)
 	data.inventory = {}
-
-	-- Quest progress: coins_earned with the per-sale total (not cumulative)
-	if total > 0 then
-		fireQuestProgress(player, "coins_earned", { amount = total })
-	end
 
 	applyFirstSellAffordabilityGrant(player, data)
 
@@ -800,7 +896,7 @@ SellAllEvent.OnServerEvent:Connect(function(player)
 		PlaySound:FireClient(player, "sell_coins")
 	end
 
-	NotifyEvent:FireClient(player, "Sold all items for " .. total .. " coins!", "Common")
+	NotifyEvent:FireClient(player, "Sold all items for " .. earned .. " coins!", "Common")
 	UpdateHUDEvent:FireClient(player, addStandardHudFields({
 		coins = data.coins,
 		totalEarned = data.totalEarned,
@@ -1042,7 +1138,7 @@ GetPlayerDataFunc.OnServerInvoke = function(player)
 		nextToolName = Config.TOOLS[data.toolTier + 1] and Config.TOOLS[data.toolTier + 1].name or nil,
 	}
 
-	return addFriendBoostHudFields(payload, player)
+	return addStandardHudFields(payload, data, player)
 end
 
 -- ═══════════════════════════════════════════════════════════════════
@@ -1051,6 +1147,15 @@ end
 
 local function onPlayerAdded(player)
 	local data = loadPlayerData(player)
+	refreshGroupBenefitMembership(player)
+	player.CharacterAdded:Connect(function(character)
+		applyGroupBenefitNameTreatment(player, character)
+	end)
+	if player.Character then
+		task.spawn(function()
+			applyGroupBenefitNameTreatment(player, player.Character)
+		end)
+	end
 	refreshFriendBoostStates(true)
 	-- Signal readiness AFTER playerData[UserId] is populated. Consumers
 	-- (DailyStreak, Gamepasses, Leaderboard, Rebirth) wait on this event
@@ -1075,6 +1180,7 @@ Players.PlayerRemoving:Connect(function(player)
 	backpackFullNotifiedAt[player] = nil
 	playerData[player.UserId] = nil
 	friendBoostActiveByUserId[player.UserId] = nil
+	groupBenefitActiveByUserId[player.UserId] = nil
 	refreshFriendBoostStates(true, player)
 end)
 

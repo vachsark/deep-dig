@@ -36,6 +36,10 @@ Config.LOOT_DROP_CHANCE = 0.35  -- 35% chance per block
 -- Economy
 Config.STARTING_COINS = 50
 Config.DEFAULT_BACKPACK_CAPACITY = 50
+Config.GROUP_BENEFIT_GROUP_ID = 0 -- 0 = use place group owner when CreatorType is Group
+Config.GROUP_BENEFIT_COIN_MULTIPLIER = 1.10
+Config.GROUP_BENEFIT_DISPLAY_LABEL = "Group Supporter"
+Config.GROUP_BENEFIT_DISPLAY_COLOR = Color3.fromRGB(80, 220, 255)
 Config.GAMEPASS_LUCKY_EGG = "lucky_egg"
 Config.GAMEPASS_AUTO_COLLECTOR_ID = 5
 Config.GAMEPASS_AUTO_COLLECTOR = "auto_collector"

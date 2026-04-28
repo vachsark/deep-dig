@@ -5,6 +5,7 @@
 --   • Login streak display (top-left, below fragments counter)
 --   • Gamepass status badges (row of small icons when passes are active)
 --   • Friend dig-speed boost indicator
+--   • Group supporter coin bonus indicator
 --   • Shop button + gamepass shop panel
 
 local Players = game:GetService("Players")
@@ -230,6 +231,25 @@ friendBoostLabel.Parent = screenGui
 local friendBoostCorner = Instance.new("UICorner")
 friendBoostCorner.CornerRadius = UDim.new(0, 5)
 friendBoostCorner.Parent = friendBoostLabel
+
+local groupBenefitLabel = Instance.new("TextLabel")
+groupBenefitLabel.Name = "GroupBenefit"
+groupBenefitLabel.Size = UDim2.new(0, 178, 0, 22)
+groupBenefitLabel.Position = UDim2.new(0, 20, 0, 194)
+groupBenefitLabel.BackgroundColor3 = Config.GROUP_BENEFIT_DISPLAY_COLOR
+groupBenefitLabel.BackgroundTransparency = 0.15
+groupBenefitLabel.BorderSizePixel = 0
+groupBenefitLabel.Text = "Group +10% Coins"
+groupBenefitLabel.TextColor3 = Color3.fromRGB(5, 25, 35)
+groupBenefitLabel.TextSize = 12
+groupBenefitLabel.Font = Enum.Font.GothamBlack
+groupBenefitLabel.TextXAlignment = Enum.TextXAlignment.Center
+groupBenefitLabel.Visible = false
+groupBenefitLabel.Parent = screenGui
+
+local groupBenefitCorner = Instance.new("UICorner")
+groupBenefitCorner.CornerRadius = UDim.new(0, 5)
+groupBenefitCorner.Parent = groupBenefitLabel
 
 local PASS_UI_STYLES = {
 	[1] = { color = Color3.fromRGB(255, 80, 80), label = "2× LOOT" },
@@ -613,6 +633,23 @@ local function refreshFriendBoostIndicator(data)
 	local percent = math.max(1, math.floor(((multiplier - 1) * 100) + 0.5))
 	friendBoostLabel.Text = "Friend Boost +" .. tostring(percent) .. "% Speed"
 	friendBoostLabel.Visible = true
+end
+
+local function refreshGroupBenefitIndicator(data)
+	if not data or data.groupBenefitActive == nil then
+		return
+	end
+
+	if data.groupBenefitActive ~= true then
+		groupBenefitLabel.Visible = false
+		return
+	end
+
+	local multiplier = data.groupBenefitMultiplier or Config.GROUP_BENEFIT_COIN_MULTIPLIER
+	local percent = math.max(1, math.floor(((multiplier - 1) * 100) + 0.5))
+	groupBenefitLabel.BackgroundColor3 = data.groupBenefitColor or Config.GROUP_BENEFIT_DISPLAY_COLOR
+	groupBenefitLabel.Text = "Group +" .. tostring(percent) .. "% Coins"
+	groupBenefitLabel.Visible = true
 end
 
 local streakRevivePanel = Instance.new("Frame")
@@ -1475,6 +1512,7 @@ Remotes.UpdateHUD.OnClientEvent:Connect(function(data)
 
 	refreshStreakRevivePrompt(data)
 	refreshFriendBoostIndicator(data)
+	refreshGroupBenefitIndicator(data)
 	updateFtueGuideFromHUD(data)
 	ingestResurfaceFields(data)
 end)
@@ -1699,6 +1737,7 @@ task.spawn(function()
 		initializeFtueGuide(data)
 		refreshStreakRevivePrompt(data)
 		refreshFriendBoostIndicator(data)
+		refreshGroupBenefitIndicator(data)
 
 		-- First-time tutorial: only on truly fresh profile (zero blocks dug, no inventory).
 		if (data.totalBlocksDug or 0) == 0 and #data.inventory == 0 then
