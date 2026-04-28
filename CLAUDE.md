@@ -1,5 +1,9 @@
 # Deep Dig — Roblox Excavation Game
 
+> **First time on this machine?** Read `WINDOWS-SETUP.md` (Windows) or follow the Linux vault bootstrap.
+> **Need code-level reference?** `ARCHITECTURE.md` has the module layout, remotes, and "where do I add X" table.
+> **`.claude/rules/*` auto-loads** — those are the Roblox/Luau conventions, multi-machine coordination, and autonomous-lane awareness rules.
+
 ## Multi-Machine Coordination (READ FIRST)
 
 This repo has **multiple concurrent writers**:
