@@ -293,6 +293,7 @@ local function giveTool(player)
 	handle.Parent = tool
 
 	tool.Parent = player.Backpack
+	print(("[DeepDig dig srv] gave Excavator to %s in Backpack"):format(player.Name))
 end
 
 -- Listen for dig requests from client
@@ -305,18 +306,35 @@ local function setupDigRemote()
 	digRequest.Parent = Remotes
 
 	digRequest.OnServerEvent:Connect(function(player, block)
+		print(("[DeepDig dig srv] DigRequest from %s, target=%s"):format(player.Name, block and block:GetFullName() or "nil"))
 		-- Validate the block is a real dig site block
-		if not block or not block:IsA("BasePart") then return end
-		if not block:GetAttribute("Depth") then return end
-		if not block:IsDescendantOf(digSiteFolder) then return end
+		if not block or not block:IsA("BasePart") then
+			print("[DeepDig dig srv] reject: not a BasePart")
+			return
+		end
+		if not block:GetAttribute("Depth") then
+			print("[DeepDig dig srv] reject: no Depth attribute")
+			return
+		end
+		if not block:IsDescendantOf(digSiteFolder) then
+			print("[DeepDig dig srv] reject: not in DigSite")
+			return
+		end
 
 		local userId = player.UserId
 		local now = os.clock()
 		local nextAllowedDigAt = digCooldownByUserId[userId] or 0
-		if now < nextAllowedDigAt then return end
+		if now < nextAllowedDigAt then
+			print(("[DeepDig dig srv] reject: cooldown (%.2fs remaining)"):format(nextAllowedDigAt - now))
+			return
+		end
 
-		if breakBlock(player, block) then
+		local ok = breakBlock(player, block)
+		if ok then
 			digCooldownByUserId[userId] = now + getDigInterval(player)
+			print("[DeepDig dig srv] block broken")
+		else
+			print("[DeepDig dig srv] reject: breakBlock returned false (range check failed?)")
 		end
 	end)
 end
