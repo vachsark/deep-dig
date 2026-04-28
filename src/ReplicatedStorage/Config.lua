@@ -53,6 +53,12 @@ Config.GAMEPASS_ARTIFACT_DETECTOR = "artifact_detector"
 Config.GAMEPASS_REBIRTH_BOOST_ID = 8
 Config.GAMEPASS_REBIRTH_BOOST = "rebirth_boost"
 
+-- Digging crews
+Config.CREW_MAX_SIZE = 10
+Config.CREW_INVITE_RANGE = 30
+Config.CREW_COOP_RADIUS = 24
+Config.CREW_FRAGMENT_BONUS = 1
+
 -- Admin / testing
 -- UserIds in this list (in addition to game.CreatorId) can run /coins, /tool,
 -- /maxall etc. via chat. Read by AdminCommands.server.lua.

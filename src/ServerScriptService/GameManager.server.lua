@@ -681,6 +681,29 @@ local function getActiveSeasonId()
 	return season and season.id or nil
 end
 
+local crewBonusNotifiedAt = {}
+
+local function hasNearbyCrewmate(player)
+	local fn = _G.DeepDig_hasNearbyCrewmate
+	if type(fn) ~= "function" then
+		return false
+	end
+
+	local success, hasCrewmate = pcall(fn, player, Config.CREW_COOP_RADIUS)
+	return success and hasCrewmate == true
+end
+
+local function notifyCrewDigBonus(player, bonus)
+	local now = tick()
+	local last = crewBonusNotifiedAt[player.UserId] or 0
+	if now - last < 8 then
+		return
+	end
+
+	crewBonusNotifiedAt[player.UserId] = now
+	NotifyEvent:FireClient(player, "Crew dig bonus: +" .. tostring(bonus) .. " fragments", "Uncommon")
+end
+
 -- Rarity ladder used by winter_loot's 25% promotion. Mythic is the cap.
 local RARITY_LADDER = { "Common", "Uncommon", "Rare", "Epic", "Legendary", "Mythic" }
 local function promoteRarity(r)
@@ -729,6 +752,12 @@ BlockBrokenEvent.Event:Connect(function(player, blockPosition)
 	-- HUD push below carries the new fragment count.
 	if activeSeason == "spring" then
 		data.fragments = (data.fragments or 0) + 1
+	end
+
+	local crewFragmentBonus = Config.CREW_FRAGMENT_BONUS or 0
+	if crewFragmentBonus > 0 and hasNearbyCrewmate(player) then
+		data.fragments = (data.fragments or 0) + crewFragmentBonus
+		notifyCrewDigBonus(player, crewFragmentBonus)
 	end
 
 	-- ── Equipped-pet multipliers ───────────────────────────────────
@@ -1304,6 +1333,7 @@ Players.PlayerRemoving:Connect(function(player)
 	playerData[player.UserId] = nil
 	friendBoostActiveByUserId[player.UserId] = nil
 	groupBenefitActiveByUserId[player.UserId] = nil
+	crewBonusNotifiedAt[player.UserId] = nil
 	refreshFriendBoostStates(true, player)
 end)
 
