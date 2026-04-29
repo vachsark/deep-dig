@@ -13,6 +13,9 @@ local Config = require(ReplicatedStorage:WaitForChild("Config"))
 local ItemDatabase = require(ReplicatedStorage:WaitForChild("ItemDatabase"))
 
 local Remotes = ReplicatedStorage:WaitForChild("Remotes")
+local ServerEvents = ReplicatedStorage:WaitForChild("ServerEvents")
+local PlayerDataReady = ServerEvents:WaitForChild("PlayerDataReady")
+local ItemFoundBindable = ServerEvents:WaitForChild("ItemFoundBindable")
 
 -- Create museum remotes
 local DisplayItemEvent = Instance.new("RemoteEvent")
@@ -67,6 +70,71 @@ local function countDisplayed(museum)
 	local n = 0
 	for _ in pairs(museum.displayedItems or {}) do n = n + 1 end
 	return n
+end
+
+local function getSeasonalExclusiveColor(exclusive)
+	local rarityData = ItemDatabase.RARITY[exclusive.rarity]
+	return exclusive.tint or (rarityData and rarityData.color) or RARITY_COLORS[exclusive.rarity] or RARITY_COLORS.Common
+end
+
+local function getPlayerData(player)
+	local cache = _G.DeepDig_playerData
+	return cache and cache[player.UserId] or nil
+end
+
+local function setSeasonalVaultState(placeholder, exclusive, unlocked)
+	local rarityColor = getSeasonalExclusiveColor(exclusive)
+	local lockedColor = Color3.fromRGB(95, 95, 100)
+	local relic = placeholder:FindFirstChild("SeasonalRelic")
+	local label = placeholder:FindFirstChild("Label")
+	local txt = label and label:FindFirstChildOfClass("TextLabel") or nil
+
+	placeholder:SetAttribute("Locked", not unlocked)
+	placeholder.Color = unlocked and rarityColor or lockedColor
+	placeholder.Material = unlocked and Enum.Material.Marble or Enum.Material.Slate
+
+	if relic then
+		relic.Color = unlocked and rarityColor or Color3.fromRGB(120, 120, 130)
+		relic.Material = unlocked and Enum.Material.Neon or Enum.Material.Glass
+		relic.Transparency = unlocked and 0 or 0.35
+	end
+
+	if txt then
+		if unlocked then
+			txt.Text = exclusive.season .. "\n" .. exclusive.displayName .. "\nUNLOCKED"
+			txt.TextColor3 = rarityColor
+		else
+			txt.Text = exclusive.season .. "\n" .. exclusive.theme .. "\nLOCKED"
+			txt.TextColor3 = Color3.fromRGB(180, 180, 190)
+		end
+	end
+end
+
+local function updateSeasonalVault(museum, data)
+	if not museum or type(data) ~= "table" or type(data.collections) ~= "table" then
+		return
+	end
+
+	for _, exclusive in ipairs(ItemDatabase.SEASONAL_EXCLUSIVES or {}) do
+		local placeholder = museum.seasonalVaults and museum.seasonalVaults[exclusive.id]
+		if not placeholder and museum.folder then
+			placeholder = museum.folder:FindFirstChild("SeasonalVault_" .. exclusive.id)
+		end
+
+		if placeholder then
+			setSeasonalVaultState(placeholder, exclusive, data.collections[exclusive.displayName] == true)
+		end
+	end
+end
+
+local function isSeasonalExclusiveName(itemName)
+	for _, exclusive in ipairs(ItemDatabase.SEASONAL_EXCLUSIVES or {}) do
+		if exclusive.displayName == itemName then
+			return true
+		end
+	end
+
+	return false
 end
 
 local function createMuseumForPlayer(player)
@@ -262,6 +330,7 @@ local function createMuseumForPlayer(player)
 	headerText.Font = Enum.Font.GothamBold
 	headerText.Parent = headerGui
 
+	local seasonalVaults = {}
 	for seasonalIndex, exclusive in ipairs(ItemDatabase.SEASONAL_EXCLUSIVES or {}) do
 		local rowOffset = (seasonalIndex - 2.5) * PEDESTAL_SPACING
 
@@ -277,7 +346,7 @@ local function createMuseumForPlayer(player)
 		placeholder.Parent = museumFolder
 
 		local relic = Instance.new("Part")
-		relic.Name = "Locked_" .. exclusive.displayName
+		relic.Name = "SeasonalRelic"
 		relic.Size = DISPLAY_ITEM_SIZE
 		relic.Position = placeholder.Position + Vector3.new(0, PEDESTAL_SIZE.Y / 2 + DISPLAY_ITEM_SIZE.Y / 2, 0)
 		relic.Anchored = true
@@ -300,17 +369,21 @@ local function createMuseumForPlayer(player)
 		labelText.TextScaled = true
 		labelText.Font = Enum.Font.GothamBold
 		labelText.Parent = labelGui
+
+		seasonalVaults[exclusive.id] = placeholder
 	end
 
 	local museumData = {
 		folder = museumFolder,
 		pedestals = pedestals,
+		seasonalVaults = seasonalVaults,
 		displayedItems = {},
 		position = Vector3.new(offsetX, 0, 0),
 		telepad = telepad,
 	}
 
 	playerMuseums[player.UserId] = museumData
+	updateSeasonalVault(museumData, getPlayerData(player))
 	return museumData
 end
 
@@ -448,6 +521,16 @@ end
 
 Players.PlayerAdded:Connect(function(player)
 	createMuseumForPlayer(player)
+end)
+
+PlayerDataReady.Event:Connect(function(player)
+	updateSeasonalVault(playerMuseums[player.UserId], getPlayerData(player))
+end)
+
+ItemFoundBindable.Event:Connect(function(player, item)
+	if item and isSeasonalExclusiveName(item.name) then
+		updateSeasonalVault(playerMuseums[player.UserId], getPlayerData(player))
+	end
 end)
 
 -- Handle players already in the game when the script loads (Studio playtest)

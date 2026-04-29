@@ -83,26 +83,68 @@ ItemDatabase.SEASONAL_EXCLUSIVES = {
 		season = "Halloween",
 		theme = "The Bone Age",
 		displayName = "Ghost Fossil",
+		rarity = "Epic",
+		baseValue = 600,
+		tint = Color3.fromRGB(155, 255, 210),
 	},
 	{
 		id = "winter",
 		season = "Winter",
 		theme = "The Ice Age",
 		displayName = "Frozen Artifact",
+		rarity = "Legendary",
+		baseValue = 900,
+		tint = Color3.fromRGB(120, 220, 255),
 	},
 	{
 		id = "spring",
 		season = "Spring",
 		theme = "Fossil Rush",
 		displayName = "Dino Egg",
+		rarity = "Epic",
+		baseValue = 650,
+		tint = Color3.fromRGB(120, 255, 145),
 	},
 	{
 		id = "summer",
 		season = "Summer",
 		theme = "Volcano Event",
 		displayName = "Obsidian Relic",
+		rarity = "Legendary",
+		baseValue = 950,
+		tint = Color3.fromRGB(255, 95, 45),
 	},
 }
+
+local SEASONAL_EXCLUSIVE_BY_ID = {}
+for _, exclusive in ipairs(ItemDatabase.SEASONAL_EXCLUSIVES) do
+	SEASONAL_EXCLUSIVE_BY_ID[exclusive.id] = exclusive
+end
+
+function ItemDatabase.getSeasonalExclusive(seasonId)
+	return SEASONAL_EXCLUSIVE_BY_ID[seasonId]
+end
+
+function ItemDatabase.buildSeasonalItem(seasonId)
+	local exclusive = ItemDatabase.getSeasonalExclusive(seasonId)
+	if not exclusive then
+		return nil
+	end
+
+	local rarity = exclusive.rarity or "Rare"
+	local rarityData = RARITY[rarity] or RARITY.Rare
+	local baseValue = exclusive.baseValue or 100
+
+	return {
+		name = exclusive.displayName,
+		rarity = rarity,
+		baseValue = baseValue,
+		sellValue = baseValue * rarityData.multiplier,
+		color = exclusive.tint or rarityData.color,
+		seasonalExclusive = true,
+		seasonId = exclusive.id,
+	}
+end
 
 -- Pick a random item from a tier based on rarity weights
 function ItemDatabase.rollItem(tierName)

@@ -283,6 +283,7 @@ end
 local activeEvents = {} -- { [eventName] = endTick }
 local ARTIFACT_DETECTOR_CHANCE = 0.10
 local ARTIFACT_DETECTOR_MIN_RANK = 3
+local SEASONAL_EXCLUSIVE_DROP_CHANCE = 0.025
 local RESURFACE_LOOT_BONUS_PER_REBIRTH = 0.5
 local REBIRTH_BOOST_LOOT_BONUS_PER_REBIRTH = 1.0
 local FRIEND_DIG_SPEED_MULTIPLIER = 1.05
@@ -876,8 +877,6 @@ BlockBrokenEvent.Event:Connect(function(player, blockPosition)
 				end
 			end
 
-			local wasAlreadyCollected = data.collections[item.name] == true
-
 			-- winter_loot: 25% chance to promote the rolled rarity one tier
 			-- (Common → Uncommon, …, Legendary → Mythic; Mythic doesn't
 			-- promote). FTUE rolls cap at Uncommon — we still allow the
@@ -896,6 +895,15 @@ BlockBrokenEvent.Event:Connect(function(player, blockPosition)
 					item.rarity = promoteRarity(item.rarity)
 				end
 			end
+
+			if activeSeason and not isNewPlayer and math.random() < SEASONAL_EXCLUSIVE_DROP_CHANCE then
+				local seasonalItem = ItemDatabase.buildSeasonalItem(activeSeason)
+				if seasonalItem then
+					item = seasonalItem
+				end
+			end
+
+			local wasAlreadyCollected = data.collections[item.name] == true
 
 			-- Apply event multipliers
 			if isEventActive("gold_rush") then
