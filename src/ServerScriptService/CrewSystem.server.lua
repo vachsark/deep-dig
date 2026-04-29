@@ -34,6 +34,7 @@ local pendingInvites = {}
 local nextCrewId = 0
 
 local INVITE_TIMEOUT_SECONDS = 30
+local CREW_LEADERBOARD_LIMIT = 5
 
 local function getCrewLevelForXP(xp)
 	local level = 1
@@ -152,6 +153,53 @@ local function getSortedMembers(crew)
 	return members
 end
 
+local function getTopCrews(viewerCrewId)
+	local topCrews = {}
+	for _, crew in pairs(crews) do
+		local memberCount = countMembers(crew)
+		if memberCount > 0 then
+			local progress = getCrewProgress(crew)
+			crew.level = progress.level
+
+			local leader = Players:GetPlayerByUserId(crew.ownerUserId)
+			table.insert(topCrews, {
+				crewId = crew.id,
+				leaderUserId = crew.ownerUserId,
+				leaderName = leader and leader.Name or "Crew Leader",
+				leaderDisplayName = leader and leader.DisplayName or "Crew Leader",
+				level = progress.level,
+				xp = progress.xp,
+				memberCount = memberCount,
+				maxSize = Config.CREW_MAX_SIZE,
+				isPlayerCrew = crew.id == viewerCrewId,
+			})
+		end
+	end
+
+	table.sort(topCrews, function(a, b)
+		if a.level == b.level then
+			if a.xp == b.xp then
+				if a.memberCount == b.memberCount then
+					return a.leaderUserId < b.leaderUserId
+				end
+				return a.memberCount > b.memberCount
+			end
+			return a.xp > b.xp
+		end
+		return a.level > b.level
+	end)
+
+	local limited = {}
+	for index, entry in ipairs(topCrews) do
+		entry.rank = index
+		if index <= CREW_LEADERBOARD_LIMIT then
+			table.insert(limited, entry)
+		end
+	end
+
+	return limited
+end
+
 local function getNearbyCandidates(player)
 	local candidates = {}
 	local playerRoot = getRoot(player)
@@ -209,7 +257,8 @@ local function getPendingInvitePayload(player)
 end
 
 local function getCrewState(player)
-	local crew = getCrew(player)
+	local viewerCrewId = player and playerCrewId[player.UserId]
+	local crew = viewerCrewId and crews[viewerCrewId] or nil
 	local progress = getCrewProgress(crew)
 	if crew then
 		crew.level = progress.level
@@ -228,6 +277,7 @@ local function getCrewState(player)
 		crewXPForNextLevel = progress.xpForNextLevel,
 		crewXPToNextLevel = progress.xpToNextLevel,
 		crewNextLevelXP = progress.nextLevelXP,
+		topCrews = getTopCrews(viewerCrewId),
 		members = crew and getSortedMembers(crew) or {},
 		nearbyPlayers = getNearbyCandidates(player),
 		pendingInvite = getPendingInvitePayload(player),
@@ -503,7 +553,7 @@ local function awardCrewCoopDigXP(player, amount)
 		end
 	end
 
-	broadcastCrewState(crew)
+	refreshEveryone()
 	return afterProgress.fragmentBonus, afterProgress.level > beforeProgress.level, afterProgress.level, afterProgress.xp
 end
 

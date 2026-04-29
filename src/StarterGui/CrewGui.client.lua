@@ -46,6 +46,7 @@ local state = {
 	inCrew = false,
 	members = {},
 	nearbyPlayers = {},
+	topCrews = {},
 }
 
 local function setCorner(parent, radius)
@@ -368,6 +369,42 @@ nearbyPadding.PaddingLeft = UDim.new(0, 6)
 nearbyPadding.PaddingRight = UDim.new(0, 6)
 nearbyPadding.Parent = nearbyList
 
+local leaderboardHeader = Instance.new("TextLabel")
+leaderboardHeader.Name = "LeaderboardHeader"
+leaderboardHeader.Size = UDim2.new(1, -28, 0, 20)
+leaderboardHeader.Position = UDim2.new(0, 14, 0, 186)
+leaderboardHeader.BackgroundTransparency = 1
+leaderboardHeader.Text = "Top Crews"
+leaderboardHeader.TextColor3 = TEXT_PRIMARY
+leaderboardHeader.TextSize = 13
+leaderboardHeader.Font = Enum.Font.GothamBold
+leaderboardHeader.TextXAlignment = Enum.TextXAlignment.Left
+leaderboardHeader.Parent = panel
+
+local leaderboardList = Instance.new("ScrollingFrame")
+leaderboardList.Name = "TopCrews"
+leaderboardList.Size = UDim2.new(1, -28, 0, 64)
+leaderboardList.Position = UDim2.new(0, 14, 0, 208)
+leaderboardList.BackgroundColor3 = SECTION_BG
+leaderboardList.BackgroundTransparency = 0.08
+leaderboardList.BorderSizePixel = 0
+leaderboardList.ScrollBarThickness = 4
+leaderboardList.CanvasSize = UDim2.new(0, 0, 0, 0)
+leaderboardList.Parent = panel
+setCorner(leaderboardList, 8)
+
+local leaderboardLayout = Instance.new("UIListLayout")
+leaderboardLayout.Padding = UDim.new(0, 4)
+leaderboardLayout.SortOrder = Enum.SortOrder.LayoutOrder
+leaderboardLayout.Parent = leaderboardList
+
+local leaderboardPadding = Instance.new("UIPadding")
+leaderboardPadding.PaddingTop = UDim.new(0, 6)
+leaderboardPadding.PaddingBottom = UDim.new(0, 6)
+leaderboardPadding.PaddingLeft = UDim.new(0, 6)
+leaderboardPadding.PaddingRight = UDim.new(0, 6)
+leaderboardPadding.Parent = leaderboardList
+
 local function makeRow(parent, text, rightText, buttonText, buttonColor, onClick)
 	local row = Instance.new("Frame")
 	row.Name = "Row"
@@ -428,6 +465,53 @@ local function makeEmptyRow(parent, text)
 	makeRow(parent, text, "", nil, nil, nil)
 end
 
+local function makeLeaderboardRow(parent, crew)
+	local row = Instance.new("Frame")
+	row.Name = "CrewRank"
+	row.Size = UDim2.new(1, -4, 0, 30)
+	row.BackgroundColor3 = crew.isPlayerCrew and Color3.fromRGB(56, 49, 31) or CARD_BG
+	row.BackgroundTransparency = crew.isPlayerCrew and 0 or 0.05
+	row.BorderSizePixel = 0
+	row.Parent = parent
+	setCorner(row, 6)
+	if crew.isPlayerCrew then
+		setStroke(row, ACCENT_GOLD, 1, 0.05)
+	end
+
+	local leaderText = "#" .. tostring(crew.rank or 0) .. " " .. tostring(crew.leaderDisplayName or crew.leaderName or "Crew")
+	if crew.isPlayerCrew then
+		leaderText = leaderText .. " (Your Crew)"
+	end
+
+	local leaderLabel = Instance.new("TextLabel")
+	leaderLabel.Size = UDim2.new(1, -128, 1, 0)
+	leaderLabel.Position = UDim2.new(0, 8, 0, 0)
+	leaderLabel.BackgroundTransparency = 1
+	leaderLabel.Text = leaderText
+	leaderLabel.TextColor3 = TEXT_PRIMARY
+	leaderLabel.TextSize = 11
+	leaderLabel.Font = crew.isPlayerCrew and Enum.Font.GothamBold or Enum.Font.GothamMedium
+	leaderLabel.TextXAlignment = Enum.TextXAlignment.Left
+	leaderLabel.TextTruncate = Enum.TextTruncate.AtEnd
+	leaderLabel.Parent = row
+
+	local memberText = tostring(crew.memberCount or 0) .. "/" .. tostring(crew.maxSize or 0)
+	local detailText = "Lv " .. tostring(crew.level or 1) .. " | " .. tostring(crew.xp or 0) .. " XP | " .. memberText
+
+	local detailLabel = Instance.new("TextLabel")
+	detailLabel.Size = UDim2.new(0, 118, 1, 0)
+	detailLabel.AnchorPoint = Vector2.new(1, 0)
+	detailLabel.Position = UDim2.new(1, -8, 0, 0)
+	detailLabel.BackgroundTransparency = 1
+	detailLabel.Text = detailText
+	detailLabel.TextColor3 = crew.isPlayerCrew and ACCENT_GOLD or TEXT_MUTED
+	detailLabel.TextSize = 10
+	detailLabel.Font = Enum.Font.GothamBold
+	detailLabel.TextXAlignment = Enum.TextXAlignment.Right
+	detailLabel.TextTruncate = Enum.TextTruncate.AtEnd
+	detailLabel.Parent = row
+end
+
 local function updateCanvas(frame, layout)
 	frame.CanvasSize = UDim2.new(0, 0, 0, layout.AbsoluteContentSize.Y + 12)
 end
@@ -458,6 +542,7 @@ end
 render = function()
 	local members = state.members or {}
 	local nearbyPlayers = state.nearbyPlayers or {}
+	local topCrews = state.topCrews or {}
 	local maxSize = state.maxSize or 10
 	local bonus = state.fragmentBonus or 0
 	local radius = state.coopRadius or 0
@@ -493,6 +578,10 @@ render = function()
 	local progressHeight = state.inCrew and 52 or 0
 	local progressGap = state.inCrew and 10 or 0
 	local topOffset = progressY + progressHeight + progressGap
+	local compactLayout = topOffset >= 240
+	local leaderboardHeight = compactLayout and 54 or 64
+	local memberHeight = compactLayout and 34 or (state.inCrew and 48 or 54)
+	local nearbyHeight = compactLayout and 42 or (state.inCrew and 58 or 70)
 	progressFrame.Position = UDim2.new(0, 14, 0, progressY)
 	progressFrame.Visible = state.inCrew
 	levelLabel.Text = "Level " .. tostring(level)
@@ -504,10 +593,26 @@ render = function()
 		progressFill.Size = UDim2.new(1, 0, 1, 0)
 		progressText.Text = tostring(state.crewXP or 0) .. " XP - Max level"
 	end
-	memberHeader.Position = UDim2.new(0, 14, 0, topOffset)
-	memberList.Position = UDim2.new(0, 14, 0, topOffset + 22)
-	nearbyHeader.Position = UDim2.new(0, 14, 0, topOffset + 114)
-	nearbyList.Position = UDim2.new(0, 14, 0, topOffset + 136)
+
+	leaderboardHeader.Position = UDim2.new(0, 14, 0, topOffset)
+	leaderboardList.Position = UDim2.new(0, 14, 0, topOffset + 22)
+	leaderboardList.Size = UDim2.new(1, -28, 0, leaderboardHeight)
+	memberHeader.Position = UDim2.new(0, 14, 0, topOffset + leaderboardHeight + 30)
+	memberList.Position = UDim2.new(0, 14, 0, topOffset + leaderboardHeight + 52)
+	memberList.Size = UDim2.new(1, -28, 0, memberHeight)
+	nearbyHeader.Position = UDim2.new(0, 14, 0, topOffset + leaderboardHeight + memberHeight + 60)
+	nearbyList.Position = UDim2.new(0, 14, 0, topOffset + leaderboardHeight + memberHeight + 82)
+	nearbyList.Size = UDim2.new(1, -28, 0, nearbyHeight)
+
+	clearRenderedChildren(leaderboardList)
+	if #topCrews == 0 then
+		makeEmptyRow(leaderboardList, "No active crews yet.")
+	else
+		for _, crew in ipairs(topCrews) do
+			makeLeaderboardRow(leaderboardList, crew)
+		end
+	end
+	updateCanvas(leaderboardList, leaderboardLayout)
 
 	clearRenderedChildren(memberList)
 	if #members == 0 then
