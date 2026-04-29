@@ -240,6 +240,68 @@ local function createMuseumForPlayer(player)
 		end
 	end
 
+	local seasonalHeader = Instance.new("Part")
+	seasonalHeader.Name = "SeasonalVaultHeader"
+	seasonalHeader.Size = Vector3.new(30, 2, 0.5)
+	seasonalHeader.Position = Vector3.new(offsetX, 2, 14.5)
+	seasonalHeader.Anchored = true
+	seasonalHeader.Material = Enum.Material.SmoothPlastic
+	seasonalHeader.Color = Color3.fromRGB(55, 55, 60)
+	seasonalHeader.Parent = museumFolder
+
+	local headerGui = Instance.new("SurfaceGui")
+	headerGui.Face = Enum.NormalId.Front
+	headerGui.Parent = seasonalHeader
+
+	local headerText = Instance.new("TextLabel")
+	headerText.Size = UDim2.new(1, 0, 1, 0)
+	headerText.BackgroundTransparency = 1
+	headerText.Text = "Seasonal Vault"
+	headerText.TextColor3 = Color3.fromRGB(200, 200, 210)
+	headerText.TextScaled = true
+	headerText.Font = Enum.Font.GothamBold
+	headerText.Parent = headerGui
+
+	for seasonalIndex, exclusive in ipairs(ItemDatabase.SEASONAL_EXCLUSIVES or {}) do
+		local rowOffset = (seasonalIndex - 2.5) * PEDESTAL_SPACING
+
+		local placeholder = Instance.new("Part")
+		placeholder.Name = "SeasonalVault_" .. exclusive.id
+		placeholder.Size = PEDESTAL_SIZE
+		placeholder.Position = Vector3.new(offsetX + rowOffset, 0, 20)
+		placeholder.Anchored = true
+		placeholder.Material = Enum.Material.Slate
+		placeholder.Color = Color3.fromRGB(95, 95, 100)
+		placeholder:SetAttribute("SeasonalVault", true)
+		placeholder:SetAttribute("Locked", true)
+		placeholder.Parent = museumFolder
+
+		local relic = Instance.new("Part")
+		relic.Name = "Locked_" .. exclusive.displayName
+		relic.Size = DISPLAY_ITEM_SIZE
+		relic.Position = placeholder.Position + Vector3.new(0, PEDESTAL_SIZE.Y / 2 + DISPLAY_ITEM_SIZE.Y / 2, 0)
+		relic.Anchored = true
+		relic.CanCollide = false
+		relic.Material = Enum.Material.Glass
+		relic.Transparency = 0.35
+		relic.Color = Color3.fromRGB(120, 120, 130)
+		relic.Parent = placeholder
+
+		local labelGui = Instance.new("SurfaceGui")
+		labelGui.Face = Enum.NormalId.Front
+		labelGui.Name = "Label"
+		labelGui.Parent = placeholder
+
+		local labelText = Instance.new("TextLabel")
+		labelText.Size = UDim2.new(1, 0, 1, 0)
+		labelText.BackgroundTransparency = 1
+		labelText.Text = exclusive.season .. "\n" .. exclusive.theme .. "\nLOCKED"
+		labelText.TextColor3 = Color3.fromRGB(180, 180, 190)
+		labelText.TextScaled = true
+		labelText.Font = Enum.Font.GothamBold
+		labelText.Parent = labelGui
+	end
+
 	local museumData = {
 		folder = museumFolder,
 		pedestals = pedestals,

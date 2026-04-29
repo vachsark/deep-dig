@@ -77,6 +77,33 @@ ItemDatabase.ITEMS = {
 	},
 }
 
+ItemDatabase.SEASONAL_EXCLUSIVES = {
+	{
+		id = "halloween",
+		season = "Halloween",
+		theme = "The Bone Age",
+		displayName = "Ghost Fossil",
+	},
+	{
+		id = "winter",
+		season = "Winter",
+		theme = "The Ice Age",
+		displayName = "Frozen Artifact",
+	},
+	{
+		id = "spring",
+		season = "Spring",
+		theme = "Fossil Rush",
+		displayName = "Dino Egg",
+	},
+	{
+		id = "summer",
+		season = "Summer",
+		theme = "Volcano Event",
+		displayName = "Obsidian Relic",
+	},
+}
+
 -- Pick a random item from a tier based on rarity weights
 function ItemDatabase.rollItem(tierName)
 	local tierItems = ItemDatabase.ITEMS[tierName]
