@@ -58,6 +58,9 @@ Config.CREW_MAX_SIZE = 10
 Config.CREW_INVITE_RANGE = 30
 Config.CREW_COOP_RADIUS = 24
 Config.CREW_FRAGMENT_BONUS = 1
+Config.CREW_XP_PER_COOP_DIG = 1
+Config.CREW_LEVEL_THRESHOLDS = { 25, 75, 150 }
+Config.CREW_LEVEL_FRAGMENT_BONUSES = { 1, 2, 3, 4 }
 
 -- Admin / testing
 -- UserIds in this list (in addition to game.CreatorId) can run /coins, /tool,

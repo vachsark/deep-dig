@@ -694,6 +694,20 @@ local function hasNearbyCrewmate(player)
 	return success and hasCrewmate == true
 end
 
+local function awardCrewCoopDigXP(player)
+	local fn = _G.DeepDig_awardCrewCoopDigXP
+	if type(fn) ~= "function" then
+		return Config.CREW_FRAGMENT_BONUS or 0
+	end
+
+	local success, fragmentBonus = pcall(fn, player, Config.CREW_XP_PER_COOP_DIG or 1)
+	if success and type(fragmentBonus) == "number" then
+		return fragmentBonus
+	end
+
+	return Config.CREW_FRAGMENT_BONUS or 0
+end
+
 local function notifyCrewDigBonus(player, bonus)
 	local now = tick()
 	local last = crewBonusNotifiedAt[player.UserId] or 0
@@ -755,10 +769,12 @@ BlockBrokenEvent.Event:Connect(function(player, blockPosition)
 		data.fragments = (data.fragments or 0) + 1
 	end
 
-	local crewFragmentBonus = Config.CREW_FRAGMENT_BONUS or 0
-	if crewFragmentBonus > 0 and hasNearbyCrewmate(player) then
+	if hasNearbyCrewmate(player) then
+		local crewFragmentBonus = awardCrewCoopDigXP(player)
 		data.fragments = (data.fragments or 0) + crewFragmentBonus
-		notifyCrewDigBonus(player, crewFragmentBonus)
+		if crewFragmentBonus > 0 then
+			notifyCrewDigBonus(player, crewFragmentBonus)
+		end
 	end
 
 	-- ── Equipped-pet multipliers ───────────────────────────────────

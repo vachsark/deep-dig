@@ -35,6 +35,50 @@ local nextCrewId = 0
 
 local INVITE_TIMEOUT_SECONDS = 30
 
+local function getCrewLevelForXP(xp)
+	local level = 1
+	local thresholds = Config.CREW_LEVEL_THRESHOLDS or {}
+	for _, threshold in ipairs(thresholds) do
+		if xp >= threshold then
+			level = level + 1
+		else
+			break
+		end
+	end
+
+	return level
+end
+
+local function getCrewFragmentBonus(level)
+	local bonuses = Config.CREW_LEVEL_FRAGMENT_BONUSES
+	if type(bonuses) == "table" then
+		return bonuses[level] or bonuses[#bonuses] or Config.CREW_FRAGMENT_BONUS or 0
+	end
+
+	return Config.CREW_FRAGMENT_BONUS or 0
+end
+
+local function getCrewProgress(crew)
+	local xp = crew and (crew.xp or 0) or 0
+	local level = getCrewLevelForXP(xp)
+	local thresholds = Config.CREW_LEVEL_THRESHOLDS or {}
+	local previousThreshold = thresholds[level - 1] or 0
+	local nextThreshold = thresholds[level]
+	local xpInLevel = xp - previousThreshold
+	local xpForNextLevel = nextThreshold and (nextThreshold - previousThreshold) or 0
+	local xpToNextLevel = nextThreshold and math.max(nextThreshold - xp, 0) or 0
+
+	return {
+		xp = xp,
+		level = level,
+		xpInLevel = xpInLevel,
+		xpForNextLevel = xpForNextLevel,
+		xpToNextLevel = xpToNextLevel,
+		nextLevelXP = nextThreshold,
+		fragmentBonus = getCrewFragmentBonus(level),
+	}
+end
+
 local function notify(player, message, rarity)
 	if player and NotifyEvent then
 		NotifyEvent:FireClient(player, message, rarity or "Common")
@@ -166,13 +210,24 @@ end
 
 local function getCrewState(player)
 	local crew = getCrew(player)
+	local progress = getCrewProgress(crew)
+	if crew then
+		crew.level = progress.level
+	end
+
 	local payload = {
 		inCrew = crew ~= nil,
 		crewId = crew and crew.id or nil,
 		maxSize = Config.CREW_MAX_SIZE,
 		inviteRange = Config.CREW_INVITE_RANGE,
 		coopRadius = Config.CREW_COOP_RADIUS,
-		fragmentBonus = Config.CREW_FRAGMENT_BONUS,
+		fragmentBonus = progress.fragmentBonus,
+		crewLevel = progress.level,
+		crewXP = progress.xp,
+		crewXPInLevel = progress.xpInLevel,
+		crewXPForNextLevel = progress.xpForNextLevel,
+		crewXPToNextLevel = progress.xpToNextLevel,
+		crewNextLevelXP = progress.nextLevelXP,
 		members = crew and getSortedMembers(crew) or {},
 		nearbyPlayers = getNearbyCandidates(player),
 		pendingInvite = getPendingInvitePayload(player),
@@ -219,6 +274,8 @@ local function createCrew(player)
 	local crew = {
 		id = crewId,
 		ownerUserId = player.UserId,
+		xp = 0,
+		level = 1,
 		members = {
 			[player.UserId] = true,
 		},
@@ -414,6 +471,44 @@ _G.DeepDig_hasNearbyCrewmate = function(player, radius)
 	end
 
 	return false
+end
+
+local function awardCrewCoopDigXP(player, amount)
+	local crew = getCrew(player)
+	if not crew then
+		return Config.CREW_FRAGMENT_BONUS or 0, false, 1, 0
+	end
+
+	local xpAmount = amount or Config.CREW_XP_PER_COOP_DIG or 1
+	if xpAmount <= 0 then
+		local progress = getCrewProgress(crew)
+		return progress.fragmentBonus, false, progress.level, progress.xp
+	end
+
+	local beforeProgress = getCrewProgress(crew)
+	crew.xp = (crew.xp or 0) + xpAmount
+	local afterProgress = getCrewProgress(crew)
+	crew.level = afterProgress.level
+
+	if afterProgress.level > beforeProgress.level then
+		for userId in pairs(crew.members) do
+			local member = Players:GetPlayerByUserId(userId)
+			if member then
+				notify(
+					member,
+					"Crew reached Level " .. tostring(afterProgress.level) .. "! Co-op bonus is now +" .. tostring(afterProgress.fragmentBonus) .. " fragments.",
+					"Rare"
+				)
+			end
+		end
+	end
+
+	broadcastCrewState(crew)
+	return afterProgress.fragmentBonus, afterProgress.level > beforeProgress.level, afterProgress.level, afterProgress.xp
+end
+
+_G.DeepDig_awardCrewCoopDigXP = function(player, amount)
+	return awardCrewCoopDigXP(player, amount)
 end
 
 print("[DeepDig] CrewSystem loaded")

@@ -114,7 +114,7 @@ setCorner(pendingDot, 12)
 
 local panel = Instance.new("Frame")
 panel.Name = "CrewPanel"
-panel.Size = UDim2.new(0, 330, 0, 410)
+panel.Size = UDim2.new(0, 330, 0, 466)
 panel.AnchorPoint = Vector2.new(1, 1)
 panel.Position = UDim2.new(1, -20, 1, -160)
 panel.BackgroundColor3 = PANEL_BG
@@ -231,6 +231,70 @@ actionButton.Font = Enum.Font.GothamBold
 actionButton.AutoButtonColor = true
 actionButton.Parent = panel
 setCorner(actionButton, 8)
+
+local progressFrame = Instance.new("Frame")
+progressFrame.Name = "CrewProgress"
+progressFrame.Size = UDim2.new(1, -28, 0, 52)
+progressFrame.Position = UDim2.new(0, 14, 0, 136)
+progressFrame.BackgroundColor3 = SECTION_BG
+progressFrame.BackgroundTransparency = 0.08
+progressFrame.BorderSizePixel = 0
+progressFrame.Visible = false
+progressFrame.Parent = panel
+setCorner(progressFrame, 8)
+
+local levelLabel = Instance.new("TextLabel")
+levelLabel.Name = "Level"
+levelLabel.Size = UDim2.new(0.5, -10, 0, 20)
+levelLabel.Position = UDim2.new(0, 10, 0, 6)
+levelLabel.BackgroundTransparency = 1
+levelLabel.Text = "Level 1"
+levelLabel.TextColor3 = TEXT_PRIMARY
+levelLabel.TextSize = 13
+levelLabel.Font = Enum.Font.GothamBold
+levelLabel.TextXAlignment = Enum.TextXAlignment.Left
+levelLabel.Parent = progressFrame
+
+local bonusLabel = Instance.new("TextLabel")
+bonusLabel.Name = "Bonus"
+bonusLabel.Size = UDim2.new(0.5, -10, 0, 20)
+bonusLabel.Position = UDim2.new(0.5, 0, 0, 6)
+bonusLabel.BackgroundTransparency = 1
+bonusLabel.Text = "+1 fragments"
+bonusLabel.TextColor3 = ACCENT_GREEN
+bonusLabel.TextSize = 12
+bonusLabel.Font = Enum.Font.GothamBold
+bonusLabel.TextXAlignment = Enum.TextXAlignment.Right
+bonusLabel.Parent = progressFrame
+
+local progressTrack = Instance.new("Frame")
+progressTrack.Name = "Track"
+progressTrack.Size = UDim2.new(1, -20, 0, 10)
+progressTrack.Position = UDim2.new(0, 10, 0, 29)
+progressTrack.BackgroundColor3 = Color3.fromRGB(16, 18, 20)
+progressTrack.BorderSizePixel = 0
+progressTrack.Parent = progressFrame
+setCorner(progressTrack, 5)
+
+local progressFill = Instance.new("Frame")
+progressFill.Name = "Fill"
+progressFill.Size = UDim2.new(0, 0, 1, 0)
+progressFill.BackgroundColor3 = ACCENT_GOLD
+progressFill.BorderSizePixel = 0
+progressFill.Parent = progressTrack
+setCorner(progressFill, 5)
+
+local progressText = Instance.new("TextLabel")
+progressText.Name = "ProgressText"
+progressText.Size = UDim2.new(1, -20, 0, 12)
+progressText.Position = UDim2.new(0, 10, 0, 39)
+progressText.BackgroundTransparency = 1
+progressText.Text = "0/25 XP"
+progressText.TextColor3 = TEXT_MUTED
+progressText.TextSize = 10
+progressText.Font = Enum.Font.GothamMedium
+progressText.TextXAlignment = Enum.TextXAlignment.Left
+progressText.Parent = progressFrame
 
 local memberHeader = Instance.new("TextLabel")
 memberHeader.Name = "MemberHeader"
@@ -368,6 +432,17 @@ local function updateCanvas(frame, layout)
 	frame.CanvasSize = UDim2.new(0, 0, 0, layout.AbsoluteContentSize.Y + 12)
 end
 
+local function clampUnit(value)
+	if value < 0 then
+		return 0
+	end
+	if value > 1 then
+		return 1
+	end
+
+	return value
+end
+
 local render
 
 local function requestState()
@@ -387,12 +462,15 @@ render = function()
 	local bonus = state.fragmentBonus or 0
 	local radius = state.coopRadius or 0
 	local pendingInvite = state.pendingInvite
+	local level = state.crewLevel or 1
+	local xpInLevel = state.crewXPInLevel or 0
+	local xpForNextLevel = state.crewXPForNextLevel or 0
 
 	pendingDot.Visible = pendingInvite ~= nil
 	toggleButton.Text = state.inCrew and ("Crew " .. tostring(#members) .. "/" .. tostring(maxSize)) or "Crew"
 
 	if state.inCrew then
-		statusLabel.Text = "Co-op bonus: +" .. tostring(bonus) .. " fragments within " .. tostring(radius) .. " studs"
+		statusLabel.Text = "Level " .. tostring(level) .. " crew - +" .. tostring(bonus) .. " fragments within " .. tostring(radius) .. " studs"
 		actionButton.Text = "Leave Crew"
 		actionButton.BackgroundColor3 = ACCENT_RED
 	else
@@ -410,7 +488,22 @@ render = function()
 		actionButton.Position = UDim2.new(0, 14, 0, 92)
 	end
 
-	local topOffset = pendingInvite and 186 or 138
+	local actionY = pendingInvite and 140 or 92
+	local progressY = actionY + 46
+	local progressHeight = state.inCrew and 52 or 0
+	local progressGap = state.inCrew and 10 or 0
+	local topOffset = progressY + progressHeight + progressGap
+	progressFrame.Position = UDim2.new(0, 14, 0, progressY)
+	progressFrame.Visible = state.inCrew
+	levelLabel.Text = "Level " .. tostring(level)
+	bonusLabel.Text = "+" .. tostring(bonus) .. " fragments"
+	if xpForNextLevel > 0 then
+		progressFill.Size = UDim2.new(clampUnit(xpInLevel / xpForNextLevel), 0, 1, 0)
+		progressText.Text = tostring(xpInLevel) .. "/" .. tostring(xpForNextLevel) .. " XP"
+	else
+		progressFill.Size = UDim2.new(1, 0, 1, 0)
+		progressText.Text = tostring(state.crewXP or 0) .. " XP - Max level"
+	end
 	memberHeader.Position = UDim2.new(0, 14, 0, topOffset)
 	memberList.Position = UDim2.new(0, 14, 0, topOffset + 22)
 	nearbyHeader.Position = UDim2.new(0, 14, 0, topOffset + 114)
