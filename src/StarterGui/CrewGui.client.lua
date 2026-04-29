@@ -25,9 +25,12 @@ local CrewInviteEvent = waitForChildTimeout(Remotes, "CrewInvite", 5)
 local CrewRespondInviteEvent = waitForChildTimeout(Remotes, "CrewRespondInvite", 5)
 local CrewLeaveEvent = waitForChildTimeout(Remotes, "CrewLeave", 5)
 local CrewUpdateEvent = waitForChildTimeout(Remotes, "CrewUpdate", 5)
+local CrewMailboxSendEvent = waitForChildTimeout(Remotes, "CrewMailboxSend", 5)
+local CrewMailboxClaimEvent = waitForChildTimeout(Remotes, "CrewMailboxClaim", 5)
 local GetCrewStateFunc = waitForChildTimeout(Remotes, "GetCrewState", 5)
+local GetPlayerDataFunc = waitForChildTimeout(Remotes, "GetPlayerData", 5)
 
-if not (CrewCreateEvent and CrewInviteEvent and CrewRespondInviteEvent and CrewLeaveEvent and CrewUpdateEvent and GetCrewStateFunc) then
+if not (CrewCreateEvent and CrewInviteEvent and CrewRespondInviteEvent and CrewLeaveEvent and CrewUpdateEvent and CrewMailboxSendEvent and CrewMailboxClaimEvent and GetCrewStateFunc and GetPlayerDataFunc) then
 	warn("[CrewGui] Required crew remotes missing - crew UI disabled.")
 	return
 end
@@ -42,12 +45,28 @@ local ACCENT_BLUE = Color3.fromRGB(80, 160, 255)
 local ACCENT_RED = Color3.fromRGB(235, 95, 95)
 local ACCENT_GOLD = Color3.fromRGB(255, 200, 70)
 
+local RARITY_COLORS = {
+	Common = Color3.fromRGB(180, 180, 180),
+	Uncommon = Color3.fromRGB(30, 200, 30),
+	Rare = Color3.fromRGB(30, 100, 255),
+	Epic = Color3.fromRGB(160, 50, 255),
+	Legendary = Color3.fromRGB(255, 170, 0),
+	Mythic = Color3.fromRGB(255, 50, 50),
+}
+
 local state = {
 	inCrew = false,
 	members = {},
 	nearbyPlayers = {},
 	topCrews = {},
+	mailboxItems = {},
 }
+local currentInventory = {}
+local selectedMailboxRecipientUserId = nil
+
+local function getRarityColor(rarity)
+	return RARITY_COLORS[rarity] or TEXT_MUTED
+end
 
 local function setCorner(parent, radius)
 	local corner = Instance.new("UICorner")
@@ -115,9 +134,9 @@ setCorner(pendingDot, 12)
 
 local panel = Instance.new("Frame")
 panel.Name = "CrewPanel"
-panel.Size = UDim2.new(0, 330, 0, 466)
+panel.Size = UDim2.new(0, 330, 0, 580)
 panel.AnchorPoint = Vector2.new(1, 1)
-panel.Position = UDim2.new(1, -20, 1, -160)
+panel.Position = UDim2.new(1, -20, 1, -142)
 panel.BackgroundColor3 = PANEL_BG
 panel.BackgroundTransparency = 0.08
 panel.BorderSizePixel = 0
@@ -369,6 +388,55 @@ nearbyPadding.PaddingLeft = UDim.new(0, 6)
 nearbyPadding.PaddingRight = UDim.new(0, 6)
 nearbyPadding.Parent = nearbyList
 
+local mailboxHeader = Instance.new("TextLabel")
+mailboxHeader.Name = "MailboxHeader"
+mailboxHeader.Size = UDim2.new(1, -28, 0, 20)
+mailboxHeader.Position = UDim2.new(0, 14, 0, 430)
+mailboxHeader.BackgroundTransparency = 1
+mailboxHeader.Text = "Mailbox"
+mailboxHeader.TextColor3 = TEXT_PRIMARY
+mailboxHeader.TextSize = 13
+mailboxHeader.Font = Enum.Font.GothamBold
+mailboxHeader.TextXAlignment = Enum.TextXAlignment.Left
+mailboxHeader.Parent = panel
+
+local mailboxTargetLabel = Instance.new("TextLabel")
+mailboxTargetLabel.Name = "MailboxTarget"
+mailboxTargetLabel.Size = UDim2.new(1, -28, 0, 16)
+mailboxTargetLabel.Position = UDim2.new(0, 14, 0, 450)
+mailboxTargetLabel.BackgroundTransparency = 1
+mailboxTargetLabel.Text = "Pick a crewmate above to send an item."
+mailboxTargetLabel.TextColor3 = TEXT_MUTED
+mailboxTargetLabel.TextSize = 11
+mailboxTargetLabel.Font = Enum.Font.GothamMedium
+mailboxTargetLabel.TextXAlignment = Enum.TextXAlignment.Left
+mailboxTargetLabel.TextTruncate = Enum.TextTruncate.AtEnd
+mailboxTargetLabel.Parent = panel
+
+local mailboxList = Instance.new("ScrollingFrame")
+mailboxList.Name = "Mailbox"
+mailboxList.Size = UDim2.new(1, -28, 0, 80)
+mailboxList.Position = UDim2.new(0, 14, 0, 470)
+mailboxList.BackgroundColor3 = SECTION_BG
+mailboxList.BackgroundTransparency = 0.08
+mailboxList.BorderSizePixel = 0
+mailboxList.ScrollBarThickness = 4
+mailboxList.CanvasSize = UDim2.new(0, 0, 0, 0)
+mailboxList.Parent = panel
+setCorner(mailboxList, 8)
+
+local mailboxLayout = Instance.new("UIListLayout")
+mailboxLayout.Padding = UDim.new(0, 4)
+mailboxLayout.SortOrder = Enum.SortOrder.LayoutOrder
+mailboxLayout.Parent = mailboxList
+
+local mailboxPadding = Instance.new("UIPadding")
+mailboxPadding.PaddingTop = UDim.new(0, 6)
+mailboxPadding.PaddingBottom = UDim.new(0, 6)
+mailboxPadding.PaddingLeft = UDim.new(0, 6)
+mailboxPadding.PaddingRight = UDim.new(0, 6)
+mailboxPadding.Parent = mailboxList
+
 local leaderboardHeader = Instance.new("TextLabel")
 leaderboardHeader.Name = "LeaderboardHeader"
 leaderboardHeader.Size = UDim2.new(1, -28, 0, 20)
@@ -529,7 +597,19 @@ end
 
 local render
 
+local function requestInventoryRefresh()
+	local ok, result = pcall(function()
+		return GetPlayerDataFunc:InvokeServer()
+	end)
+	if ok and type(result) == "table" and type(result.inventory) == "table" then
+		currentInventory = result.inventory
+	else
+		currentInventory = {}
+	end
+end
+
 local function requestState()
+	requestInventoryRefresh()
 	local ok, result = pcall(function()
 		return GetCrewStateFunc:InvokeServer()
 	end)
@@ -539,10 +619,78 @@ local function requestState()
 	end
 end
 
+local function getSelectedRecipient(members)
+	for _, member in ipairs(members) do
+		if member.userId == selectedMailboxRecipientUserId and member.userId ~= player.UserId then
+			return member
+		end
+	end
+
+	selectedMailboxRecipientUserId = nil
+	return nil
+end
+
+local function makeMailboxEntry(parent, text, detailText, buttonText, buttonColor, onClick, rarity)
+	local row = makeRow(parent, text, detailText, buttonText, buttonColor, onClick)
+	if rarity then
+		setStroke(row, getRarityColor(rarity), 1, 0.15)
+	end
+	return row
+end
+
+local function renderMailbox(members)
+	clearRenderedChildren(mailboxList)
+
+	local selectedRecipient = getSelectedRecipient(members)
+	local mailboxItems = state.mailboxItems or {}
+
+	if not state.inCrew then
+		mailboxHeader.Visible = false
+		mailboxTargetLabel.Visible = false
+		mailboxList.Visible = false
+		return
+	end
+
+	mailboxHeader.Visible = true
+	mailboxTargetLabel.Visible = true
+	mailboxList.Visible = true
+	mailboxTargetLabel.Text = selectedRecipient and ("Sending to " .. selectedRecipient.displayName) or "Pick a crewmate above to send an item."
+
+	for _, mailboxItem in ipairs(mailboxItems) do
+		local item = mailboxItem.item or {}
+		local mailboxId = mailboxItem.id
+		makeMailboxEntry(mailboxList, item.name or "Unknown item", "From " .. tostring(mailboxItem.fromDisplayName or mailboxItem.fromName or "Crew"), "Claim", ACCENT_GOLD, function()
+			CrewMailboxClaimEvent:FireServer(mailboxId)
+			task.delay(0.2, requestState)
+		end, item.rarity)
+	end
+
+	if selectedRecipient then
+		for index, item in ipairs(currentInventory) do
+			item = type(item) == "table" and item or {}
+			local sendIndex = index
+			local detail = tostring(item.rarity or "Common") .. " | " .. tostring(item.sellValue or 0)
+			makeMailboxEntry(mailboxList, item.name or "Unknown item", detail, "Send", ACCENT_GREEN, function()
+				CrewMailboxSendEvent:FireServer(selectedRecipient.userId, sendIndex)
+				task.delay(0.2, requestState)
+			end, item.rarity)
+		end
+	elseif #mailboxItems == 0 then
+		makeEmptyRow(mailboxList, "No mailbox items yet.")
+	end
+
+	if selectedRecipient and #currentInventory == 0 and #mailboxItems == 0 then
+		makeEmptyRow(mailboxList, "No owned items to send.")
+	end
+
+	updateCanvas(mailboxList, mailboxLayout)
+end
+
 render = function()
 	local members = state.members or {}
 	local nearbyPlayers = state.nearbyPlayers or {}
 	local topCrews = state.topCrews or {}
+	local mailboxCount = state.mailboxCount or 0
 	local maxSize = state.maxSize or 10
 	local bonus = state.fragmentBonus or 0
 	local radius = state.coopRadius or 0
@@ -551,8 +699,12 @@ render = function()
 	local xpInLevel = state.crewXPInLevel or 0
 	local xpForNextLevel = state.crewXPForNextLevel or 0
 
-	pendingDot.Visible = pendingInvite ~= nil
-	toggleButton.Text = state.inCrew and ("Crew " .. tostring(#members) .. "/" .. tostring(maxSize)) or "Crew"
+	pendingDot.Visible = pendingInvite ~= nil or mailboxCount > 0
+	if state.inCrew then
+		toggleButton.Text = mailboxCount > 0 and ("Crew " .. tostring(#members) .. "/" .. tostring(maxSize) .. " Mail " .. tostring(mailboxCount)) or ("Crew " .. tostring(#members) .. "/" .. tostring(maxSize))
+	else
+		toggleButton.Text = "Crew"
+	end
 
 	if state.inCrew then
 		statusLabel.Text = "Level " .. tostring(level) .. " crew - +" .. tostring(bonus) .. " fragments within " .. tostring(radius) .. " studs"
@@ -579,9 +731,10 @@ render = function()
 	local progressGap = state.inCrew and 10 or 0
 	local topOffset = progressY + progressHeight + progressGap
 	local compactLayout = topOffset >= 240
-	local leaderboardHeight = compactLayout and 54 or 64
-	local memberHeight = compactLayout and 34 or (state.inCrew and 48 or 54)
-	local nearbyHeight = compactLayout and 42 or (state.inCrew and 58 or 70)
+	local leaderboardHeight = compactLayout and 46 or 54
+	local memberHeight = compactLayout and 38 or (state.inCrew and 44 or 54)
+	local nearbyHeight = compactLayout and 34 or (state.inCrew and 42 or 70)
+	local mailboxY = topOffset + leaderboardHeight + memberHeight + nearbyHeight + (compactLayout and 78 or 90)
 	progressFrame.Position = UDim2.new(0, 14, 0, progressY)
 	progressFrame.Visible = state.inCrew
 	levelLabel.Text = "Level " .. tostring(level)
@@ -603,6 +756,10 @@ render = function()
 	nearbyHeader.Position = UDim2.new(0, 14, 0, topOffset + leaderboardHeight + memberHeight + 60)
 	nearbyList.Position = UDim2.new(0, 14, 0, topOffset + leaderboardHeight + memberHeight + 82)
 	nearbyList.Size = UDim2.new(1, -28, 0, nearbyHeight)
+	mailboxHeader.Position = UDim2.new(0, 14, 0, mailboxY)
+	mailboxTargetLabel.Position = UDim2.new(0, 14, 0, mailboxY + 20)
+	mailboxList.Position = UDim2.new(0, 14, 0, mailboxY + 40)
+	mailboxList.Size = UDim2.new(1, -28, 0, compactLayout and 72 or 82)
 
 	clearRenderedChildren(leaderboardList)
 	if #topCrews == 0 then
@@ -620,7 +777,21 @@ render = function()
 	else
 		for _, member in ipairs(members) do
 			local suffix = member.isOwner and "Leader" or ""
-			makeRow(memberList, member.displayName, suffix, nil, nil, nil)
+			if member.userId == player.UserId then
+				suffix = suffix ~= "" and (suffix .. " | You") or "You"
+			end
+			local buttonText = nil
+			local buttonColor = nil
+			local onClick = nil
+			if state.inCrew and member.userId ~= player.UserId then
+				buttonText = selectedMailboxRecipientUserId == member.userId and "Picked" or "To"
+				buttonColor = selectedMailboxRecipientUserId == member.userId and ACCENT_GOLD or ACCENT_BLUE
+				onClick = function()
+					selectedMailboxRecipientUserId = member.userId
+					render()
+				end
+			end
+			makeRow(memberList, member.displayName, suffix, buttonText, buttonColor, onClick)
 		end
 	end
 	updateCanvas(memberList, memberLayout)
@@ -639,6 +810,7 @@ render = function()
 		end
 	end
 	updateCanvas(nearbyList, nearbyLayout)
+	renderMailbox(members)
 end
 
 toggleButton.MouseButton1Click:Connect(function()
@@ -673,6 +845,9 @@ end)
 
 CrewUpdateEvent.OnClientEvent:Connect(function(payload)
 	if type(payload) == "table" then
+		if panel.Visible then
+			requestInventoryRefresh()
+		end
 		state = payload
 		if state.pendingInvite then
 			panel.Visible = true

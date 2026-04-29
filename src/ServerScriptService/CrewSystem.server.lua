@@ -8,6 +8,7 @@ local Config = require(ReplicatedStorage:WaitForChild("Config"))
 
 local Remotes = ReplicatedStorage:WaitForChild("Remotes")
 local NotifyEvent = Remotes:WaitForChild("Notify")
+local UpdateHUDEvent = Remotes:WaitForChild("UpdateHUD")
 
 local function getOrCreateRemote(name, className)
 	local existing = Remotes:FindFirstChild(name)
@@ -26,15 +27,102 @@ local CrewInviteEvent = getOrCreateRemote("CrewInvite")
 local CrewRespondInviteEvent = getOrCreateRemote("CrewRespondInvite")
 local CrewLeaveEvent = getOrCreateRemote("CrewLeave")
 local CrewUpdateEvent = getOrCreateRemote("CrewUpdate")
+local CrewMailboxSendEvent = getOrCreateRemote("CrewMailboxSend")
+local CrewMailboxClaimEvent = getOrCreateRemote("CrewMailboxClaim")
 local GetCrewStateFunc = getOrCreateRemote("GetCrewState", "RemoteFunction")
 
 local crews = {}
 local playerCrewId = {}
 local pendingInvites = {}
+local mailboxByUserId = {}
 local nextCrewId = 0
+local nextMailboxId = 0
 
 local INVITE_TIMEOUT_SECONDS = 30
 local CREW_LEADERBOARD_LIMIT = 5
+
+local function getData(player)
+	local cache = _G.DeepDig_playerData
+	if not cache then
+		return nil
+	end
+
+	return cache[player.UserId]
+end
+
+local function getBackpackCapacity(data)
+	local helper = _G.DeepDig_getBackpackCapacity
+	return helper and helper(data) or Config.DEFAULT_BACKPACK_CAPACITY
+end
+
+local function getInventoryCapacityLabel(data)
+	local helper = _G.DeepDig_getInventoryCapacityLabel
+	return helper and helper(data) or Config.DEFAULT_BACKPACK_CAPACITY
+end
+
+local function hasInventorySpace(data)
+	if not data or not data.inventory then
+		return false
+	end
+
+	local capacity = getBackpackCapacity(data)
+	return not capacity or #data.inventory < capacity
+end
+
+local function fireInventoryHud(player, data)
+	if player and data and UpdateHUDEvent then
+		UpdateHUDEvent:FireClient(player, {
+			inventoryCount = data.inventory and #data.inventory or 0,
+			inventoryCapacity = getInventoryCapacityLabel(data),
+		})
+	end
+end
+
+local function cloneItem(item)
+	if type(item) ~= "table" then
+		return nil
+	end
+	if type(item.name) ~= "string" or item.name == "" then
+		return nil
+	end
+
+	return {
+		name = item.name,
+		rarity = item.rarity or "Common",
+		sellValue = item.sellValue or 0,
+	}
+end
+
+local function getMailboxQueue(userId)
+	local queue = mailboxByUserId[userId]
+	if not queue then
+		queue = {}
+		mailboxByUserId[userId] = queue
+	end
+
+	return queue
+end
+
+local function getMailboxPayload(player)
+	local queue = player and mailboxByUserId[player.UserId] or nil
+	local payload = {}
+	if not queue then
+		return payload
+	end
+
+	for _, entry in ipairs(queue) do
+		table.insert(payload, {
+			id = entry.id,
+			fromUserId = entry.fromUserId,
+			fromName = entry.fromName,
+			fromDisplayName = entry.fromDisplayName,
+			sentAt = entry.sentAt,
+			item = cloneItem(entry.item),
+		})
+	end
+
+	return payload
+end
 
 local function getCrewLevelForXP(xp)
 	local level = 1
@@ -281,9 +369,11 @@ local function getCrewState(player)
 		members = crew and getSortedMembers(crew) or {},
 		nearbyPlayers = getNearbyCandidates(player),
 		pendingInvite = getPendingInvitePayload(player),
+		mailboxItems = getMailboxPayload(player),
 	}
 
 	payload.memberCount = #payload.members
+	payload.mailboxCount = #payload.mailboxItems
 	return payload
 end
 
@@ -484,6 +574,119 @@ CrewLeaveEvent.OnServerEvent:Connect(function(player)
 	removePlayerFromCrew(player)
 end)
 
+CrewMailboxSendEvent.OnServerEvent:Connect(function(player, recipientUserId, itemIndex)
+	local crew = getCrew(player)
+	if not crew then
+		notify(player, "Join a crew before sending mailbox items.", "Common")
+		sendState(player)
+		return
+	end
+
+	recipientUserId = math.floor(tonumber(recipientUserId) or 0)
+	itemIndex = math.floor(tonumber(itemIndex) or 0)
+	local recipient = Players:GetPlayerByUserId(recipientUserId)
+	if not recipient or recipient == player then
+		notify(player, "Pick an online crewmate to receive the item.", "Common")
+		sendState(player)
+		return
+	end
+
+	if playerCrewId[recipient.UserId] ~= crew.id or not crew.members[recipient.UserId] then
+		notify(player, recipient.DisplayName .. " is not in your crew anymore.", "Common")
+		sendState(player)
+		return
+	end
+
+	local data = getData(player)
+	local inventory = data and data.inventory
+	if type(inventory) ~= "table" then
+		notify(player, "Inventory is still loading. Try again in a moment.", "Common")
+		sendState(player)
+		return
+	end
+
+	local item = inventory[itemIndex]
+	local clone = cloneItem(item)
+	if not clone then
+		notify(player, "That item is no longer in your backpack.", "Common")
+		sendState(player)
+		return
+	end
+
+	table.remove(inventory, itemIndex)
+	nextMailboxId = nextMailboxId + 1
+	table.insert(getMailboxQueue(recipient.UserId), {
+		id = nextMailboxId,
+		fromUserId = player.UserId,
+		fromName = player.Name,
+		fromDisplayName = player.DisplayName,
+		sentAt = os.time(),
+		item = clone,
+	})
+
+	fireInventoryHud(player, data)
+	notify(player, "Sent " .. clone.name .. " to " .. recipient.DisplayName .. ".", clone.rarity)
+	notify(recipient, player.DisplayName .. " sent you " .. clone.name .. ".", clone.rarity)
+	sendState(player)
+	sendState(recipient)
+end)
+
+CrewMailboxClaimEvent.OnServerEvent:Connect(function(player, mailboxId)
+	mailboxId = math.floor(tonumber(mailboxId) or 0)
+	local queue = mailboxByUserId[player.UserId]
+	if not queue then
+		notify(player, "Your crew mailbox is empty.", "Common")
+		sendState(player)
+		return
+	end
+
+	local entryIndex = nil
+	local entry = nil
+	for index, queued in ipairs(queue) do
+		if queued.id == mailboxId then
+			entryIndex = index
+			entry = queued
+			break
+		end
+	end
+
+	if not entry then
+		notify(player, "That mailbox item was already claimed.", "Common")
+		sendState(player)
+		return
+	end
+
+	local data = getData(player)
+	if not data or type(data.inventory) ~= "table" then
+		notify(player, "Inventory is still loading. Try again in a moment.", "Common")
+		sendState(player)
+		return
+	end
+
+	if not hasInventorySpace(data) then
+		notify(player, "Backpack full - sell items before claiming mailbox items.", "Common")
+		sendState(player)
+		return
+	end
+
+	local clone = cloneItem(entry.item)
+	if not clone then
+		table.remove(queue, entryIndex)
+		notify(player, "That mailbox item could not be claimed.", "Common")
+		sendState(player)
+		return
+	end
+
+	table.remove(queue, entryIndex)
+	data.collections = data.collections or {}
+	table.insert(data.inventory, clone)
+	data.collections[clone.name] = true
+
+	fireInventoryHud(player, data)
+	notify(player, "Claimed " .. clone.name .. " from your crew mailbox.", clone.rarity)
+	sendState(player)
+end)
+
 GetCrewStateFunc.OnServerInvoke = function(player)
 	return getCrewState(player)
 end
@@ -491,6 +694,7 @@ end
 Players.PlayerRemoving:Connect(function(player)
 	clearPendingInviteFor(player)
 	removePlayerFromCrew(player)
+	mailboxByUserId[player.UserId] = nil
 	for targetUserId, invite in pairs(pendingInvites) do
 		if invite.inviterUserId == player.UserId then
 			pendingInvites[targetUserId] = nil
