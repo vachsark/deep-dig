@@ -65,6 +65,16 @@ local SOUNDS = {
 		replaceExisting = true,
 		cleanupDelay = 5,
 	},
+	enemy_hit = {
+		id = "rbxassetid://9114013169", -- short impact thud
+		volume = 0.55,
+		pitchRange = { 1.05, 1.16 },
+	},
+	enemy_defeated = {
+		id = "rbxassetid://5852285683", -- stronger defeated cue
+		volume = 0.85,
+		playbackSpeed = 0.88,
+	},
 	resurface_fanfare = {
 		id = "rbxassetid://6079316752", -- triumphant fanfare
 		volume = 1.0,

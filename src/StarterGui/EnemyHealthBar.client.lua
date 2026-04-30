@@ -1,12 +1,32 @@
 -- EnemyHealthBar.client.lua - floating enemy names and HP bars
 -- Place in: StarterGui/EnemyHealthBar (LocalScript)
 
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local SoundService = game:GetService("SoundService")
+local TweenService = game:GetService("TweenService")
+
+local Remotes = ReplicatedStorage:WaitForChild("Remotes")
+local EnemyCombatFeedback = Remotes:WaitForChild("EnemyCombatFeedback")
+local LOCAL_PLAY_SOUND_NAME = "DeepDigLocalPlaySound"
+
 local HEALTH_BAR_NAME = "DeepDigEnemyHealthBar"
 local MAX_DISTANCE = 80
 local BAR_WIDTH = 120
 local BAR_HEIGHT = 36
+local HIT_COLOR = Color3.fromRGB(255, 245, 160)
+local DEFEAT_COLOR = Color3.fromRGB(255, 95, 70)
+local HIT_SCALE = 1.08
+local DEFEAT_SCALE = 1.16
 
 local trackedEnemies = {}
+local activeFeedback = {}
+
+local LocalPlaySound = SoundService:FindFirstChild(LOCAL_PLAY_SOUND_NAME)
+if not LocalPlaySound then
+	LocalPlaySound = Instance.new("BindableEvent")
+	LocalPlaySound.Name = LOCAL_PLAY_SOUND_NAME
+	LocalPlaySound.Parent = SoundService
+end
 
 local function getHealthColor(ratio)
 	if ratio > 0.5 then
@@ -46,15 +66,21 @@ end
 
 local function cleanupEnemy(model)
 	local record = trackedEnemies[model]
-	if not record then
-		return
+	if record then
+		trackedEnemies[model] = nil
+		disconnectAll(record.connections)
+
+		if record.gui and record.gui.Parent then
+			record.gui:Destroy()
+		end
 	end
 
-	trackedEnemies[model] = nil
-	disconnectAll(record.connections)
-
-	if record.gui and record.gui.Parent then
-		record.gui:Destroy()
+	local feedbackRecord = activeFeedback[model]
+	if feedbackRecord then
+		if feedbackRecord.tween then
+			feedbackRecord.tween:Cancel()
+		end
+		activeFeedback[model] = nil
 	end
 end
 
@@ -178,6 +204,111 @@ local function trackEnemy(model)
 		update()
 	end)
 end
+
+local function getFeedbackRecord(model, root)
+	local record = activeFeedback[model]
+	if record and record.root == root then
+		return record
+	end
+
+	record = {
+		root = root,
+		baselineColor = root.Color,
+		baselineMaterial = root.Material,
+		baselineSize = root.Size,
+		baselineTransparency = root.Transparency,
+		token = 0,
+		tween = nil,
+	}
+	activeFeedback[model] = record
+	return record
+end
+
+local function restoreFeedback(model, record, token)
+	if activeFeedback[model] ~= record or record.token ~= token then
+		return
+	end
+
+	if record.tween then
+		record.tween:Cancel()
+		record.tween = nil
+	end
+
+	if record.root and record.root.Parent then
+		record.root.Color = record.baselineColor
+		record.root.Material = record.baselineMaterial
+		record.root.Size = record.baselineSize
+		record.root.Transparency = record.baselineTransparency
+	end
+
+	activeFeedback[model] = nil
+end
+
+local function pulseEnemy(model, feedbackType)
+	if not model or not model:IsA("Model") or not model:IsDescendantOf(workspace) then
+		return
+	end
+
+	local root = model:FindFirstChild("HumanoidRootPart")
+	if not root or not root:IsA("BasePart") then
+		return
+	end
+
+	local record = getFeedbackRecord(model, root)
+	record.token = record.token + 1
+	local token = record.token
+
+	if record.tween then
+		record.tween:Cancel()
+		record.tween = nil
+	end
+
+	root.Color = record.baselineColor
+	root.Material = record.baselineMaterial
+	root.Size = record.baselineSize
+	root.Transparency = record.baselineTransparency
+
+	local isDefeated = feedbackType == "defeated"
+	root.Color = isDefeated and DEFEAT_COLOR or HIT_COLOR
+	root.Material = Enum.Material.Neon
+	root.Size = record.baselineSize * (isDefeated and DEFEAT_SCALE or HIT_SCALE)
+
+	record.tween = TweenService:Create(root, TweenInfo.new(
+		isDefeated and 0.28 or 0.16,
+		Enum.EasingStyle.Quad,
+		Enum.EasingDirection.Out
+	), {
+		Color = record.baselineColor,
+		Size = record.baselineSize,
+		Transparency = record.baselineTransparency,
+	})
+
+	record.tween:Play()
+	record.tween.Completed:Once(function()
+		restoreFeedback(model, record, token)
+	end)
+
+	task.delay(isDefeated and 0.45 or 0.3, function()
+		restoreFeedback(model, record, token)
+	end)
+end
+
+EnemyCombatFeedback.OnClientEvent:Connect(function(payload)
+	if typeof(payload) ~= "table" then
+		return
+	end
+
+	local feedbackType = payload.type
+	if feedbackType ~= "hit" and feedbackType ~= "defeated" then
+		return
+	end
+
+	if LocalPlaySound and LocalPlaySound:IsA("BindableEvent") then
+		LocalPlaySound:Fire(feedbackType == "defeated" and "enemy_defeated" or "enemy_hit")
+	end
+
+	pulseEnemy(payload.model, feedbackType)
+end)
 
 local enemiesFolder = workspace:WaitForChild("Enemies")
 

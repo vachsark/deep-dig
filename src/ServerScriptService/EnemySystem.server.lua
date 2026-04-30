@@ -26,6 +26,13 @@ if not EnemyHitEvent then
 	EnemyHitEvent.Parent = Remotes
 end
 
+local EnemyCombatFeedback = Remotes:FindFirstChild("EnemyCombatFeedback")
+if not EnemyCombatFeedback then
+	EnemyCombatFeedback = Instance.new("RemoteEvent")
+	EnemyCombatFeedback.Name = "EnemyCombatFeedback"
+	EnemyCombatFeedback.Parent = Remotes
+end
+
 local UpdateHUDEvent = Remotes:WaitForChild("UpdateHUD")
 local ItemFoundEvent = Remotes:FindFirstChild("ItemFound")
 
@@ -199,12 +206,22 @@ local function payEnemyReward(record)
 	updateRewardHud(player, data)
 end
 
+local function fireEnemyCombatFeedback(player, feedbackType, model)
+	if player and player.Parent == Players and model and model.Parent then
+		EnemyCombatFeedback:FireClient(player, {
+			type = feedbackType,
+			model = model,
+		})
+	end
+end
+
 local function onEnemyDied(record)
 	if record.dead then
 		return
 	end
 
 	record.dead = true
+	fireEnemyCombatFeedback(record.lastAttacker or record.owner, "defeated", record.model)
 	payEnemyReward(record)
 	task.delay(2, function()
 		destroyEnemy(record)
@@ -426,6 +443,9 @@ EnemyHitEvent.OnServerEvent:Connect(function(player, enemyModel)
 	nextAttackAtByUserId[player.UserId] = now + ATTACK_COOLDOWN
 	record.lastAttacker = player
 	record.humanoid:TakeDamage(damage)
+	if record.humanoid.Health > 0 then
+		fireEnemyCombatFeedback(player, "hit", record.model)
+	end
 end)
 
 Players.PlayerAdded:Connect(startSpawnLoop)
