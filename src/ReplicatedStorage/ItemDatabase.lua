@@ -233,6 +233,31 @@ function ItemDatabase.rollItemWithMaxRarity(tierName, maxRarity)
 	return nil
 end
 
+-- Pick a random item from a tier at one exact rarity.
+function ItemDatabase.rollItemOfRarity(tierName, targetRarity)
+	local tierItems = ItemDatabase.ITEMS[tierName]
+	local rarityData = RARITY[targetRarity]
+	if not tierItems or not rarityData then return nil end
+
+	local candidates = {}
+	for _, item in ipairs(tierItems) do
+		if item.rarity == targetRarity then
+			table.insert(candidates, item)
+		end
+	end
+
+	if #candidates == 0 then return nil end
+
+	local chosen = candidates[math.random(#candidates)]
+	return {
+		name = chosen.name,
+		rarity = chosen.rarity,
+		baseValue = chosen.baseValue,
+		sellValue = chosen.baseValue * rarityData.multiplier,
+		color = rarityData.color,
+	}
+end
+
 -- Get tier name for a given depth (in blocks)
 function ItemDatabase.getTierForDepth(depth)
 	local Config = require(script.Parent.Config)

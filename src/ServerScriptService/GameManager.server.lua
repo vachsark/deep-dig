@@ -730,6 +730,29 @@ local function promoteRarity(r)
 	return r -- Mythic (or unknown) doesn't promote
 end
 
+local function promoteWinterLootItem(tierName, item, isFirstEverFind)
+	if not item or item.rarity == "Mythic" then
+		return item
+	end
+
+	if math.random() >= 0.25 then
+		return item
+	end
+
+	local promotedRarity = promoteRarity(item.rarity)
+	if promotedRarity == item.rarity then
+		return item
+	end
+
+	-- The first-ever FTUE find may reach Rare through winter_loot, but not
+	-- the Epic+ reveal tiers the onboarding guard intentionally avoids.
+	if isFirstEverFind and (RARITY_RANK[promotedRarity] or 999) > RARITY_RANK.Rare then
+		return item
+	end
+
+	return ItemDatabase.rollItemOfRarity(tierName, promotedRarity) or item
+end
+
 local function triggerRandomEvent(player)
 	local chance = Config.EVENT_CHANCE
 	-- summer_loot: doubles random world event trigger frequency.
@@ -893,23 +916,11 @@ BlockBrokenEvent.Event:Connect(function(player, blockPosition)
 				end
 			end
 
-			-- winter_loot: 25% chance to promote the rolled rarity one tier
-			-- (Common → Uncommon, …, Legendary → Mythic; Mythic doesn't
-			-- promote). FTUE rolls cap at Uncommon — we still allow the
-			-- promotion there, since first-find-as-Rare is still well below
-			-- the "save the dopamine" Epic+ floor. Promotion cascade is
-			-- single-step by construction (one helper call).
-			--
-			-- TODO: re-roll item from ItemDatabase to match the promoted
-			-- rarity. For first-pass we bump only the rarity LABEL on the
-			-- existing item; sellValue therefore reflects the original
-			-- rarity's multiplier. This is gameplay-acceptable (still a
-			-- visible win) and avoids tangling with the FTUE / echo_blocks
-			-- roll paths.
-			if activeSeason == "winter" and item.rarity ~= "Mythic" then
-				if math.random() < 0.25 then
-					item.rarity = promoteRarity(item.rarity)
-				end
+			-- winter_loot: 25% chance to promote the rolled rarity one tier.
+			-- Promotion swaps in a real same-tier item at the promoted rarity,
+			-- so name, rarity, color, and base sell value stay consistent.
+			if activeSeason == "winter" then
+				item = promoteWinterLootItem(tierName, item, isFirstEverFind)
 			end
 
 			if activeSeason and not isNewPlayer and math.random() < SEASONAL_EXCLUSIVE_DROP_CHANCE then
