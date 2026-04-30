@@ -12,6 +12,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Remotes = ReplicatedStorage:WaitForChild("Remotes")
 local PlaySound = Remotes:WaitForChild("PlaySound")
+local LOCAL_PLAY_SOUND_NAME = "DeepDigLocalPlaySound"
 
 -- ───────────── Sound groups (mix bus) ────────────────────────────────────
 -- A single SFX group lets us duck volume cleanly when fanfare hits.
@@ -19,6 +20,13 @@ local sfxGroup = Instance.new("SoundGroup")
 sfxGroup.Name = "DeepDigSFX"
 sfxGroup.Volume = 0.7
 sfxGroup.Parent = SoundService
+
+local LocalPlaySound = SoundService:FindFirstChild(LOCAL_PLAY_SOUND_NAME)
+if not LocalPlaySound then
+	LocalPlaySound = Instance.new("BindableEvent")
+	LocalPlaySound.Name = LOCAL_PLAY_SOUND_NAME
+	LocalPlaySound.Parent = SoundService
+end
 
 -- ───────────── Asset registry ────────────────────────────────────────────
 -- Format: { id = "rbxassetid://<ID>", volume = 0..1, pitchRange = {lo, hi} }
@@ -50,19 +58,34 @@ local SOUNDS = {
 		id = "rbxassetid://5982968246", -- alert horn
 		volume = 0.9,
 	},
+	earthquake_rumble = {
+		id = "rbxassetid://9114013169", -- low dirt impact rumble
+		volume = 0.35,
+		playbackSpeed = 0.72,
+		replaceExisting = true,
+		cleanupDelay = 5,
+	},
 	resurface_fanfare = {
 		id = "rbxassetid://6079316752", -- triumphant fanfare
 		volume = 1.0,
 	},
 }
 
+local activeSounds = {}
+
 local function play(key)
 	local def = SOUNDS[key]
 	if not def then return end
 
+	if def.replaceExisting and activeSounds[key] then
+		activeSounds[key]:Destroy()
+		activeSounds[key] = nil
+	end
+
 	local sound = Instance.new("Sound")
 	sound.SoundId = def.id
 	sound.Volume = def.volume or 0.7
+	sound.PlaybackSpeed = def.playbackSpeed or 1
 	sound.SoundGroup = sfxGroup
 
 	if def.pitchRange then
@@ -73,18 +96,30 @@ local function play(key)
 	end
 
 	sound.Parent = SoundService
+	if def.replaceExisting then
+		activeSounds[key] = sound
+	end
 
 	sound.Ended:Once(function()
+		if activeSounds[key] == sound then
+			activeSounds[key] = nil
+		end
 		sound:Destroy()
 	end)
 	sound:Play()
 
 	-- Safety net in case Ended doesn't fire (asset failed to load).
-	task.delay(8, function()
-		if sound.Parent then sound:Destroy() end
+	task.delay(def.cleanupDelay or 8, function()
+		if sound.Parent then
+			if activeSounds[key] == sound then
+				activeSounds[key] = nil
+			end
+			sound:Destroy()
+		end
 	end)
 end
 
 PlaySound.OnClientEvent:Connect(play)
+LocalPlaySound.Event:Connect(play)
 
 print("[DeepDig] AudioPlayer loaded")

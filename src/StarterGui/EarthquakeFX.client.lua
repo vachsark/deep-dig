@@ -19,12 +19,18 @@ if not EventTriggered then
 	return
 end
 
-local PlaySound = Remotes:FindFirstChild("PlaySound")
-
+local LOCAL_PLAY_SOUND_NAME = "DeepDigLocalPlaySound"
 local CAMERA_BIND_NAME = "EarthquakeFXCameraShake"
 local MAX_DURATION = 60
 local SHAKE_MAX_OFFSET = 0.5
 local SHAKE_STEP = 0.05
+
+local LocalPlaySound = SoundService:FindFirstChild(LOCAL_PLAY_SOUND_NAME)
+if not LocalPlaySound then
+	LocalPlaySound = Instance.new("BindableEvent")
+	LocalPlaySound.Name = LOCAL_PLAY_SOUND_NAME
+	LocalPlaySound.Parent = SoundService
+end
 
 local active = false
 local effectSession = 0
@@ -240,30 +246,9 @@ local function ensureRenderBinding()
 end
 
 local function playEarthquakeSound()
-	if PlaySound and PlaySound:IsA("RemoteEvent") then
-		pcall(function()
-			PlaySound:FireServer("earthquake_rumble")
-		end)
+	if LocalPlaySound and LocalPlaySound:IsA("BindableEvent") then
+		LocalPlaySound:Fire("earthquake_rumble")
 	end
-
-	-- TODO: replace 0 with real Roblox sound asset id.
-	local sound = Instance.new("Sound")
-	sound.Name = "EarthquakeRumble"
-	sound.SoundId = "rbxassetid://0"
-	sound.Volume = 0.45
-	sound.PlaybackSpeed = 0.95
-	sound.Parent = SoundService
-
-	sound.Ended:Once(function()
-		sound:Destroy()
-	end)
-
-	sound:Play()
-	task.delay(8, function()
-		if sound.Parent then
-			sound:Destroy()
-		end
-	end)
 end
 
 local function startVignettePulse(session)
