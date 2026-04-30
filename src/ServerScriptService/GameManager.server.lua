@@ -924,7 +924,12 @@ BlockBrokenEvent.Event:Connect(function(player, blockPosition)
 			end
 
 			if activeSeason and not isNewPlayer and math.random() < SEASONAL_EXCLUSIVE_DROP_CHANCE then
-				local seasonalItem = ItemDatabase.buildSeasonalItem(activeSeason)
+				local seasonalItem
+				if activeSeason == "spring" then
+					seasonalItem = ItemDatabase.buildSpringDinoEgg(tierName)
+				else
+					seasonalItem = ItemDatabase.buildSeasonalItem(activeSeason)
+				end
 				if seasonalItem then
 					item = seasonalItem
 				end

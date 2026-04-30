@@ -116,6 +116,45 @@ ItemDatabase.SEASONAL_EXCLUSIVES = {
 	},
 }
 
+ItemDatabase.SPRING_DINO_EGGS = {
+	Modern = {
+		displayName = "Modern Dino Egg",
+		rarity = "Uncommon",
+		baseValue = 35,
+		tint = Color3.fromRGB(125, 230, 145),
+	},
+	Industrial = {
+		displayName = "Industrial Dino Egg",
+		rarity = "Rare",
+		baseValue = 95,
+		tint = Color3.fromRGB(95, 205, 135),
+	},
+	Medieval = {
+		displayName = "Medieval Dino Egg",
+		rarity = "Epic",
+		baseValue = 260,
+		tint = Color3.fromRGB(115, 190, 110),
+	},
+	Ancient = {
+		displayName = "Ancient Dino Egg",
+		rarity = "Legendary",
+		baseValue = 850,
+		tint = Color3.fromRGB(170, 210, 85),
+	},
+	Prehistoric = {
+		displayName = "Prehistoric Dino Egg",
+		rarity = "Legendary",
+		baseValue = 1800,
+		tint = Color3.fromRGB(230, 185, 70),
+	},
+	Unknown = {
+		displayName = "Unknown Dino Egg",
+		rarity = "Mythic",
+		baseValue = 6500,
+		tint = Color3.fromRGB(195, 110, 255),
+	},
+}
+
 local SEASONAL_EXCLUSIVE_BY_ID = {}
 for _, exclusive in ipairs(ItemDatabase.SEASONAL_EXCLUSIVES) do
 	SEASONAL_EXCLUSIVE_BY_ID[exclusive.id] = exclusive
@@ -143,6 +182,28 @@ function ItemDatabase.buildSeasonalItem(seasonId)
 		color = exclusive.tint or rarityData.color,
 		seasonalExclusive = true,
 		seasonId = exclusive.id,
+	}
+end
+
+function ItemDatabase.buildSpringDinoEgg(tierName)
+	local egg = ItemDatabase.SPRING_DINO_EGGS[tierName] or ItemDatabase.SPRING_DINO_EGGS.Unknown
+	if not egg then
+		return nil
+	end
+
+	local rarity = egg.rarity or "Epic"
+	local rarityData = RARITY[rarity] or RARITY.Epic
+	local baseValue = egg.baseValue or 100
+
+	return {
+		name = egg.displayName,
+		rarity = rarity,
+		baseValue = baseValue,
+		sellValue = baseValue * rarityData.multiplier,
+		color = egg.tint or rarityData.color,
+		seasonalExclusive = true,
+		seasonId = "spring",
+		tierName = tierName or "Unknown",
 	}
 end
 

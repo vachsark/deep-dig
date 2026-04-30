@@ -82,6 +82,34 @@ local function getPlayerData(player)
 	return cache and cache[player.UserId] or nil
 end
 
+local function isSpringDinoEggVariant(itemName)
+	for _, egg in pairs(ItemDatabase.SPRING_DINO_EGGS or {}) do
+		if egg.displayName == itemName then
+			return true
+		end
+	end
+
+	return false
+end
+
+local function hasCollectedSeasonalExclusive(collections, exclusive)
+	if not collections or not exclusive then
+		return false
+	end
+
+	if exclusive.id == "spring" then
+		for _, egg in pairs(ItemDatabase.SPRING_DINO_EGGS or {}) do
+			if collections[egg.displayName] == true then
+				return true
+			end
+		end
+
+		return false
+	end
+
+	return collections[exclusive.displayName] == true
+end
+
 local function setSeasonalVaultState(placeholder, exclusive, unlocked)
 	local rarityColor = getSeasonalExclusiveColor(exclusive)
 	local lockedColor = Color3.fromRGB(95, 95, 100)
@@ -122,7 +150,7 @@ local function updateSeasonalVault(museum, data)
 		end
 
 		if placeholder then
-			setSeasonalVaultState(placeholder, exclusive, data.collections[exclusive.displayName] == true)
+			setSeasonalVaultState(placeholder, exclusive, hasCollectedSeasonalExclusive(data.collections, exclusive))
 		end
 	end
 end
@@ -134,7 +162,7 @@ local function isSeasonalExclusiveName(itemName)
 		end
 	end
 
-	return false
+	return isSpringDinoEggVariant(itemName)
 end
 
 local function createMuseumForPlayer(player)
