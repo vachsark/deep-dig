@@ -27,7 +27,12 @@ local STROKE_DIM = Color3.fromRGB(60, 60, 75)
 local STROKE_GOLD = Color3.fromRGB(255, 200, 50)
 
 local REFRESH_INTERVAL = 30  -- seconds, while open
-local WAIT_FOR_REMOTE_TIMEOUT = 5
+-- 5s was too tight on cold Studio plays — Leaderboard.server.lua sometimes
+-- doesn't reach the GetTopDepths Instance.new past its WaitForChild("Remotes")
+-- in time, so the UI hid itself permanently. 20s gives a comfortable margin
+-- without hanging the script forever (server's bindable for UpdateHUD also
+-- waits longer).
+local WAIT_FOR_REMOTE_TIMEOUT = 20
 
 -- ═══════════════════════════════════════════════════════════════════
 -- Resolve RemoteFunction (gracefully bail if missing)
