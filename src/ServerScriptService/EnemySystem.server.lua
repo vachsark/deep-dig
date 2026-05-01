@@ -49,6 +49,7 @@ local ATTACK_RANGE = 8
 local ATTACK_COOLDOWN = 0.5
 local TOUCH_DAMAGE_COOLDOWN = 1
 local WALK_RADIUS = 12
+local IDLE_WANDER_INTERVAL = 3
 
 local bronzeDepth = Config.TIERS[2].minDepth
 local liveEnemies = {}
@@ -305,6 +306,12 @@ local function getSpawnPosition(player)
 	return root.Position + Vector3.new(math.cos(angle) * distance, 3, math.sin(angle) * distance)
 end
 
+local function getWanderPosition(homePosition)
+	local angle = math.random() * math.pi * 2
+	local distance = math.random() * WALK_RADIUS
+	return homePosition + Vector3.new(math.cos(angle) * distance, 0, math.sin(angle) * distance)
+end
+
 local function spawnEnemyForPlayer(player)
 	local data = getSharedData(player)
 	if not data or (data.deepestBlock or 0) < bronzeDepth then
@@ -376,6 +383,8 @@ local function spawnEnemyForPlayer(player)
 		enemy = enemy,
 		owner = player,
 		tierName = tierName,
+		homePosition = spawnPosition,
+		nextWanderAt = 0,
 		lastAttacker = nil,
 		dead = false,
 		nextTouchDamageAtByUserId = {},
@@ -473,13 +482,22 @@ task.spawn(function()
 			if not record.dead and record.model.Parent and record.humanoid.Health > 0 then
 				local ownerRoot = record.owner and getPlayerRoot(record.owner)
 				if ownerRoot and record.root and record.root.Parent then
-					local offset = Vector3.new(
-						math.random(-WALK_RADIUS, WALK_RADIUS),
-						0,
-						math.random(-WALK_RADIUS, WALK_RADIUS)
-					)
+					local enemyPosition = record.root.Position
+					local distanceToOwner = (ownerRoot.Position - enemyPosition).Magnitude
+					local aggroRange = record.enemy.aggroRange or 16
+					local targetPosition = nil
+
+					if distanceToOwner <= aggroRange then
+						targetPosition = ownerRoot.Position
+					elseif os.clock() >= (record.nextWanderAt or 0) then
+						targetPosition = getWanderPosition(record.homePosition or enemyPosition)
+						record.nextWanderAt = os.clock() + IDLE_WANDER_INTERVAL
+					end
+
 					record.humanoid.WalkSpeed = record.enemy.walkSpeed
-					record.humanoid:MoveTo(ownerRoot.Position + offset)
+					if targetPosition then
+						record.humanoid:MoveTo(targetPosition)
+					end
 				end
 			end
 		end
