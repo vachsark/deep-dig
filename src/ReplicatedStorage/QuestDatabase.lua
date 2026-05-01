@@ -64,6 +64,14 @@ local module = {
 		reward = { coins = 600, fragments = 5 },
 	},
 	{
+		id = "chain_streak_20",
+		description = "Reach a x20 dig chain",
+		type = "chain_streak",
+		target = 20,
+		rarityFilter = nil,
+		reward = { coins = 1300, fragments = 9 },
+	},
+	{
 		id = "defeat_3_enemies",
 		description = "Defeat 3 buried enemies",
 		type = "kill_enemies",
