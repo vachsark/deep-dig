@@ -362,15 +362,12 @@ local function completeStreakRevive(player, data, receiptId)
 	return Enum.ProductPurchaseDecision.PurchaseGranted
 end
 
-local previousProcessReceipt = MarketplaceService.ProcessReceipt
+-- ProcessReceipt is a write-only callback in Roblox — reading it errors
+-- ("you can only set the callback value, get is not available"). DailyStreak
+-- is the only script in this game that sets it (confirmed via codebase
+-- grep), so we don't need to chain through to a previous handler.
 MarketplaceService.ProcessReceipt = function(receiptInfo)
 	if receiptInfo.ProductId ~= STREAK_REVIVE_PRODUCT_ID then
-		if previousProcessReceipt then
-			local ok, decision = pcall(previousProcessReceipt, receiptInfo)
-			if ok and decision ~= nil then
-				return decision
-			end
-		end
 		return Enum.ProductPurchaseDecision.NotProcessedYet
 	end
 
