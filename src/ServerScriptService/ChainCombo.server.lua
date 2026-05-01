@@ -19,6 +19,11 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local CHAIN_WINDOW = 3.0    -- seconds between digs to keep the chain alive
 local CHAIN_MAX_STREAK = 99 -- hard cap on tracked streak
 
+-- Mirrors ChainComboGui.client.lua's SHOW_THRESHOLD. Server uses it to skip
+-- pushing ChainComboUpdate at streaks 1..N-1, when the client widget would
+-- be hidden anyway. The client only displays from this streak onwards.
+local SHOW_THRESHOLD = 5
+
 -- Streak threshold → sellValue multiplier. Highest matched threshold wins.
 local CHAIN_TIERS = {
 	{ threshold = 5,  mult = 1.25 },
@@ -71,6 +76,12 @@ local function tierIndexForStreak(streak)
 end
 
 local function pushUpdate(player, state)
+	-- Skip the network round-trip while the chain is below the client's
+	-- display threshold — the widget is hidden, so streaks 1..N-1 don't
+	-- need a refresh. Decay still pushes streak=0 separately.
+	if state.streak < SHOW_THRESHOLD then
+		return
+	end
 	local timeLeft = math.max(0, CHAIN_WINDOW - (os.clock() - state.lastDigAt))
 	ChainComboUpdate:FireClient(player, state.streak, multiplierForStreak(state.streak), timeLeft, CHAIN_WINDOW)
 end
