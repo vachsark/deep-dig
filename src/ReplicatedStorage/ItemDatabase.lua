@@ -155,6 +155,45 @@ ItemDatabase.SPRING_DINO_EGGS = {
 	},
 }
 
+ItemDatabase.HALLOWEEN_GHOST_FOSSILS = {
+	Modern = {
+		displayName = "Modern Ghost Fossil",
+		rarity = "Rare",
+		baseValue = 90,
+		tint = Color3.fromRGB(145, 245, 205),
+	},
+	Industrial = {
+		displayName = "Industrial Ghost Fossil",
+		rarity = "Rare",
+		baseValue = 170,
+		tint = Color3.fromRGB(125, 235, 220),
+	},
+	Medieval = {
+		displayName = "Medieval Ghost Fossil",
+		rarity = "Epic",
+		baseValue = 420,
+		tint = Color3.fromRGB(170, 225, 255),
+	},
+	Ancient = {
+		displayName = "Ancient Ghost Fossil",
+		rarity = "Legendary",
+		baseValue = 1050,
+		tint = Color3.fromRGB(195, 210, 255),
+	},
+	Prehistoric = {
+		displayName = "Prehistoric Ghost Fossil",
+		rarity = "Legendary",
+		baseValue = 2350,
+		tint = Color3.fromRGB(215, 190, 255),
+	},
+	Unknown = {
+		displayName = "Unknown Ghost Fossil",
+		rarity = "Mythic",
+		baseValue = 7800,
+		tint = Color3.fromRGB(255, 150, 235),
+	},
+}
+
 ItemDatabase.SUMMER_OBSIDIAN_TOOLS = {
 	Modern = {
 		displayName = "Modern Obsidian Trowel",
@@ -242,6 +281,28 @@ function ItemDatabase.buildSpringDinoEgg(tierName)
 		color = egg.tint or rarityData.color,
 		seasonalExclusive = true,
 		seasonId = "spring",
+		tierName = tierName or "Unknown",
+	}
+end
+
+function ItemDatabase.buildHalloweenGhostFossil(tierName)
+	local fossil = ItemDatabase.HALLOWEEN_GHOST_FOSSILS[tierName] or ItemDatabase.HALLOWEEN_GHOST_FOSSILS.Unknown
+	if not fossil then
+		return nil
+	end
+
+	local rarity = fossil.rarity or "Epic"
+	local rarityData = RARITY[rarity] or RARITY.Epic
+	local baseValue = fossil.baseValue or 100
+
+	return {
+		name = fossil.displayName,
+		rarity = rarity,
+		baseValue = baseValue,
+		sellValue = baseValue * rarityData.multiplier,
+		color = fossil.tint or rarityData.color,
+		seasonalExclusive = true,
+		seasonId = "halloween",
 		tierName = tierName or "Unknown",
 	}
 end

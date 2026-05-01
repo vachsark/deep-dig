@@ -92,6 +92,16 @@ local function isSpringDinoEggVariant(itemName)
 	return false
 end
 
+local function isHalloweenGhostFossilVariant(itemName)
+	for _, fossil in pairs(ItemDatabase.HALLOWEEN_GHOST_FOSSILS or {}) do
+		if fossil.displayName == itemName then
+			return true
+		end
+	end
+
+	return false
+end
+
 local function isSummerObsidianToolVariant(itemName)
 	for _, tool in pairs(ItemDatabase.SUMMER_OBSIDIAN_TOOLS or {}) do
 		if tool.displayName == itemName then
@@ -110,6 +120,16 @@ local function hasCollectedSeasonalExclusive(collections, exclusive)
 	if exclusive.id == "spring" then
 		for _, egg in pairs(ItemDatabase.SPRING_DINO_EGGS or {}) do
 			if collections[egg.displayName] == true then
+				return true
+			end
+		end
+
+		return false
+	end
+
+	if exclusive.id == "halloween" then
+		for _, fossil in pairs(ItemDatabase.HALLOWEEN_GHOST_FOSSILS or {}) do
+			if collections[fossil.displayName] == true then
 				return true
 			end
 		end
@@ -182,7 +202,9 @@ local function isSeasonalExclusiveName(itemName)
 		end
 	end
 
-	return isSpringDinoEggVariant(itemName) or isSummerObsidianToolVariant(itemName)
+	return isSpringDinoEggVariant(itemName)
+		or isHalloweenGhostFossilVariant(itemName)
+		or isSummerObsidianToolVariant(itemName)
 end
 
 local function createMuseumForPlayer(player)
