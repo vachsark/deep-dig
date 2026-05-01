@@ -160,6 +160,14 @@ ResurfaceEvent.OnServerEvent:Connect(function(player)
 	data.inventory = {}
 	data.firstSellAffordabilityGrantUsed = false
 
+	-- Drop any active dig chain so the post-resurface run starts clean.
+	-- Without this, a x40 chain carries through to the new run's first
+	-- dig at tool tier 1 — pure exploit on coin-pop economy.
+	local resetCombo = _G.DeepDig_resetChainCombo
+	if type(resetCombo) == "function" then
+		resetCombo(player)
+	end
+
 	local multiplier = getMultiplier(data.rebirths)
 
 	NotifyEvent:FireClient(player,

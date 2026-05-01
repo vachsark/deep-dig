@@ -98,6 +98,18 @@ _G.DeepDig_getChainComboMultiplier = function(player)
 	return multiplierForStreak(s.streak)
 end
 
+-- Manual reset hook for state-changing events outside this script (e.g.
+-- Rebirth.server.lua calls this on resurface so the new run starts clean
+-- instead of inheriting the pre-resurface streak).
+_G.DeepDig_resetChainCombo = function(player)
+	if not player then return end
+	local s = stateByUserId[player.UserId]
+	if s and s.streak > 0 then
+		s.streak = 0
+		ChainComboUpdate:FireClient(player, 0, 1.0, 0, CHAIN_WINDOW)
+	end
+end
+
 -- Decay sweeper: when a chain's window expires, push a final
 -- "streak=0" update so the client clears the HUD widget without
 -- needing its own timer authority.
