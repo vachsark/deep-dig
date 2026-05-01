@@ -878,10 +878,8 @@ BlockBrokenEvent.Event:Connect(function(player, blockPosition)
 		fireQuestProgress(player, "depth_reached", { depth = data.deepestBlock })
 	end
 
-	-- SOUND HOOK: short crunch on every block break
-	if PlaySound then
-		PlaySound:FireClient(player, "block_break")
-	end
+	-- (block_break sound fires from DigSystem.server.lua at the actual
+	-- break point, paired with the VFX. Don't duplicate it here.)
 
 	-- ── FTUE: First 10 blocks guarantee a drop ──────────────────────
 	-- New players get an item every block for the first 10 digs so the
