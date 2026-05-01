@@ -98,6 +98,16 @@ _G.DeepDig_getChainComboMultiplier = function(player)
 	return multiplierForStreak(s.streak)
 end
 
+-- Read-only getter so other systems (QuestSystem progress feeder) can
+-- observe the current streak without reaching into our state table.
+_G.DeepDig_getChainComboStreak = function(player)
+	if not player then return 0 end
+	local s = stateByUserId[player.UserId]
+	if not s or s.streak <= 0 then return 0 end
+	if (os.clock() - s.lastDigAt) > CHAIN_WINDOW then return 0 end
+	return s.streak
+end
+
 -- Manual reset hook for state-changing events outside this script (e.g.
 -- Rebirth.server.lua calls this on resurface so the new run starts clean
 -- instead of inheriting the pre-resurface streak).

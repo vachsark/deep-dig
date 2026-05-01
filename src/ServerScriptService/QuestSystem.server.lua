@@ -47,7 +47,11 @@ local function currentDay()
 end
 
 local function currentWeekKey()
-	return os.date("!%Y-W%V")
+	-- %V (ISO 8601 week) isn't supported by Luau's os.date — using it
+	-- throws "invalid conversion specifier" on every quest progress
+	-- call. %W (Monday-based week of year) works and is just as stable
+	-- as a DataStore key for "the same week".
+	return os.date("!%Y-W%W")
 end
 
 local function dailySeed()
@@ -218,6 +222,9 @@ local function normalizeEventType(eventType)
 		depth = "depth_reached",
 		depth_reached = "depth_reached",
 		rarity_found = "rarity_found",
+		streak = "chain_streak",
+		chain = "chain_streak",
+		chain_streak = "chain_streak",
 	}
 
 	return aliases[lower] or lower
@@ -340,6 +347,19 @@ local function applyProgress(player, eventType, eventData)
 			if quest and quest.type == "depth_reached" then
 				local current = getNumber(data.questProgress[questId], 0)
 				setProgress(data, questId, math.max(current, depth))
+			end
+		end
+		return
+	end
+
+	if normalizedType == "chain_streak" then
+		-- Same shape as depth_reached: track the max streak seen this day.
+		local streak = getEventAmount(eventData, 0)
+		for _, questId in ipairs(data.questAssignedIds) do
+			local quest = questById[questId]
+			if quest and quest.type == "chain_streak" then
+				local current = getNumber(data.questProgress[questId], 0)
+				setProgress(data, questId, math.max(current, streak))
 			end
 		end
 	end

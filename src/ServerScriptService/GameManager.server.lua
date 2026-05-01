@@ -864,6 +864,12 @@ BlockBrokenEvent.Event:Connect(function(player, blockPosition)
 	local recordCombo = _G.DeepDig_recordDigForCombo
 	if type(recordCombo) == "function" then
 		recordCombo(player)
+		-- Feed the new streak to QuestSystem so chain_streak quests can
+		-- progress. QuestSystem treats this like depth_reached (max value).
+		local getStreak = _G.DeepDig_getChainComboStreak
+		if type(getStreak) == "function" then
+			fireQuestProgress(player, "chain_streak", { value = getStreak(player) })
+		end
 	end
 
 	if depth > data.deepestBlock then
