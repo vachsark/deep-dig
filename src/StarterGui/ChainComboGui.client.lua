@@ -106,7 +106,10 @@ local function refreshLabels()
 	multLabel.Text = string.format("%.2f×", state.mult)
 
 	-- Stroke + multLabel color shift as multiplier rises
-	if state.mult >= 3.0 then
+	if state.mult >= 4.0 then
+		stroke.Color = Color3.fromRGB(120, 220, 255)
+		multLabel.TextColor3 = Color3.fromRGB(160, 235, 255)
+	elseif state.mult >= 3.0 then
 		stroke.Color = Color3.fromRGB(255, 90, 200)
 		multLabel.TextColor3 = Color3.fromRGB(255, 130, 220)
 	elseif state.mult >= 2.0 then

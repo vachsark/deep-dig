@@ -25,6 +25,7 @@ local CHAIN_TIERS = {
 	{ threshold = 10, mult = 1.5 },
 	{ threshold = 20, mult = 2.0 },
 	{ threshold = 40, mult = 3.0 },
+	{ threshold = 60, mult = 4.0 },
 }
 
 local Remotes = ReplicatedStorage:WaitForChild("Remotes")
