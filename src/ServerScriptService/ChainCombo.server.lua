@@ -96,3 +96,31 @@ end)
 Players.PlayerRemoving:Connect(function(player)
 	stateByUserId[player.UserId] = nil
 end)
+
+-- Reset chain on death. Without this, the streak survives the respawn
+-- back to the surface — the player dies mid-chain, walks back down, and
+-- their next dig extends a chain that was never broken in their hands.
+-- Game design: dying breaks the streak.
+local function onCharacterAdded(player, character)
+	local humanoid = character:WaitForChild("Humanoid", 5)
+	if not humanoid then return end
+	humanoid.Died:Connect(function()
+		local s = stateByUserId[player.UserId]
+		if s and s.streak > 0 then
+			s.streak = 0
+			ChainComboUpdate:FireClient(player, 0, 1.0, 0, CHAIN_WINDOW)
+		end
+	end)
+end
+
+local function onPlayerAdded(player)
+	if player.Character then
+		onCharacterAdded(player, player.Character)
+	end
+	player.CharacterAdded:Connect(function(c) onCharacterAdded(player, c) end)
+end
+
+for _, existing in ipairs(Players:GetPlayers()) do
+	onPlayerAdded(existing)
+end
+Players.PlayerAdded:Connect(onPlayerAdded)
