@@ -36,6 +36,12 @@ if not ChainComboUpdate then
 	ChainComboUpdate.Parent = Remotes
 end
 
+-- Looked up lazily so we don't race the script that creates it.
+local function firePlaySound(player, soundKey)
+	local rem = Remotes:FindFirstChild("PlaySound")
+	if rem then rem:FireClient(player, soundKey) end
+end
+
 local stateByUserId = {} -- [userId] = { streak, lastDigAt }
 
 local function multiplierForStreak(streak)
@@ -48,6 +54,16 @@ local function multiplierForStreak(streak)
 	return mult
 end
 
+local function tierIndexForStreak(streak)
+	local idx = 0
+	for i, tier in ipairs(CHAIN_TIERS) do
+		if streak >= tier.threshold then
+			idx = i
+		end
+	end
+	return idx
+end
+
 local function pushUpdate(player, state)
 	local timeLeft = math.max(0, CHAIN_WINDOW - (os.clock() - state.lastDigAt))
 	ChainComboUpdate:FireClient(player, state.streak, multiplierForStreak(state.streak), timeLeft, CHAIN_WINDOW)
@@ -57,11 +73,19 @@ _G.DeepDig_recordDigForCombo = function(player)
 	if not player or not player.Parent then return end
 	local now = os.clock()
 	local s = stateByUserId[player.UserId]
+	local prevTierIdx
 	if not s or (now - s.lastDigAt) > CHAIN_WINDOW then
+		prevTierIdx = 0
 		stateByUserId[player.UserId] = { streak = 1, lastDigAt = now }
 	else
+		prevTierIdx = tierIndexForStreak(s.streak)
 		s.streak = math.min(s.streak + 1, CHAIN_MAX_STREAK)
 		s.lastDigAt = now
+	end
+	local newTierIdx = tierIndexForStreak(stateByUserId[player.UserId].streak)
+	-- Tier-up audio cue: only on threshold crossings, never on every dig.
+	if newTierIdx > prevTierIdx then
+		firePlaySound(player, "upgrade_whoosh")
 	end
 	pushUpdate(player, stateByUserId[player.UserId])
 end
