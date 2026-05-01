@@ -8,8 +8,26 @@ local DataStoreService = game:GetService("DataStoreService")
 local Config = require(ReplicatedStorage:WaitForChild("Config"))
 local ItemDatabase = require(ReplicatedStorage:WaitForChild("ItemDatabase"))
 
--- DataStore for persistence
-local PlayerDataStore = DataStoreService:GetDataStore("DeepDig_PlayerData_v1")
+-- DataStore for persistence. In unpublished Studio places GetDataStore can
+-- throw "You must publish this place to the web" — wrap so GameManager keeps
+-- loading and creates the Remotes/ServerEvents folders the rest of the game
+-- depends on. Read/write call sites are already pcall-wrapped.
+local PlayerDataStore
+do
+	local ok, store = pcall(function()
+		return DataStoreService:GetDataStore("DeepDig_PlayerData_v1")
+	end)
+	if ok then
+		PlayerDataStore = store
+	else
+		warn("[DeepDig] DataStore unavailable (unpublished Studio?) — running with in-memory data only")
+		PlayerDataStore = {
+			GetAsync = function() return nil end,
+			SetAsync = function() end,
+			UpdateAsync = function() end,
+		}
+	end
+end
 
 -- RemoteEvents for client-server communication
 local Remotes = Instance.new("Folder")
