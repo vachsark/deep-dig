@@ -21,6 +21,10 @@ local SHOW_THRESHOLD = 5 -- match ChainCombo.server.lua's first tier
 local screenGui = Instance.new("ScreenGui")
 screenGui.Name = "DeepDigChainCombo"
 screenGui.ResetOnSpawn = false
+-- Sit above the HUD overlays (DisplayOrder 0) and notification toasts in
+-- DeepDigHUD, but below modal panels (StatsGui=20, CrewGui=58, QuestGui/
+-- TradeGui=60), notify banners (100), and FTUE arrows (1000).
+screenGui.DisplayOrder = 15
 screenGui.Parent = player:WaitForChild("PlayerGui")
 
 local frame = Instance.new("Frame")
