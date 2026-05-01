@@ -1,0 +1,98 @@
+-- ChainCombo.server.lua — Streak-based dig multiplier
+--
+-- Players who break blocks in quick succession build a "chain" that
+-- multiplies the sellValue of items they find while the chain is hot.
+-- The combo decays after CHAIN_WINDOW seconds of no dig.
+--
+-- Exposes two helpers (matches the _G.DeepDig_get* convention used by
+-- SeasonalEvents and CrewSystem):
+--   _G.DeepDig_recordDigForCombo(player) — call once per BlockBroken
+--   _G.DeepDig_getChainComboMultiplier(player) — read at loot-roll time
+--
+-- HUD wiring: fires ChainComboUpdate(streak, multiplier, secondsLeft,
+-- window) to the player on every change, and fires (0, 1.0, 0, window)
+-- when the chain decays to nothing.
+
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local CHAIN_WINDOW = 3.0    -- seconds between digs to keep the chain alive
+local CHAIN_MAX_STREAK = 99 -- hard cap on tracked streak
+
+-- Streak threshold → sellValue multiplier. Highest matched threshold wins.
+local CHAIN_TIERS = {
+	{ threshold = 5,  mult = 1.25 },
+	{ threshold = 10, mult = 1.5 },
+	{ threshold = 20, mult = 2.0 },
+	{ threshold = 40, mult = 3.0 },
+}
+
+local Remotes = ReplicatedStorage:WaitForChild("Remotes")
+
+local ChainComboUpdate = Remotes:FindFirstChild("ChainComboUpdate")
+if not ChainComboUpdate then
+	ChainComboUpdate = Instance.new("RemoteEvent")
+	ChainComboUpdate.Name = "ChainComboUpdate"
+	ChainComboUpdate.Parent = Remotes
+end
+
+local stateByUserId = {} -- [userId] = { streak, lastDigAt }
+
+local function multiplierForStreak(streak)
+	local mult = 1.0
+	for _, tier in ipairs(CHAIN_TIERS) do
+		if streak >= tier.threshold then
+			mult = tier.mult
+		end
+	end
+	return mult
+end
+
+local function pushUpdate(player, state)
+	local timeLeft = math.max(0, CHAIN_WINDOW - (os.clock() - state.lastDigAt))
+	ChainComboUpdate:FireClient(player, state.streak, multiplierForStreak(state.streak), timeLeft, CHAIN_WINDOW)
+end
+
+_G.DeepDig_recordDigForCombo = function(player)
+	if not player or not player.Parent then return end
+	local now = os.clock()
+	local s = stateByUserId[player.UserId]
+	if not s or (now - s.lastDigAt) > CHAIN_WINDOW then
+		stateByUserId[player.UserId] = { streak = 1, lastDigAt = now }
+	else
+		s.streak = math.min(s.streak + 1, CHAIN_MAX_STREAK)
+		s.lastDigAt = now
+	end
+	pushUpdate(player, stateByUserId[player.UserId])
+end
+
+_G.DeepDig_getChainComboMultiplier = function(player)
+	if not player then return 1.0 end
+	local s = stateByUserId[player.UserId]
+	if not s or s.streak <= 0 then return 1.0 end
+	if (os.clock() - s.lastDigAt) > CHAIN_WINDOW then return 1.0 end
+	return multiplierForStreak(s.streak)
+end
+
+-- Decay sweeper: when a chain's window expires, push a final
+-- "streak=0" update so the client clears the HUD widget without
+-- needing its own timer authority.
+task.spawn(function()
+	while true do
+		task.wait(0.25)
+		local now = os.clock()
+		for userId, s in pairs(stateByUserId) do
+			if s.streak > 0 and (now - s.lastDigAt) > CHAIN_WINDOW then
+				s.streak = 0
+				local player = Players:GetPlayerByUserId(userId)
+				if player then
+					ChainComboUpdate:FireClient(player, 0, 1.0, 0, CHAIN_WINDOW)
+				end
+			end
+		end
+	end
+end)
+
+Players.PlayerRemoving:Connect(function(player)
+	stateByUserId[player.UserId] = nil
+end)

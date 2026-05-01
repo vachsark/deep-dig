@@ -857,6 +857,15 @@ BlockBrokenEvent.Event:Connect(function(player, blockPosition)
 
 	-- Update stats
 	data.totalBlocksDug = data.totalBlocksDug + 1
+
+	-- Tick the chain combo on every dig (regardless of loot drop).
+	-- ChainCombo.server.lua publishes _G.DeepDig_recordDigForCombo and
+	-- pushes a ChainComboUpdate RemoteEvent for the HUD widget.
+	local recordCombo = _G.DeepDig_recordDigForCombo
+	if type(recordCombo) == "function" then
+		recordCombo(player)
+	end
+
 	if depth > data.deepestBlock then
 		data.deepestBlock = depth
 		-- Fire depth_reached on each new max so QuestSystem can take max
@@ -967,11 +976,14 @@ BlockBrokenEvent.Event:Connect(function(player, blockPosition)
 				item.sellValue = item.sellValue * 2
 			end
 
-			-- Apply resurface and equipped pet loot_value multipliers.
-			-- Mutating `item.sellValue` here propagates to both the inventory
-			-- record below AND the ItemFoundEvent:FireClient payload, so the
-			-- client toast shows the bumped value.
-			item.sellValue = math.floor(item.sellValue * getResurfaceLootMultiplier(data) * petLoot)
+			-- Apply resurface, equipped pet loot_value, and chain-combo
+			-- multipliers. Mutating `item.sellValue` here propagates to
+			-- both the inventory record below AND the ItemFoundEvent
+			-- :FireClient payload, so the client toast shows the bumped
+			-- value.
+			local getCombo = _G.DeepDig_getChainComboMultiplier
+			local comboMult = (type(getCombo) == "function" and getCombo(player)) or 1.0
+			item.sellValue = math.floor(item.sellValue * getResurfaceLootMultiplier(data) * petLoot * comboMult)
 
 			local autoCollectDuplicate = wasAlreadyCollected and hasOwnedGamepass(
 				data,
