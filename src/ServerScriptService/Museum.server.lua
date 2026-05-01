@@ -92,6 +92,16 @@ local function isSpringDinoEggVariant(itemName)
 	return false
 end
 
+local function isSummerObsidianToolVariant(itemName)
+	for _, tool in pairs(ItemDatabase.SUMMER_OBSIDIAN_TOOLS or {}) do
+		if tool.displayName == itemName then
+			return true
+		end
+	end
+
+	return false
+end
+
 local function hasCollectedSeasonalExclusive(collections, exclusive)
 	if not collections or not exclusive then
 		return false
@@ -100,6 +110,16 @@ local function hasCollectedSeasonalExclusive(collections, exclusive)
 	if exclusive.id == "spring" then
 		for _, egg in pairs(ItemDatabase.SPRING_DINO_EGGS or {}) do
 			if collections[egg.displayName] == true then
+				return true
+			end
+		end
+
+		return false
+	end
+
+	if exclusive.id == "summer" then
+		for _, tool in pairs(ItemDatabase.SUMMER_OBSIDIAN_TOOLS or {}) do
+			if collections[tool.displayName] == true then
 				return true
 			end
 		end
@@ -162,7 +182,7 @@ local function isSeasonalExclusiveName(itemName)
 		end
 	end
 
-	return isSpringDinoEggVariant(itemName)
+	return isSpringDinoEggVariant(itemName) or isSummerObsidianToolVariant(itemName)
 end
 
 local function createMuseumForPlayer(player)

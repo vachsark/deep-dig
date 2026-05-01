@@ -155,6 +155,45 @@ ItemDatabase.SPRING_DINO_EGGS = {
 	},
 }
 
+ItemDatabase.SUMMER_OBSIDIAN_TOOLS = {
+	Modern = {
+		displayName = "Modern Obsidian Trowel",
+		rarity = "Rare",
+		baseValue = 80,
+		tint = Color3.fromRGB(55, 45, 65),
+	},
+	Industrial = {
+		displayName = "Industrial Obsidian Wrench",
+		rarity = "Rare",
+		baseValue = 150,
+		tint = Color3.fromRGB(75, 60, 70),
+	},
+	Medieval = {
+		displayName = "Medieval Obsidian Chisel",
+		rarity = "Epic",
+		baseValue = 360,
+		tint = Color3.fromRGB(95, 50, 55),
+	},
+	Ancient = {
+		displayName = "Ancient Obsidian Adze",
+		rarity = "Legendary",
+		baseValue = 950,
+		tint = Color3.fromRGB(150, 55, 40),
+	},
+	Prehistoric = {
+		displayName = "Prehistoric Obsidian Hand Axe",
+		rarity = "Legendary",
+		baseValue = 2100,
+		tint = Color3.fromRGB(220, 75, 35),
+	},
+	Unknown = {
+		displayName = "Unknown Obsidian Multitool",
+		rarity = "Mythic",
+		baseValue = 7200,
+		tint = Color3.fromRGB(255, 90, 45),
+	},
+}
+
 local SEASONAL_EXCLUSIVE_BY_ID = {}
 for _, exclusive in ipairs(ItemDatabase.SEASONAL_EXCLUSIVES) do
 	SEASONAL_EXCLUSIVE_BY_ID[exclusive.id] = exclusive
@@ -203,6 +242,28 @@ function ItemDatabase.buildSpringDinoEgg(tierName)
 		color = egg.tint or rarityData.color,
 		seasonalExclusive = true,
 		seasonId = "spring",
+		tierName = tierName or "Unknown",
+	}
+end
+
+function ItemDatabase.buildSummerObsidianTool(tierName)
+	local tool = ItemDatabase.SUMMER_OBSIDIAN_TOOLS[tierName] or ItemDatabase.SUMMER_OBSIDIAN_TOOLS.Unknown
+	if not tool then
+		return nil
+	end
+
+	local rarity = tool.rarity or "Legendary"
+	local rarityData = RARITY[rarity] or RARITY.Legendary
+	local baseValue = tool.baseValue or 100
+
+	return {
+		name = tool.displayName,
+		rarity = rarity,
+		baseValue = baseValue,
+		sellValue = baseValue * rarityData.multiplier,
+		color = tool.tint or rarityData.color,
+		seasonalExclusive = true,
+		seasonId = "summer",
 		tierName = tierName or "Unknown",
 	}
 end

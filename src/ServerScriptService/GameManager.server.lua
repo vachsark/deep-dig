@@ -927,6 +927,8 @@ BlockBrokenEvent.Event:Connect(function(player, blockPosition)
 				local seasonalItem
 				if activeSeason == "spring" then
 					seasonalItem = ItemDatabase.buildSpringDinoEgg(tierName)
+				elseif activeSeason == "summer" then
+					seasonalItem = ItemDatabase.buildSummerObsidianTool(tierName)
 				else
 					seasonalItem = ItemDatabase.buildSeasonalItem(activeSeason)
 				end
