@@ -43,6 +43,11 @@ local function firePlaySound(player, soundKey)
 	if rem then rem:FireClient(player, soundKey) end
 end
 
+local function fireNotify(player, message, rarity)
+	local rem = Remotes:FindFirstChild("Notify")
+	if rem then rem:FireClient(player, message, rarity or "Common") end
+end
+
 local stateByUserId = {} -- [userId] = { streak, lastDigAt }
 
 local function multiplierForStreak(streak)
@@ -87,6 +92,16 @@ _G.DeepDig_recordDigForCombo = function(player)
 	-- Tier-up audio cue: only on threshold crossings, never on every dig.
 	if newTierIdx > prevTierIdx then
 		firePlaySound(player, "upgrade_whoosh")
+		-- Persistent celebration toast on the rare top tier (currently 4×).
+		-- Fires at most once per chain (only when crossing INTO the top
+		-- index, never on continued digs within it). Tier ceilings near
+		-- the top are 60+ consecutive digs — earned, worth flagging.
+		if newTierIdx == #CHAIN_TIERS then
+			local topTier = CHAIN_TIERS[#CHAIN_TIERS]
+			fireNotify(player,
+				string.format("🔥 x%d chain — %.1f× sell value!", topTier.threshold, topTier.mult),
+				"Mythic")
+		end
 	end
 	pushUpdate(player, stateByUserId[player.UserId])
 end
