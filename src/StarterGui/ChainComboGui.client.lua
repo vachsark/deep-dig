@@ -117,22 +117,41 @@ local function refreshLabels()
 	end
 end
 
+local STREAK_BASE_SIZE = streakLabel.TextSize -- 26
+
 ChainComboUpdate.OnClientEvent:Connect(function(streak, mult, secondsLeft, window)
+	local prevMult = state.mult
 	state.streak = streak or 0
 	state.mult = mult or 1.0
 	state.window = window or state.window
 	state.expiresAt = os.clock() + (secondsLeft or 0)
 
 	if state.streak >= SHOW_THRESHOLD then
+		local wasHidden = not frame.Visible
 		frame.Visible = true
 		refreshLabels()
-		-- Pop scale on tier-up
-		frame.Size = UDim2.new(0, 240, 0, 60)
-		TweenService:Create(
-			frame,
-			TweenInfo.new(0.18, Enum.EasingStyle.Back, Enum.EasingDirection.Out),
-			{ Size = UDim2.new(0, 220, 0, 56) }
-		):Play()
+
+		-- Pop only on first appearance OR tier-up. Don't pop on every dig
+		-- — that's the chain rolling, not a noteworthy moment.
+		if wasHidden or state.mult > prevMult then
+			frame.Size = UDim2.new(0, 248, 0, 62)
+			TweenService:Create(
+				frame,
+				TweenInfo.new(0.22, Enum.EasingStyle.Back, Enum.EasingDirection.Out),
+				{ Size = UDim2.new(0, 220, 0, 56) }
+			):Play()
+
+			-- Scale-pulse the streak number too, but only on real tier-up
+			-- (not the initial appearance — that already has the frame pop).
+			if state.mult > prevMult and not wasHidden then
+				streakLabel.TextSize = STREAK_BASE_SIZE + 10
+				TweenService:Create(
+					streakLabel,
+					TweenInfo.new(0.28, Enum.EasingStyle.Back, Enum.EasingDirection.Out),
+					{ TextSize = STREAK_BASE_SIZE }
+				):Play()
+			end
+		end
 	else
 		-- Below threshold (or 0): hide
 		frame.Visible = false
