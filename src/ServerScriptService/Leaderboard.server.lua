@@ -12,7 +12,25 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local DataStoreService = game:GetService("DataStoreService")
 
-local DepthStore = DataStoreService:GetOrderedDataStore("DeepDig_DepthLeaderboard_v1")
+-- Wrapped against unpublished-Studio failures. GetOrderedDataStore can throw
+-- "You must publish this place to the web to access DataStore", which would
+-- halt the script before it creates GetTopDepths. The pcall'd read/write
+-- call sites below already handle a stub that returns no entries.
+local DepthStore
+do
+	local ok, store = pcall(function()
+		return DataStoreService:GetOrderedDataStore("DeepDig_DepthLeaderboard_v1")
+	end)
+	if ok then
+		DepthStore = store
+	else
+		DepthStore = {
+			GetSortedAsync = function() return { GetCurrentPage = function() return {} end } end,
+			SetAsync = function() end,
+			UpdateAsync = function() end,
+		}
+	end
+end
 
 local Remotes = ReplicatedStorage:WaitForChild("Remotes")
 local NotifyEvent = Remotes:WaitForChild("Notify")

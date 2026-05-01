@@ -21,10 +21,26 @@ CodeResultEvent.Parent = Remotes
 local NotifyEvent = Remotes:WaitForChild("Notify")
 local UpdateHUDEvent = Remotes:WaitForChild("UpdateHUD")
 
-local CodesDataStore = DataStoreService:GetDataStore("DeepDig_Codes_v1")
--- Separate store for code-level usage counters so we can UpdateAsync them
--- atomically across servers (per-player redemptions stay in CodesDataStore).
-local CodeUsageStore = DataStoreService:GetDataStore("DeepDig_CodeUsage_v1")
+-- Wrapped against unpublished-Studio failures. Same pattern as GameManager.
+-- Read/write call sites below are already pcall-wrapped, so a stub that
+-- silently no-ops keeps the redeem flow running with in-memory state.
+local function makeStubStore()
+	return {
+		GetAsync = function() return nil end,
+		SetAsync = function() end,
+		UpdateAsync = function() end,
+		IncrementAsync = function() return 0 end,
+	}
+end
+local CodesDataStore, CodeUsageStore
+do
+	local ok1, s1 = pcall(function() return DataStoreService:GetDataStore("DeepDig_Codes_v1") end)
+	CodesDataStore = ok1 and s1 or makeStubStore()
+	-- Separate store for code-level usage counters so we can UpdateAsync them
+	-- atomically across servers (per-player redemptions stay in CodesDataStore).
+	local ok2, s2 = pcall(function() return DataStoreService:GetDataStore("DeepDig_CodeUsage_v1") end)
+	CodeUsageStore = ok2 and s2 or makeStubStore()
+end
 
 -- ═══════════════════════════════════════════════════════════════════
 -- Code Definitions (add new codes here)
