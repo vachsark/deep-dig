@@ -50,8 +50,8 @@ local ATTACK_COOLDOWN = 0.5
 local TOUCH_DAMAGE_COOLDOWN = 1
 local WALK_RADIUS = 12
 local IDLE_WANDER_INTERVAL = 3
+local FIRST_ENEMY_DEPTH = 11
 
-local bronzeDepth = Config.TIERS[2].minDepth
 local liveEnemies = {}
 local enemiesByPlayer = {}
 local nextAttackAtByUserId = {}
@@ -314,7 +314,7 @@ end
 
 local function spawnEnemyForPlayer(player)
 	local data = getSharedData(player)
-	if not data or (data.deepestBlock or 0) < bronzeDepth then
+	if not data or (data.deepestBlock or 0) < FIRST_ENEMY_DEPTH then
 		return
 	end
 
