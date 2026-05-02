@@ -102,6 +102,8 @@ end
 
 local playerData = {} -- In-memory cache
 _G.DeepDig_playerData = playerData -- Shared with DailyStreak, Leaderboard, Gamepasses
+local offlineIncomeHandled = {}
+_G.DeepDig_offlineIncomeHandled = offlineIncomeHandled
 
 local DEFAULT_DATA = {
 	coins = Config.STARTING_COINS,
@@ -198,6 +200,95 @@ local function hasOwnedGamepass(data, passId, passKey)
 	end
 
 	return ownedGamepasses[passId] == true or (passKey and ownedGamepasses[passKey] == true)
+end
+
+local addStandardHudFields
+
+local function getOfflineIncomeCapSeconds(data)
+	if hasOwnedGamepass(data, Config.GAMEPASS_FOREMAN_ID, Config.GAMEPASS_FOREMAN) then
+		return Config.OFFLINE_INCOME_FOREMAN_CAP_SECONDS
+	end
+
+	return Config.OFFLINE_INCOME_DEFAULT_CAP_SECONDS
+end
+
+local function formatOfflineDuration(seconds)
+	seconds = math.max(0, math.floor(seconds or 0))
+
+	local hours = math.floor(seconds / 3600)
+	local minutes = math.floor((seconds % 3600) / 60)
+
+	if hours > 0 and minutes > 0 then
+		return hours .. "h " .. minutes .. "m"
+	end
+
+	if hours > 0 then
+		return hours .. "h"
+	end
+
+	return minutes .. "m"
+end
+
+local function grantOfflineIncome(player, data)
+	offlineIncomeHandled[player.UserId] = true
+
+	local previousLastSeenAt = data.lastSeenAt or 0
+	if previousLastSeenAt <= 0 then
+		return nil
+	end
+
+	local now = os.time()
+	local offlineSeconds = math.max(0, now - previousLastSeenAt)
+	data.lastSeenAt = now
+
+	if offlineSeconds < Config.OFFLINE_INCOME_MIN_SECONDS then
+		return nil
+	end
+
+	local countedSeconds = math.min(offlineSeconds, getOfflineIncomeCapSeconds(data))
+	local tool = Config.TOOLS[data.toolTier] or Config.TOOLS[1]
+	local toolDamage = tool and tool.damage or 1
+	local coinsPerMinute = toolDamage * Config.OFFLINE_INCOME_COINS_PER_DAMAGE_PER_MINUTE
+	local reward = math.floor((countedSeconds / 60) * coinsPerMinute)
+	if reward <= 0 then
+		return nil
+	end
+
+	data.coins = (data.coins or 0) + reward
+	data.totalEarned = (data.totalEarned or 0) + reward
+	fireQuestProgress(player, "coins_earned", { amount = reward })
+
+	return {
+		reward = reward,
+		countedSeconds = countedSeconds,
+		capSeconds = getOfflineIncomeCapSeconds(data),
+	}
+end
+
+local function notifyOfflineIncome(player, data, result)
+	if not result then
+		return
+	end
+
+	task.delay(1, function()
+		if player.Parent ~= Players then
+			return
+		end
+
+		NotifyEvent:FireClient(
+			player,
+			"Welcome back! You earned " .. result.reward .. " offline coins (" ..
+				formatOfflineDuration(result.countedSeconds) .. " counted, " ..
+				formatOfflineDuration(result.capSeconds) .. " cap).",
+			"Rare"
+		)
+
+		UpdateHUDEvent:FireClient(player, addStandardHudFields({
+			coins = data.coins,
+			totalEarned = data.totalEarned,
+			rebirths = data.rebirths or 0,
+		}, data, player))
+	end)
 end
 
 local backpackFullNotifiedAt = {}
@@ -454,8 +545,6 @@ local function ensureFriendReferralRewards(data)
 
 	return data.friendReferralRewards
 end
-
-local addStandardHudFields
 
 local function grantFriendReferralReward(player, friendPlayer)
 	if not Config.FRIEND_REFERRAL_REWARD_ENABLED then
@@ -1377,6 +1466,7 @@ end
 
 local function onPlayerAdded(player)
 	local data = loadPlayerData(player)
+	local offlineIncomeResult = grantOfflineIncome(player, data)
 	refreshGroupBenefitMembership(player)
 	player.CharacterAdded:Connect(function(character)
 		applyGroupBenefitNameTreatment(player, character)
@@ -1391,6 +1481,7 @@ local function onPlayerAdded(player)
 	-- (DailyStreak, Gamepasses, Leaderboard, Rebirth) wait on this event
 	-- via awaitPlayerData() instead of guessing with task.wait(N).
 	PlayerDataReady:Fire(player)
+	notifyOfflineIncome(player, data, offlineIncomeResult)
 	print("[DeepDig] " .. player.Name .. " joined (coins: " .. data.coins .. ", tool: " .. Config.TOOLS[data.toolTier].name .. ")")
 end
 
@@ -1409,6 +1500,7 @@ Players.PlayerRemoving:Connect(function(player)
 	end
 	backpackFullNotifiedAt[player] = nil
 	playerData[player.UserId] = nil
+	offlineIncomeHandled[player.UserId] = nil
 	friendBoostActiveByUserId[player.UserId] = nil
 	groupBenefitActiveByUserId[player.UserId] = nil
 	crewBonusNotifiedAt[player.UserId] = nil

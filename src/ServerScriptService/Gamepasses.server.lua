@@ -64,7 +64,8 @@ local GAMEPASSES = {
 		tag = "LUCKY",
 	},
 	{
-		id = 4,
+		id = Config.GAMEPASS_FOREMAN_ID,
+		key = Config.GAMEPASS_FOREMAN,
 		name = "Foreman's Pass",
 		description = "Offline income cap extends to 24 hours.",
 		icon = "rbxassetid://0",

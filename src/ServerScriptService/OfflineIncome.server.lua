@@ -75,6 +75,11 @@ local function grantOfflineIncome(player)
 		return
 	end
 
+	local handledByGameManager = _G.DeepDig_offlineIncomeHandled
+	if handledByGameManager and handledByGameManager[player.UserId] then
+		return
+	end
+
 	local previousLastSeenAt = data.lastSeenAt or 0
 	if previousLastSeenAt <= 0 then
 		return
