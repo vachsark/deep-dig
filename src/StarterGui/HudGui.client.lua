@@ -488,6 +488,21 @@ local eventShakeBaseCFrame = nil
 local eventShakeBound = false
 local eventShakeState = nil
 
+local function isEarthquakeEvent(eventName, message)
+	if eventName == "Earthquake" then
+		return true
+	end
+
+	if type(message) ~= "string" then
+		return false
+	end
+
+	local lowered = string.lower(message)
+	return string.find(lowered, "earthquake", 1, true) ~= nil
+		or string.find(lowered, "quake", 1, true) ~= nil
+		or string.find(lowered, "tremble", 1, true) ~= nil
+end
+
 local function clearEventCameraShake(sequence)
 	if sequence and sequence ~= eventShakeSequence then
 		return
@@ -1530,7 +1545,10 @@ Remotes.ItemFound.OnClientEvent:Connect(function(item)
 end)
 
 Remotes.EventTriggered.OnClientEvent:Connect(function(eventName, message, duration)
-	playEventCameraShake(eventName)
+	if not isEarthquakeEvent(eventName, message) then
+		playEventCameraShake(eventName)
+	end
+
 	showNotification("⚡ " .. message, "Legendary")
 end)
 
