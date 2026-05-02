@@ -51,6 +51,7 @@ local BANNER_HEIGHT     = 80
 local BANNER_TOP_OFFSET = 110      -- px below the top edge for the first banner
 local BANNER_STACK_GAP  = 90       -- px between stacked banners
 local MAX_BANNERS       = 3
+local FLASH_FADE        = 0.55
 
 local RARITY_BORDER_COLOR = {
 	Legendary = Color3.fromRGB(255, 195, 60),   -- warm gold
@@ -65,6 +66,26 @@ local RARITY_TEXT_COLOR = {
 local IMPORTANT_RARITIES = {
 	Legendary = true,
 	Mythic    = true,
+}
+
+local RARITY_FLASH = {
+	Legendary = {
+		color = Color3.fromRGB(255, 210, 70),
+		startTransparency = 0.42,
+		gradient = ColorSequence.new({
+			ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 235, 150)),
+			ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 180, 40)),
+		}),
+	},
+	Mythic = {
+		color = Color3.fromRGB(255, 80, 45),
+		startTransparency = 0.28,
+		gradient = ColorSequence.new({
+			ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 55, 45)),
+			ColorSequenceKeypoint.new(0.55, Color3.fromRGB(255, 185, 55)),
+			ColorSequenceKeypoint.new(1, Color3.fromRGB(180, 20, 60)),
+		}),
+	},
 }
 
 -- ─────────────────────────────────────────────────────────────────────────
@@ -93,6 +114,8 @@ end
 -- ─────────────────────────────────────────────────────────────────────────
 
 local bannerGui = nil
+local flashFrame = nil
+local flashTween = nil
 local activeBanners = {}   -- ordered oldest→newest list of banner Frames
 
 local function ensureBannerGui()
@@ -108,6 +131,74 @@ local function ensureBannerGui()
 	bannerGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 	bannerGui.Parent = playerGui
 	return bannerGui
+end
+
+local function ensureFlashFrame()
+	local gui = ensureBannerGui()
+	if flashFrame and flashFrame.Parent == gui then
+		return flashFrame
+	end
+
+	flashFrame = gui:FindFirstChild("RarityFlash")
+	if not flashFrame then
+		flashFrame = Instance.new("Frame")
+		flashFrame.Name = "RarityFlash"
+		flashFrame.Parent = gui
+	end
+
+	flashFrame.Active = false
+	flashFrame.AnchorPoint = Vector2.new(0, 0)
+	flashFrame.Position = UDim2.new(0, 0, 0, 0)
+	flashFrame.Size = UDim2.fromScale(1, 1)
+	flashFrame.BackgroundTransparency = 1
+	flashFrame.BorderSizePixel = 0
+	flashFrame.Visible = false
+	flashFrame.ZIndex = 100
+
+	local gradient = flashFrame:FindFirstChild("RarityFlashGradient")
+	if not gradient then
+		gradient = Instance.new("UIGradient")
+		gradient.Name = "RarityFlashGradient"
+		gradient.Parent = flashFrame
+	end
+	gradient.Rotation = 25
+
+	return flashFrame
+end
+
+local function playRarityFlash(rarity)
+	local flashConfig = RARITY_FLASH[rarity]
+	if not flashConfig then
+		return
+	end
+
+	local frame = ensureFlashFrame()
+	local gradient = frame:FindFirstChild("RarityFlashGradient")
+	if flashTween then
+		flashTween:Cancel()
+		flashTween = nil
+	end
+
+	frame.BackgroundColor3 = flashConfig.color
+	frame.BackgroundTransparency = flashConfig.startTransparency
+	frame.Visible = true
+	if gradient then
+		gradient.Color = flashConfig.gradient
+	end
+
+	local tween = TweenService:Create(
+		frame,
+		TweenInfo.new(FLASH_FADE, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+		{ BackgroundTransparency = 1 }
+	)
+	flashTween = tween
+	tween.Completed:Connect(function(playbackState)
+		if flashTween == tween and playbackState == Enum.PlaybackState.Completed then
+			frame.Visible = false
+			flashTween = nil
+		end
+	end)
+	tween:Play()
 end
 
 local function targetYForSlot(slotIndex)
@@ -342,6 +433,10 @@ local function onNotify(text, rarity)
 
 	if important then
 		-- Wrap in pcall so a malformed notify cannot break the listener.
+		local flashOk, flashErr = pcall(playRarityFlash, rarity)
+		if not flashOk then
+			warn("[NotifyManager] rarity flash failed: " .. tostring(flashErr))
+		end
 		local ok, err = pcall(createBanner, text, rarity)
 		if not ok then
 			warn("[NotifyManager] banner render failed: " .. tostring(err))
