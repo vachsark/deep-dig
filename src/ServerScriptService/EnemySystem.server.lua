@@ -254,6 +254,11 @@ local function handleTouched(record, hit)
 	record.nextTouchDamageAtByUserId[player.UserId] = now + TOUCH_DAMAGE_COOLDOWN
 	player:SetAttribute("DeepDig_LastEnemyDamageAt", now)
 	humanoid:TakeDamage(record.enemy.damage)
+	EnemyCombatFeedback:FireClient(player, {
+		type = "player_hit",
+		damage = record.enemy.damage,
+		enemyName = record.model:GetAttribute("EnemyName") or record.enemy.name,
+	})
 end
 
 local function compactOwnedEnemies(player)

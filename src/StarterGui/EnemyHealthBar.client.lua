@@ -2,9 +2,12 @@
 -- Place in: StarterGui/EnemyHealthBar (LocalScript)
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
 local SoundService = game:GetService("SoundService")
 local TweenService = game:GetService("TweenService")
 
+local player = Players.LocalPlayer
 local Remotes = ReplicatedStorage:WaitForChild("Remotes")
 local EnemyCombatFeedback = Remotes:WaitForChild("EnemyCombatFeedback")
 local LOCAL_PLAY_SOUND_NAME = "DeepDigLocalPlaySound"
@@ -17,9 +20,25 @@ local HIT_COLOR = Color3.fromRGB(255, 245, 160)
 local DEFEAT_COLOR = Color3.fromRGB(255, 95, 70)
 local HIT_SCALE = 1.08
 local DEFEAT_SCALE = 1.16
+local PLAYER_HIT_DISPLAY_ORDER = 80
+local PLAYER_HIT_FLASH_TRANSPARENCY = 0.48
+local PLAYER_HIT_FLASH_FADE = 0.2
+local PLAYER_HIT_JOLT_BIND_NAME = "DeepDigPlayerHitCameraJolt"
+local PLAYER_HIT_JOLT_DURATION = 0.14
+local PLAYER_HIT_JOLT_POSITION = 0.32
+local PLAYER_HIT_JOLT_ROTATION = 0.75
 
 local trackedEnemies = {}
 local activeFeedback = {}
+local playerHitGui = nil
+local playerHitOverlay = nil
+local playerHitFlashTween = nil
+local playerHitFlashSequence = 0
+local playerHitJoltSequence = 0
+local playerHitJoltState = nil
+local playerHitJoltBound = false
+local lastPlayerHitJoltCFrame = CFrame.new()
+local lastPlayerHitJoltActive = false
 
 local LocalPlaySound = SoundService:FindFirstChild(LOCAL_PLAY_SOUND_NAME)
 if not LocalPlaySound then
@@ -244,6 +263,159 @@ local function restoreFeedback(model, record, token)
 	activeFeedback[model] = nil
 end
 
+local function ensurePlayerHitOverlay()
+	if playerHitOverlay and playerHitOverlay.Parent then
+		return playerHitOverlay
+	end
+
+	local playerGui = player:FindFirstChildOfClass("PlayerGui") or player:WaitForChild("PlayerGui")
+
+	playerHitGui = Instance.new("ScreenGui")
+	playerHitGui.Name = "EnemyPlayerHitFeedback"
+	playerHitGui.ResetOnSpawn = false
+	playerHitGui.IgnoreGuiInset = true
+	playerHitGui.DisplayOrder = PLAYER_HIT_DISPLAY_ORDER
+	playerHitGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+	playerHitGui.Parent = playerGui
+
+	playerHitOverlay = Instance.new("Frame")
+	playerHitOverlay.Name = "DamageFlash"
+	playerHitOverlay.Size = UDim2.fromScale(1, 1)
+	playerHitOverlay.BackgroundColor3 = Color3.fromRGB(210, 36, 32)
+	playerHitOverlay.BackgroundTransparency = 1
+	playerHitOverlay.BorderSizePixel = 0
+	playerHitOverlay.Visible = false
+	playerHitOverlay.ZIndex = 1
+	playerHitOverlay.Parent = playerHitGui
+
+	return playerHitOverlay
+end
+
+local function playPlayerHitFlash()
+	local overlay = ensurePlayerHitOverlay()
+	playerHitFlashSequence = playerHitFlashSequence + 1
+	local sequence = playerHitFlashSequence
+
+	if playerHitFlashTween then
+		playerHitFlashTween:Cancel()
+		playerHitFlashTween = nil
+	end
+
+	overlay.Visible = true
+	overlay.BackgroundTransparency = PLAYER_HIT_FLASH_TRANSPARENCY
+
+	local tween = TweenService:Create(overlay, TweenInfo.new(
+		PLAYER_HIT_FLASH_FADE,
+		Enum.EasingStyle.Quad,
+		Enum.EasingDirection.Out
+	), {
+		BackgroundTransparency = 1,
+	})
+	playerHitFlashTween = tween
+	tween:Play()
+	tween.Completed:Connect(function(playbackState)
+		if sequence ~= playerHitFlashSequence or playerHitFlashTween ~= tween then
+			return
+		end
+
+		if playbackState == Enum.PlaybackState.Completed then
+			overlay.Visible = false
+		end
+
+		playerHitFlashTween = nil
+	end)
+end
+
+local function removeLastPlayerHitJolt(camera)
+	if camera and lastPlayerHitJoltActive then
+		camera.CFrame = camera.CFrame * lastPlayerHitJoltCFrame:Inverse()
+	end
+
+	lastPlayerHitJoltCFrame = CFrame.new()
+	lastPlayerHitJoltActive = false
+end
+
+local function clearPlayerHitJolt(sequence)
+	if sequence and sequence ~= playerHitJoltSequence then
+		return
+	end
+
+	removeLastPlayerHitJolt(workspace.CurrentCamera)
+	playerHitJoltState = nil
+
+	if playerHitJoltBound then
+		RunService:UnbindFromRenderStep(PLAYER_HIT_JOLT_BIND_NAME)
+		playerHitJoltBound = false
+	end
+end
+
+local function ensurePlayerHitJoltBinding()
+	if playerHitJoltBound then
+		return
+	end
+
+	playerHitJoltBound = true
+	RunService:BindToRenderStep(PLAYER_HIT_JOLT_BIND_NAME, Enum.RenderPriority.Camera.Value + 3, function()
+		local camera = workspace.CurrentCamera
+		local state = playerHitJoltState
+		if not camera or not state then
+			clearPlayerHitJolt()
+			return
+		end
+
+		removeLastPlayerHitJolt(camera)
+
+		local elapsed = os.clock() - state.startTime
+		local progress = elapsed / PLAYER_HIT_JOLT_DURATION
+		if progress >= 1 then
+			clearPlayerHitJolt(state.sequence)
+			return
+		end
+
+		local falloff = 1 - math.clamp(progress, 0, 1)
+		local snap = math.sin(progress * math.pi)
+		local offset = Vector3.new(
+			state.direction * PLAYER_HIT_JOLT_POSITION * falloff,
+			PLAYER_HIT_JOLT_POSITION * 0.25 * snap * falloff,
+			0
+		)
+		local rotation = CFrame.Angles(
+			0,
+			0,
+			math.rad(state.direction * PLAYER_HIT_JOLT_ROTATION * falloff)
+		)
+
+		lastPlayerHitJoltCFrame = CFrame.new(offset) * rotation
+		lastPlayerHitJoltActive = true
+		camera.CFrame = camera.CFrame * lastPlayerHitJoltCFrame
+	end)
+end
+
+local function playPlayerHitJolt()
+	playerHitJoltSequence = playerHitJoltSequence + 1
+	local direction = 1
+	if math.random() < 0.5 then
+		direction = -1
+	end
+
+	playerHitJoltState = {
+		sequence = playerHitJoltSequence,
+		startTime = os.clock(),
+		direction = direction,
+	}
+
+	ensurePlayerHitJoltBinding()
+end
+
+local function playPlayerHitFeedback()
+	if LocalPlaySound and LocalPlaySound:IsA("BindableEvent") then
+		LocalPlaySound:Fire("enemy_hit")
+	end
+
+	playPlayerHitFlash()
+	playPlayerHitJolt()
+end
+
 local function pulseEnemy(model, feedbackType)
 	if not model or not model:IsA("Model") or not model:IsDescendantOf(workspace) then
 		return
@@ -299,6 +471,11 @@ EnemyCombatFeedback.OnClientEvent:Connect(function(payload)
 	end
 
 	local feedbackType = payload.type
+	if feedbackType == "player_hit" then
+		playPlayerHitFeedback()
+		return
+	end
+
 	if feedbackType ~= "hit" and feedbackType ~= "defeated" then
 		return
 	end
