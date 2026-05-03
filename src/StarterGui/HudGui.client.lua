@@ -767,6 +767,119 @@ local streakReviveDeclineCorner = Instance.new("UICorner")
 streakReviveDeclineCorner.CornerRadius = UDim.new(0, 8)
 streakReviveDeclineCorner.Parent = streakReviveDeclineButton
 
+local offlineIncomePanel = Instance.new("Frame")
+offlineIncomePanel.Name = "OfflineIncomeReward"
+offlineIncomePanel.AnchorPoint = Vector2.new(0.5, 0.5)
+offlineIncomePanel.Size = UDim2.new(0, 390, 0, 190)
+offlineIncomePanel.Position = UDim2.new(0.5, 0, 0.5, 0)
+offlineIncomePanel.BackgroundColor3 = Color3.fromRGB(24, 20, 18)
+offlineIncomePanel.BackgroundTransparency = 0.04
+offlineIncomePanel.BorderSizePixel = 0
+offlineIncomePanel.Visible = false
+offlineIncomePanel.ZIndex = 76
+offlineIncomePanel.Parent = screenGui
+
+local offlineIncomeCorner = Instance.new("UICorner")
+offlineIncomeCorner.CornerRadius = UDim.new(0, 14)
+offlineIncomeCorner.Parent = offlineIncomePanel
+
+local offlineIncomeStroke = Instance.new("UIStroke")
+offlineIncomeStroke.Color = Color3.fromRGB(255, 200, 50)
+offlineIncomeStroke.Thickness = 2
+offlineIncomeStroke.Parent = offlineIncomePanel
+
+local offlineIncomeTitle = Instance.new("TextLabel")
+offlineIncomeTitle.Name = "Title"
+offlineIncomeTitle.Size = UDim2.new(1, -28, 0, 36)
+offlineIncomeTitle.Position = UDim2.new(0, 14, 0, 12)
+offlineIncomeTitle.BackgroundTransparency = 1
+offlineIncomeTitle.Text = "Welcome back!"
+offlineIncomeTitle.TextColor3 = Color3.fromRGB(255, 200, 50)
+offlineIncomeTitle.TextSize = 24
+offlineIncomeTitle.Font = Enum.Font.GothamBlack
+offlineIncomeTitle.TextXAlignment = Enum.TextXAlignment.Center
+offlineIncomeTitle.ZIndex = 77
+offlineIncomeTitle.Parent = offlineIncomePanel
+
+local offlineIncomeReward = Instance.new("TextLabel")
+offlineIncomeReward.Name = "Reward"
+offlineIncomeReward.Size = UDim2.new(1, -28, 0, 38)
+offlineIncomeReward.Position = UDim2.new(0, 14, 0, 50)
+offlineIncomeReward.BackgroundTransparency = 1
+offlineIncomeReward.Text = "+0 coins"
+offlineIncomeReward.TextColor3 = Color3.fromRGB(255, 230, 110)
+offlineIncomeReward.TextSize = 28
+offlineIncomeReward.Font = Enum.Font.GothamBlack
+offlineIncomeReward.TextXAlignment = Enum.TextXAlignment.Center
+offlineIncomeReward.ZIndex = 77
+offlineIncomeReward.Parent = offlineIncomePanel
+
+local offlineIncomeBody = Instance.new("TextLabel")
+offlineIncomeBody.Name = "Body"
+offlineIncomeBody.Size = UDim2.new(1, -36, 0, 44)
+offlineIncomeBody.Position = UDim2.new(0, 18, 0, 88)
+offlineIncomeBody.BackgroundTransparency = 1
+offlineIncomeBody.Text = "Your crew kept digging while you were away."
+offlineIncomeBody.TextColor3 = Color3.fromRGB(230, 225, 215)
+offlineIncomeBody.TextSize = 15
+offlineIncomeBody.Font = Enum.Font.GothamMedium
+offlineIncomeBody.TextWrapped = true
+offlineIncomeBody.TextXAlignment = Enum.TextXAlignment.Center
+offlineIncomeBody.TextYAlignment = Enum.TextYAlignment.Center
+offlineIncomeBody.ZIndex = 77
+offlineIncomeBody.Parent = offlineIncomePanel
+
+local offlineIncomeCap = Instance.new("TextLabel")
+offlineIncomeCap.Name = "Cap"
+offlineIncomeCap.Size = UDim2.new(1, -36, 0, 22)
+offlineIncomeCap.Position = UDim2.new(0, 18, 0, 130)
+offlineIncomeCap.BackgroundTransparency = 1
+offlineIncomeCap.Text = "Counted 0m of 8h cap"
+offlineIncomeCap.TextColor3 = Color3.fromRGB(180, 170, 150)
+offlineIncomeCap.TextSize = 13
+offlineIncomeCap.Font = Enum.Font.Gotham
+offlineIncomeCap.TextXAlignment = Enum.TextXAlignment.Center
+offlineIncomeCap.ZIndex = 77
+offlineIncomeCap.Parent = offlineIncomePanel
+
+local offlineIncomeClaim = Instance.new("TextButton")
+offlineIncomeClaim.Name = "Claim"
+offlineIncomeClaim.Size = UDim2.new(0, 150, 0, 34)
+offlineIncomeClaim.Position = UDim2.new(0.5, -75, 1, -44)
+offlineIncomeClaim.BackgroundColor3 = Color3.fromRGB(255, 200, 50)
+offlineIncomeClaim.BorderSizePixel = 0
+offlineIncomeClaim.Text = "CLAIMED"
+offlineIncomeClaim.TextColor3 = Color3.fromRGB(40, 20, 0)
+offlineIncomeClaim.TextSize = 15
+offlineIncomeClaim.Font = Enum.Font.GothamBlack
+offlineIncomeClaim.ZIndex = 77
+offlineIncomeClaim.Parent = offlineIncomePanel
+
+local offlineIncomeClaimCorner = Instance.new("UICorner")
+offlineIncomeClaimCorner.CornerRadius = UDim.new(0, 8)
+offlineIncomeClaimCorner.Parent = offlineIncomeClaim
+
+local function showOfflineIncomePopup(summary)
+	if not summary or not summary.reward or summary.reward <= 0 then
+		return
+	end
+
+	local countedDuration = summary.countedDuration or "0m"
+	local capDuration = summary.capDuration or "8h"
+	offlineIncomeReward.Text = "+" .. tostring(summary.reward) .. " coins"
+	offlineIncomeBody.Text = "Offline time counted: " .. countedDuration
+	if summary.hitCap == true then
+		offlineIncomeCap.Text = "You hit the " .. capDuration .. " offline cap."
+	else
+		offlineIncomeCap.Text = "Cap window: " .. capDuration .. " (not reached)."
+	end
+	offlineIncomePanel.Visible = true
+end
+
+offlineIncomeClaim.MouseButton1Click:Connect(function()
+	offlineIncomePanel.Visible = false
+end)
+
 local function refreshStreakRevivePrompt(data)
 	if data then
 		if data.loginStreak ~= nil then
@@ -1542,6 +1655,9 @@ Remotes.UpdateHUD.OnClientEvent:Connect(function(data)
 	end
 	if data.personalBest then
 		-- Could show a star or depth update — handled by notification
+	end
+	if data.offlineIncome then
+		showOfflineIncomePopup(data.offlineIncome)
 	end
 
 	refreshStreakRevivePrompt(data)

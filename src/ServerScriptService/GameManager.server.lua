@@ -245,7 +245,8 @@ local function grantOfflineIncome(player, data)
 		return nil
 	end
 
-	local countedSeconds = math.min(offlineSeconds, getOfflineIncomeCapSeconds(data))
+	local capSeconds = getOfflineIncomeCapSeconds(data)
+	local countedSeconds = math.min(offlineSeconds, capSeconds)
 	local tool = Config.TOOLS[data.toolTier] or Config.TOOLS[1]
 	local toolDamage = tool and tool.damage or 1
 	local coinsPerMinute = toolDamage * Config.OFFLINE_INCOME_COINS_PER_DAMAGE_PER_MINUTE
@@ -261,7 +262,8 @@ local function grantOfflineIncome(player, data)
 	return {
 		reward = reward,
 		countedSeconds = countedSeconds,
-		capSeconds = getOfflineIncomeCapSeconds(data),
+		capSeconds = capSeconds,
+		hitCap = offlineSeconds >= capSeconds,
 	}
 end
 
@@ -275,18 +277,16 @@ local function notifyOfflineIncome(player, data, result)
 			return
 		end
 
-		NotifyEvent:FireClient(
-			player,
-			"Welcome back! You earned " .. result.reward .. " offline coins (" ..
-				formatOfflineDuration(result.countedSeconds) .. " counted, " ..
-				formatOfflineDuration(result.capSeconds) .. " cap).",
-			"Rare"
-		)
-
 		UpdateHUDEvent:FireClient(player, addStandardHudFields({
 			coins = data.coins,
 			totalEarned = data.totalEarned,
 			rebirths = data.rebirths or 0,
+			offlineIncome = {
+				reward = result.reward,
+				countedDuration = formatOfflineDuration(result.countedSeconds),
+				capDuration = formatOfflineDuration(result.capSeconds),
+				hitCap = result.hitCap == true,
+			},
 		}, data, player))
 	end)
 end
