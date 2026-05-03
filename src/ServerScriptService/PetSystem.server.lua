@@ -45,6 +45,9 @@ end
 local NotifyEvent = Remotes:WaitForChild("Notify")
 local UpdateHUDEvent = Remotes:WaitForChild("UpdateHUD")
 
+local ServerEvents = ReplicatedStorage:WaitForChild("ServerEvents")
+local PlayerDataReady = ServerEvents:WaitForChild("PlayerDataReady")
+
 -- ═══════════════════════════════════════════════════════════════════
 -- Player data access (shared cache from GameManager)
 -- ═══════════════════════════════════════════════════════════════════
@@ -85,6 +88,113 @@ local function ensurePetFields(data)
 	else
 		data.equippedPet = false
 	end
+end
+
+-- ═══════════════════════════════════════════════════════════════════
+-- Equipped pet companion visuals
+-- ═══════════════════════════════════════════════════════════════════
+
+local petCompanionsFolder = workspace:FindFirstChild("PetCompanions")
+if not petCompanionsFolder then
+	petCompanionsFolder = Instance.new("Folder")
+	petCompanionsFolder.Name = "PetCompanions"
+	petCompanionsFolder.Parent = workspace
+end
+
+local companionByUserId = {}
+
+local function getCompanionName(player)
+	return "PetCompanion_" .. tostring(player.UserId)
+end
+
+local function removeCompanion(player)
+	local userId = player.UserId
+	local companion = companionByUserId[userId]
+	if companion then
+		companion:Destroy()
+		companionByUserId[userId] = nil
+	end
+
+	local oldCompanion = petCompanionsFolder:FindFirstChild(getCompanionName(player))
+	if oldCompanion then
+		oldCompanion:Destroy()
+	end
+end
+
+local function getOwnedPetById(data, petId)
+	if type(data.pets) ~= "table" or type(petId) ~= "string" then
+		return nil
+	end
+
+	for _, record in ipairs(data.pets) do
+		if type(record) == "table" and record.id == petId then
+			return record
+		end
+	end
+
+	return nil
+end
+
+local function buildCompanion(player, root, owned, petDef)
+	local companion = Instance.new("Part")
+	companion.Name = getCompanionName(player)
+	companion.Shape = Enum.PartType.Ball
+	companion.Size = Vector3.new(1.8, 1.8, 1.8)
+	companion.CFrame = root.CFrame * CFrame.new(2.5, 1.1, 1.5)
+	companion.Anchored = false
+	companion.CanCollide = false
+	companion.CanTouch = false
+	companion.CanQuery = false
+	companion.Massless = true
+	companion.Material = Enum.Material.Neon
+	companion.Color = petDef.color
+	companion.Parent = petCompanionsFolder
+
+	local weld = Instance.new("WeldConstraint")
+	weld.Part0 = root
+	weld.Part1 = companion
+	weld.Parent = companion
+
+	local billboard = Instance.new("BillboardGui")
+	billboard.Name = "PetNameplate"
+	billboard.Size = UDim2.fromOffset(120, 42)
+	billboard.StudsOffset = Vector3.new(0, 1.6, 0)
+	billboard.AlwaysOnTop = true
+	billboard.Parent = companion
+
+	local label = Instance.new("TextLabel")
+	label.Size = UDim2.fromScale(1, 1)
+	label.BackgroundTransparency = 1
+	label.Text = tostring(owned.rarity or petDef.rarity) .. "\n" .. tostring(owned.name)
+	label.TextColor3 = Color3.fromRGB(255, 255, 255)
+	label.TextStrokeTransparency = 0.3
+	label.TextScaled = true
+	label.Font = Enum.Font.GothamBold
+	label.Parent = billboard
+
+	companionByUserId[player.UserId] = companion
+end
+
+local function updateCompanion(player)
+	removeCompanion(player)
+
+	local data = getData(player)
+	if not data then return end
+	ensurePetFields(data)
+
+	local owned = getOwnedPetById(data, data.equippedPet)
+	if not owned then return end
+
+	local petDef = PetDatabase.getPet(owned.name)
+	if not petDef or not petDef.color then return end
+
+	local character = player.Character
+	if not character then return end
+
+	local root = character:FindFirstChild("HumanoidRootPart")
+	if not root then return end
+
+	buildCompanion(player, root, owned, petDef)
 end
 
 local petsByEggAndRarity = {}
@@ -381,6 +491,7 @@ EquipPetEvent.OnServerEvent:Connect(function(player, petId)
 	-- Allow nil/false to clear equip
 	if petId == nil or petId == false or petId == 0 then
 		data.equippedPet = false
+		removeCompanion(player)
 		UpdateHUDEvent:FireClient(player, {
 			equippedPet = false,
 			petCount = #data.pets,
@@ -407,6 +518,7 @@ EquipPetEvent.OnServerEvent:Connect(function(player, petId)
 	end
 
 	data.equippedPet = petId
+	updateCompanion(player)
 
 	local petDef = PetDatabase.getPet(owned.name)
 	local multipliers = petDef and petDef.multipliers
@@ -432,12 +544,47 @@ end)
 -- Init
 -- ═══════════════════════════════════════════════════════════════════
 
+local function onCharacterAdded(player, character)
+	removeCompanion(player)
+
+	task.spawn(function()
+		character:WaitForChild("HumanoidRootPart", 10)
+		if player.Parent and player.Character == character then
+			updateCompanion(player)
+		end
+	end)
+end
+
+local function onPlayerAdded(player)
+	player.CharacterAdded:Connect(function(character)
+		onCharacterAdded(player, character)
+	end)
+
+	if player.Character then
+		onCharacterAdded(player, player.Character)
+	end
+end
+
+PlayerDataReady.Event:Connect(function(player)
+	updateCompanion(player)
+end)
+
+Players.PlayerAdded:Connect(onPlayerAdded)
+
+Players.PlayerRemoving:Connect(function(player)
+	removeCompanion(player)
+end)
+
 -- Make sure existing online players (e.g. on hot-reload) get pet fields.
 for _, player in ipairs(Players:GetPlayers()) do
+	onPlayerAdded(player)
+
 	local data = getData(player)
 	if data then
 		ensurePetFields(data)
 	end
+
+	updateCompanion(player)
 end
 
 print(string.format(
