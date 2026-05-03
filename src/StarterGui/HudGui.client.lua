@@ -196,6 +196,7 @@ local currentStreakReviveEligible = false
 local currentStreakRevivePending = false
 local currentStreakReviveBaseStreak = 0
 local currentStreakRevivePrice = 50
+local currentStreakReviveProductAvailable = Config.isStreakReviveProductIdValid(Config.STREAK_REVIVE_PRODUCT_ID)
 
 -- ─── Gamepass badge row ──────────────────────────────────────────────────────
 -- Small pills shown when a gamepass is active.
@@ -631,7 +632,10 @@ local function refreshStreakLabel()
 	if currentLoginStreak > 0 then
 		local day = (currentLoginStreak - 1) % 7 + 1
 		local emoji = day == 7 and "🏆" or "🔥"
-		local reviveSuffix = currentStreakReviveEligible and currentStreakRevivePending and " • Revive ready" or ""
+		local reviveSuffix = ""
+		if currentStreakReviveEligible and currentStreakRevivePending then
+			reviveSuffix = currentStreakReviveProductAvailable and " • Revive ready" or " • Revive unavailable"
+		end
 		streakLabel.Text = emoji .. " Streak: Day " .. day .. " (×" .. currentLoginStreak .. ")" .. reviveSuffix
 	else
 		streakLabel.Text = "🔥 Streak: –"
@@ -780,6 +784,9 @@ local function refreshStreakRevivePrompt(data)
 		if data.streakRevivePrice ~= nil then
 			currentStreakRevivePrice = data.streakRevivePrice
 		end
+		if data.streakReviveProductAvailable ~= nil then
+			currentStreakReviveProductAvailable = data.streakReviveProductAvailable == true
+		end
 	end
 
 	refreshStreakLabel()
@@ -796,9 +803,21 @@ local function refreshStreakRevivePrompt(data)
 	local cycle = streak > 0 and math.floor((streak - 1) / 7) + 1 or 1
 
 	streakReviveTitle.Text = "🔥 Streak Revive"
-	streakReviveBody.Text = "You missed one day. Revive your streak for " .. currentStreakRevivePrice .. " Robux to keep your momentum and today's reward."
+	if currentStreakReviveProductAvailable then
+		streakReviveBody.Text = "You missed one day. Revive your streak for " .. currentStreakRevivePrice .. " Robux to keep your momentum and today's reward."
+	else
+		streakReviveBody.Text = "You missed one day. Streak revive purchases are unavailable right now. Start over to claim today's reward."
+	end
 	streakReviveDetail.Text = "Current streak: Day " .. day .. " (×" .. streak .. ", Cycle " .. cycle .. ")"
-	streakReviveBuyButton.Text = "Revive for " .. currentStreakRevivePrice .. " Robux"
+	if currentStreakReviveProductAvailable then
+		streakReviveBuyButton.Text = "Revive for " .. currentStreakRevivePrice .. " Robux"
+		streakReviveBuyButton.BackgroundColor3 = Color3.fromRGB(255, 200, 50)
+		streakReviveBuyButton.TextColor3 = Color3.fromRGB(40, 20, 0)
+	else
+		streakReviveBuyButton.Text = "Revive unavailable"
+		streakReviveBuyButton.BackgroundColor3 = Color3.fromRGB(90, 85, 78)
+		streakReviveBuyButton.TextColor3 = Color3.fromRGB(210, 205, 195)
+	end
 end
 
 streakReviveBuyButton.MouseButton1Click:Connect(function()

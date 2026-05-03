@@ -18,6 +18,7 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local MarketplaceService = game:GetService("MarketplaceService")
 
+local Config = require(ReplicatedStorage:WaitForChild("Config"))
 local ItemDatabase = require(ReplicatedStorage:WaitForChild("ItemDatabase"))
 
 local Remotes = ReplicatedStorage:WaitForChild("Remotes")
@@ -32,8 +33,12 @@ if not RequestStreakReviveEvent then
 	RequestStreakReviveEvent.Parent = Remotes
 end
 
-local STREAK_REVIVE_PRODUCT_ID = 1234567890 -- TODO replace placeholder before launch
-local STREAK_REVIVE_PRICE = 50
+local STREAK_REVIVE_PRODUCT_ID = Config.STREAK_REVIVE_PRODUCT_ID
+local STREAK_REVIVE_PRICE = Config.STREAK_REVIVE_PRICE
+
+local function isStreakReviveProductAvailable()
+	return Config.isStreakReviveProductIdValid(STREAK_REVIVE_PRODUCT_ID)
+end
 
 -- ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -204,6 +209,7 @@ local function getStreakHudPayload(data)
 		streakRevivePending = data.streakRevivePending == true,
 		streakReviveBaseStreak = data.streakReviveBaseStreak or 0,
 		streakRevivePrice = STREAK_REVIVE_PRICE,
+		streakReviveProductAvailable = isStreakReviveProductAvailable(),
 	}
 end
 
@@ -320,11 +326,19 @@ local function processLoginStreak(player)
 		data.streakReviveBaseStreak = data.loginStreak or 0
 		data.streakReviveOfferDate = today
 		applyStreakHudUpdate(player, data)
-		NotifyEvent:FireClient(
-			player,
-			"Missed one day. Revive your streak for 50 Robux to keep your momentum.",
-			"Epic"
-		)
+		if isStreakReviveProductAvailable() then
+			NotifyEvent:FireClient(
+				player,
+				"Missed one day. Revive your streak for " .. STREAK_REVIVE_PRICE .. " Robux to keep your momentum.",
+				"Epic"
+			)
+		else
+			NotifyEvent:FireClient(
+				player,
+				"Missed one day. Streak revive purchases are unavailable right now; start over to claim today's reward.",
+				"Rare"
+			)
+		end
 		return
 	else
 		-- Missed one or more days (or first ever login) — reset to 1
@@ -367,7 +381,7 @@ end
 -- is the only script in this game that sets it (confirmed via codebase
 -- grep), so we don't need to chain through to a previous handler.
 MarketplaceService.ProcessReceipt = function(receiptInfo)
-	if receiptInfo.ProductId ~= STREAK_REVIVE_PRODUCT_ID then
+	if not isStreakReviveProductAvailable() or receiptInfo.ProductId ~= STREAK_REVIVE_PRODUCT_ID then
 		return Enum.ProductPurchaseDecision.NotProcessedYet
 	end
 
@@ -398,6 +412,16 @@ RequestStreakReviveEvent.OnServerEvent:Connect(function(player, action)
 
 	if action ~= "buy" then return end
 	if not data.streakReviveEligible then return end
+
+	if not isStreakReviveProductAvailable() then
+		applyStreakHudUpdate(player, data)
+		NotifyEvent:FireClient(
+			player,
+			"Streak revive purchases are unavailable right now. Start over to claim today's reward.",
+			"Rare"
+		)
+		return
+	end
 
 	MarketplaceService:PromptProductPurchase(player, STREAK_REVIVE_PRODUCT_ID)
 end)

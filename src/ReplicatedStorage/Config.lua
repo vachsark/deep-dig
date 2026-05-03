@@ -54,10 +54,19 @@ Config.GAMEPASS_ARTIFACT_DETECTOR_ID = 7
 Config.GAMEPASS_ARTIFACT_DETECTOR = "artifact_detector"
 Config.GAMEPASS_REBIRTH_BOOST_ID = 8
 Config.GAMEPASS_REBIRTH_BOOST = "rebirth_boost"
+Config.STREAK_REVIVE_PRODUCT_ID = 1234567890 -- Placeholder; not launch-ready. Replace with a real Developer Product ID.
+Config.STREAK_REVIVE_PLACEHOLDER_PRODUCT_ID = 1234567890
+Config.STREAK_REVIVE_PRICE = 50
 Config.OFFLINE_INCOME_COINS_PER_DAMAGE_PER_MINUTE = 6
 Config.OFFLINE_INCOME_MIN_SECONDS = 5 * 60
 Config.OFFLINE_INCOME_DEFAULT_CAP_SECONDS = 8 * 60 * 60
 Config.OFFLINE_INCOME_FOREMAN_CAP_SECONDS = 24 * 60 * 60
+
+function Config.isStreakReviveProductIdValid(productId)
+	return type(productId) == "number"
+		and productId ~= 0
+		and productId ~= Config.STREAK_REVIVE_PLACEHOLDER_PRODUCT_ID
+end
 
 -- Digging crews
 Config.CREW_MAX_SIZE = 10
