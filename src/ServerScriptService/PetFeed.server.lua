@@ -12,6 +12,8 @@
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
+local PetDatabase = require(ReplicatedStorage:WaitForChild("PetDatabase"))
+
 local Remotes = ReplicatedStorage:WaitForChild("Remotes")
 
 local FeedPetEvent = Remotes:FindFirstChild("FeedPet")
@@ -55,6 +57,45 @@ local XP_BY_RARITY = {
 
 local function xpGainFor(sacrifice)
 	return XP_BY_RARITY[sacrifice.rarity] or 100
+end
+
+local function copyMultipliers(multipliers)
+	local copy = {}
+	if type(multipliers) ~= "table" then
+		return copy
+	end
+
+	for key, value in pairs(multipliers) do
+		if type(value) == "number" then
+			copy[key] = value
+		end
+	end
+
+	return copy
+end
+
+local function bumpMultipliersForLevel(multipliers, levels)
+	if type(multipliers) ~= "table" then
+		return
+	end
+
+	for _ = 1, levels do
+		for key, value in pairs(multipliers) do
+			if type(value) == "number" then
+				multipliers[key] = math.min(value + MULTIPLIER_PER_LEVEL, MULTIPLIER_CAP)
+			end
+		end
+	end
+end
+
+local function ensurePetMultipliers(record)
+	if type(record.multipliers) == "table" then
+		return
+	end
+
+	local petDef = PetDatabase.getPet(record.name)
+	record.multipliers = copyMultipliers(petDef and petDef.multipliers)
+	bumpMultipliersForLevel(record.multipliers, math.max((record.level or 1) - 1, 0))
 end
 
 -- ═══════════════════════════════════════════════════════════════════
@@ -127,6 +168,7 @@ FeedPetEvent.OnServerEvent:Connect(function(player, targetPetId, sacrificePetId)
 	-- before PetFeed shipped) only have level=1 set by PetSystem.
 	target.level = target.level or 1
 	target.xp = target.xp or 0
+	ensurePetMultipliers(target)
 
 	-- Already capped — refuse the consume so players don't accidentally
 	-- delete a duplicate they could trade or save for a fragment system.
@@ -146,17 +188,7 @@ FeedPetEvent.OnServerEvent:Connect(function(player, targetPetId, sacrificePetId)
 		target.level = target.level + 1
 
 		-- Each level adds +5% to all existing multipliers (capped at 5x).
-		-- target.multipliers may be nil on records hatched before the
-		-- multiplier-on-record migration; in that case GameManager
-		-- resolves multipliers via PetDatabase.getPet(name) at apply time
-		-- and we skip the per-record bump here.
-		if type(target.multipliers) == "table" then
-			for k, v in pairs(target.multipliers) do
-				if type(v) == "number" then
-					target.multipliers[k] = math.min(v + MULTIPLIER_PER_LEVEL, MULTIPLIER_CAP)
-				end
-			end
-		end
+		bumpMultipliersForLevel(target.multipliers, 1)
 	end
 
 	-- Clamp leftover xp at the cap so the bar reads "MAX" cleanly.

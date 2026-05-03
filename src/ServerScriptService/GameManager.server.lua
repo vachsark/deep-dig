@@ -7,6 +7,7 @@ local DataStoreService = game:GetService("DataStoreService")
 
 local Config = require(ReplicatedStorage:WaitForChild("Config"))
 local ItemDatabase = require(ReplicatedStorage:WaitForChild("ItemDatabase"))
+local PetDatabase = require(ReplicatedStorage:WaitForChild("PetDatabase"))
 
 -- DataStore for persistence. In unpublished Studio places GetDataStore can
 -- throw "You must publish this place to the web" — wrap so GameManager keeps
@@ -687,6 +688,25 @@ local function getResurfaceLootMultiplier(data)
 	return 1 + (rebirths * bonusPerRebirth)
 end
 
+local function getEquippedPetMultipliers(data)
+	if not data or not data.equippedPet or type(data.pets) ~= "table" then
+		return nil
+	end
+
+	for _, record in ipairs(data.pets) do
+		if type(record) == "table" and record.id == data.equippedPet then
+			if type(record.multipliers) == "table" then
+				return record.multipliers
+			end
+
+			local petDef = PetDatabase.getPet(record.name)
+			return petDef and petDef.multipliers
+		end
+	end
+
+	return nil
+end
+
 local function isEventActive(effectName)
 	local endTick = activeEvents[effectName]
 	return endTick and tick() < endTick
@@ -907,30 +927,12 @@ BlockBrokenEvent.Event:Connect(function(player, blockPosition)
 		end
 	end
 
-	-- ── Equipped-pet multipliers ───────────────────────────────────
-	-- Look up the equipped pet once per dig. PetSystem stores either
-	-- the petId (number) in data.equippedPet, or false/nil for none.
-	-- The pet record on the player only holds `name` (canonical key
-	-- into PetDatabase), so we resolve owned-pet → name → pet def.
-	-- dig_speed multiplier is consumed by DigSystem.server.lua via data.equippedPet (TODO: wire reads on the dig side)
 	local petLuck = 1
 	local petLoot = 1
-	if data.equippedPet and data.pets then
-		local equippedName
-		for _, record in ipairs(data.pets) do
-			if record.id == data.equippedPet then
-				equippedName = record.name
-				break
-			end
-		end
-		if equippedName then
-			local PetDatabase = require(ReplicatedStorage:WaitForChild("PetDatabase"))
-			local equippedPet = PetDatabase.getPet(equippedName)
-			if equippedPet and equippedPet.multipliers then
-				petLuck = equippedPet.multipliers.luck or 1
-				petLoot = equippedPet.multipliers.loot_value or 1
-			end
-		end
+	local petMultipliers = getEquippedPetMultipliers(data)
+	if petMultipliers then
+		petLuck = petMultipliers.luck or 1
+		petLoot = petMultipliers.loot_value or 1
 	end
 	-- Defensive caps so a future config typo can't break the economy.
 	petLuck = math.min(petLuck, 5)

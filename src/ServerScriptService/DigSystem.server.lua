@@ -16,25 +16,24 @@ local function getEquippedPetDigSpeed(data)
 		return 1
 	end
 
-	local equippedName
 	for _, record in ipairs(data.pets) do
 		if type(record) == "table" and record.id == data.equippedPet then
-			equippedName = record.name
-			break
+			local multipliers = type(record.multipliers) == "table" and record.multipliers
+			if not multipliers then
+				local petDef = PetDatabase.getPet(record.name)
+				multipliers = petDef and petDef.multipliers
+			end
+
+			local digSpeed = multipliers and multipliers.dig_speed
+			if type(digSpeed) ~= "number" then
+				return 1
+			end
+
+			return math.min(digSpeed, 5)
 		end
 	end
 
-	if not equippedName then
-		return 1
-	end
-
-	local petDef = PetDatabase.getPet(equippedName)
-	local digSpeed = petDef and petDef.multipliers and petDef.multipliers.dig_speed
-	if type(digSpeed) ~= "number" then
-		return 1
-	end
-
-	return math.min(digSpeed, 5)
+	return 1
 end
 
 local function getFriendDigSpeed(player)

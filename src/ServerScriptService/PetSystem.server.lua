@@ -58,6 +58,21 @@ local function getData(player)
 	return cache[player.UserId]
 end
 
+local function copyMultipliers(multipliers)
+	local copy = {}
+	if type(multipliers) ~= "table" then
+		return copy
+	end
+
+	for key, value in pairs(multipliers) do
+		if type(value) == "number" then
+			copy[key] = value
+		end
+	end
+
+	return copy
+end
+
 -- New players won't have `pets` / `equippedPet` until DEFAULT_DATA is
 -- updated in GameManager. Initialize lazily so we don't depend on edits
 -- to GameManager landing first (multi-agent safe).
@@ -427,6 +442,7 @@ function awardHatch(player, eggType, options)
 		name = pet.name,
 		rarity = pet.rarity,
 		egg = pet.egg,
+		multipliers = copyMultipliers(pet.multipliers),
 		level = 1,
 		acquiredAt = os.time(),
 	}
@@ -521,12 +537,12 @@ EquipPetEvent.OnServerEvent:Connect(function(player, petId)
 	updateCompanion(player)
 
 	local petDef = PetDatabase.getPet(owned.name)
-	local multipliers = petDef and petDef.multipliers
+	local multipliers = type(owned.multipliers) == "table" and owned.multipliers
+		or petDef and petDef.multipliers
 		or { dig_speed = 1.0, loot_value = 1.0, luck = 1.0 }
 
-	-- TODO: GameManager's BlockBrokenEvent must read data.equippedPet and
-	-- apply petDef.multipliers to dropChance (luck), tool dig speed, and
-	-- sellValue (loot_value). Out of scope for this scaffold.
+	-- Equipped pet payload mirrors the server-side record so fed pets show
+	-- their leveled multipliers instead of the base database values.
 
 	UpdateHUDEvent:FireClient(player, {
 		equippedPet = petId,
