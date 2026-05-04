@@ -12,6 +12,7 @@ local Remotes = ReplicatedStorage:WaitForChild("Remotes")
 local ServerEvents = ReplicatedStorage:WaitForChild("ServerEvents")
 local PlayerDataReady = ServerEvents:WaitForChild("PlayerDataReady")
 local ItemFoundBindable = ServerEvents:WaitForChild("ItemFoundBindable")
+local NotifyEvent = Remotes:WaitForChild("Notify")
 local EnemyKilledBindable = ServerEvents:FindFirstChild("EnemyKilledBindable")
 if not EnemyKilledBindable then
 	EnemyKilledBindable = Instance.new("BindableEvent")
@@ -121,7 +122,7 @@ end
 local function addItemReward(player, data, tierName)
 	local item = ItemDatabase.rollItem(tierName)
 	if not item then
-		return
+		return nil
 	end
 
 	local inventoryItem = {
@@ -149,7 +150,21 @@ local function addItemReward(player, data, tierName)
 			ItemFoundEvent:FireClient(player, item)
 		end
 		ItemFoundBindable:Fire(player, item)
+		return item
 	end
+
+	return nil
+end
+
+local function notifyEnemyReward(player, enemyName, enemy, itemReward)
+	local message = "Defeated " .. enemyName
+		.. ": +" .. enemy.coinDrop .. " coins"
+		.. ", +" .. enemy.fragmentDrop .. " fragments"
+	if itemReward then
+		message = message .. ", found " .. itemReward.name
+	end
+
+	NotifyEvent:FireClient(player, message, enemy.isMiniboss and "Legendary" or "Rare")
 end
 
 local function removeEnemyRecord(record)
@@ -200,11 +215,18 @@ local function payEnemyReward(record)
 	fireQuestProgress(player, "kill_enemies", { amount = 1 })
 	EnemyKilledBindable:Fire(player, enemy)
 
+	local itemReward = nil
 	if math.random() < enemy.itemDropChance then
-		addItemReward(player, data, record.tierName)
+		itemReward = addItemReward(player, data, record.tierName)
 	end
 
 	updateRewardHud(player, data)
+	notifyEnemyReward(
+		player,
+		record.model:GetAttribute("EnemyName") or enemy.name,
+		enemy,
+		itemReward
+	)
 end
 
 local function fireEnemyCombatFeedback(player, feedbackType, model)
