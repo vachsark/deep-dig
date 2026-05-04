@@ -13,13 +13,17 @@ local EnemyCombatFeedback = Remotes:WaitForChild("EnemyCombatFeedback")
 local LOCAL_PLAY_SOUND_NAME = "DeepDigLocalPlaySound"
 
 local HEALTH_BAR_NAME = "DeepDigEnemyHealthBar"
+local AGGRO_WARNING_NAME = "DeepDigEnemyAggroWarning"
 local MAX_DISTANCE = 80
 local BAR_WIDTH = 120
 local BAR_HEIGHT = 36
 local HIT_COLOR = Color3.fromRGB(255, 245, 160)
 local DEFEAT_COLOR = Color3.fromRGB(255, 95, 70)
+local AGGRO_COLOR = Color3.fromRGB(255, 175, 45)
 local HIT_SCALE = 1.08
 local DEFEAT_SCALE = 1.16
+local AGGRO_SCALE = 1.12
+local AGGRO_WARNING_DURATION = 0.58
 local PLAYER_HIT_DISPLAY_ORDER = 80
 local PLAYER_HIT_FLASH_TRANSPARENCY = 0.48
 local PLAYER_HIT_FLASH_FADE = 0.2
@@ -92,6 +96,12 @@ local function cleanupEnemy(model)
 		if record.gui and record.gui.Parent then
 			record.gui:Destroy()
 		end
+	end
+
+	local root = model and model:FindFirstChild("HumanoidRootPart")
+	local aggroWarning = root and root:FindFirstChild(AGGRO_WARNING_NAME)
+	if aggroWarning then
+		aggroWarning:Destroy()
 	end
 
 	local feedbackRecord = activeFeedback[model]
@@ -416,6 +426,82 @@ local function playPlayerHitFeedback()
 	playPlayerHitJolt()
 end
 
+local function showAggroWarning(model)
+	if not model or not model:IsA("Model") or not model:IsDescendantOf(workspace) then
+		return
+	end
+
+	local root = model:FindFirstChild("HumanoidRootPart")
+	if not root or not root:IsA("BasePart") then
+		return
+	end
+
+	local existing = root:FindFirstChild(AGGRO_WARNING_NAME)
+	if existing then
+		existing:Destroy()
+	end
+
+	local billboard = Instance.new("BillboardGui")
+	billboard.Name = AGGRO_WARNING_NAME
+	billboard.Adornee = root
+	billboard.AlwaysOnTop = true
+	billboard.MaxDistance = MAX_DISTANCE
+	billboard.Size = UDim2.fromOffset(38, 38)
+	billboard.StudsOffset = Vector3.new(0, 4.7, 0)
+	billboard.Parent = root
+
+	local label = Instance.new("TextLabel")
+	label.Name = "Warning"
+	label.Size = UDim2.fromScale(1, 1)
+	label.BackgroundTransparency = 1
+	label.Text = "!"
+	label.TextColor3 = AGGRO_COLOR
+	label.TextStrokeTransparency = 0.2
+	label.TextSize = 32
+	label.Font = Enum.Font.GothamBlack
+	label.Parent = billboard
+
+	local stroke = Instance.new("UIStroke")
+	stroke.Color = Color3.fromRGB(80, 22, 12)
+	stroke.Transparency = 0.12
+	stroke.Thickness = 2
+	stroke.Parent = label
+
+	local moveTween = TweenService:Create(billboard, TweenInfo.new(
+		AGGRO_WARNING_DURATION,
+		Enum.EasingStyle.Back,
+		Enum.EasingDirection.Out
+	), {
+		Size = UDim2.fromOffset(62, 62),
+		StudsOffset = Vector3.new(0, 5.45, 0),
+	})
+	local fadeTween = TweenService:Create(label, TweenInfo.new(
+		AGGRO_WARNING_DURATION,
+		Enum.EasingStyle.Quad,
+		Enum.EasingDirection.Out
+	), {
+		TextTransparency = 1,
+		TextStrokeTransparency = 1,
+	})
+	local strokeTween = TweenService:Create(stroke, TweenInfo.new(
+		AGGRO_WARNING_DURATION,
+		Enum.EasingStyle.Quad,
+		Enum.EasingDirection.Out
+	), {
+		Transparency = 1,
+	})
+
+	moveTween:Play()
+	fadeTween:Play()
+	strokeTween:Play()
+
+	task.delay(AGGRO_WARNING_DURATION + 0.05, function()
+		if billboard.Parent then
+			billboard:Destroy()
+		end
+	end)
+end
+
 local function pulseEnemy(model, feedbackType)
 	if not model or not model:IsA("Model") or not model:IsDescendantOf(workspace) then
 		return
@@ -441,12 +527,29 @@ local function pulseEnemy(model, feedbackType)
 	root.Transparency = record.baselineTransparency
 
 	local isDefeated = feedbackType == "defeated"
-	root.Color = isDefeated and DEFEAT_COLOR or HIT_COLOR
+	local isAggro = feedbackType == "aggro"
+	local pulseColor = HIT_COLOR
+	local pulseScale = HIT_SCALE
+	local pulseDuration = 0.16
+	local restoreDelay = 0.3
+	if isDefeated then
+		pulseColor = DEFEAT_COLOR
+		pulseScale = DEFEAT_SCALE
+		pulseDuration = 0.28
+		restoreDelay = 0.45
+	elseif isAggro then
+		pulseColor = AGGRO_COLOR
+		pulseScale = AGGRO_SCALE
+		pulseDuration = 0.24
+		restoreDelay = 0.4
+	end
+
+	root.Color = pulseColor
 	root.Material = Enum.Material.Neon
-	root.Size = record.baselineSize * (isDefeated and DEFEAT_SCALE or HIT_SCALE)
+	root.Size = record.baselineSize * pulseScale
 
 	record.tween = TweenService:Create(root, TweenInfo.new(
-		isDefeated and 0.28 or 0.16,
+		pulseDuration,
 		Enum.EasingStyle.Quad,
 		Enum.EasingDirection.Out
 	), {
@@ -460,7 +563,7 @@ local function pulseEnemy(model, feedbackType)
 		restoreFeedback(model, record, token)
 	end)
 
-	task.delay(isDefeated and 0.45 or 0.3, function()
+	task.delay(restoreDelay, function()
 		restoreFeedback(model, record, token)
 	end)
 end
@@ -476,12 +579,20 @@ EnemyCombatFeedback.OnClientEvent:Connect(function(payload)
 		return
 	end
 
-	if feedbackType ~= "hit" and feedbackType ~= "defeated" then
+	if feedbackType ~= "hit" and feedbackType ~= "defeated" and feedbackType ~= "aggro" then
 		return
 	end
 
 	if LocalPlaySound and LocalPlaySound:IsA("BindableEvent") then
-		LocalPlaySound:Fire(feedbackType == "defeated" and "enemy_defeated" or "enemy_hit")
+		if feedbackType == "aggro" then
+			LocalPlaySound:Fire("enemy_aggro")
+		else
+			LocalPlaySound:Fire(feedbackType == "defeated" and "enemy_defeated" or "enemy_hit")
+		end
+	end
+
+	if feedbackType == "aggro" then
+		showAggroWarning(payload.model)
 	end
 
 	pulseEnemy(payload.model, feedbackType)

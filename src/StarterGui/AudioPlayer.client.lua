@@ -70,6 +70,11 @@ local SOUNDS = {
 		volume = 0.55,
 		pitchRange = { 1.05, 1.16 },
 	},
+	enemy_aggro = {
+		id = "rbxassetid://5982968246", -- short warning horn
+		volume = 0.45,
+		playbackSpeed = 1.35,
+	},
 	enemy_defeated = {
 		id = "rbxassetid://5852285683", -- stronger defeated cue
 		volume = 0.85,

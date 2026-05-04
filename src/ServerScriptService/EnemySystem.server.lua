@@ -392,6 +392,7 @@ local function spawnEnemyForPlayer(player)
 		nextWanderAt = 0,
 		lastAttacker = nil,
 		dead = false,
+		inAggroRange = false,
 		nextTouchDamageAtByUserId = {},
 	}
 
@@ -491,12 +492,20 @@ task.spawn(function()
 					local distanceToOwner = (ownerRoot.Position - enemyPosition).Magnitude
 					local aggroRange = record.enemy.aggroRange or 16
 					local targetPosition = nil
+					local inAggroRange = distanceToOwner <= aggroRange
 
-					if distanceToOwner <= aggroRange then
+					if inAggroRange then
+						if not record.inAggroRange then
+							fireEnemyCombatFeedback(record.owner, "aggro", record.model)
+						end
+						record.inAggroRange = true
 						targetPosition = ownerRoot.Position
 					elseif os.clock() >= (record.nextWanderAt or 0) then
+						record.inAggroRange = false
 						targetPosition = getWanderPosition(record.homePosition or enemyPosition)
 						record.nextWanderAt = os.clock() + IDLE_WANDER_INTERVAL
+					else
+						record.inAggroRange = false
 					end
 
 					record.humanoid.WalkSpeed = record.enemy.walkSpeed
