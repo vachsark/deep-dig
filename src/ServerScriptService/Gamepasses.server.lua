@@ -124,6 +124,18 @@ local function isValidPassId(passId)
 	return type(passId) == "number" and passId > 0
 end
 
+local function isPassAvailable(pass)
+	return pass and Config.isGamepassIdAvailable(pass.id)
+end
+
+local function isPassOwned(ownedGamepasses, pass)
+	if not ownedGamepasses or not pass then
+		return false
+	end
+
+	return ownedGamepasses[pass.id] == true or (pass.key and ownedGamepasses[pass.key] == true)
+end
+
 local function syncPassOwnership(data, pass, owned)
 	if not data.ownedGamepasses then
 		data.ownedGamepasses = {}
@@ -195,6 +207,10 @@ end
 
 -- Check a single gamepass. Returns true/false. Wraps in pcall.
 local function ownsPass(player, passId)
+	if not Config.isGamepassIdAvailable(passId) then
+		return false
+	end
+
 	local ok, result = pcall(function()
 		return MarketplaceService:UserOwnsGamePassAsync(player.UserId, passId)
 	end)
@@ -213,7 +229,7 @@ local function getAutoPromptPass(data)
 	end
 
 	for _, pass in ipairs(GAMEPASSES) do
-		if isValidPassId(pass.id) and ownedGamepasses[pass.id] ~= true then
+		if isValidPassId(pass.id) and isPassAvailable(pass) and not isPassOwned(ownedGamepasses, pass) then
 			return pass
 		end
 	end
@@ -240,7 +256,7 @@ local function scheduleAutoPrompt(player)
 
 		local data = getSharedData(player)
 		local pass = getAutoPromptPass(data)
-		if not pass then
+		if not pass or not isPassAvailable(pass) then
 			autoPromptSessions[player] = nil
 			return
 		end
@@ -307,7 +323,17 @@ local function checkPassesForPlayer(player)
 
 	local owned = {}
 	for _, pass in ipairs(GAMEPASSES) do
-		if isValidPassId(pass.id) and ownsPass(player, pass.id) then
+		if not isPassAvailable(pass) then
+			if isPassOwned(data.ownedGamepasses, pass) then
+				table.insert(owned, pass.name)
+
+				if pass.tag == "VIP" then
+					task.spawn(applyVIPTag, player)
+				elseif pass.key == Config.GAMEPASS_LUCKY_EGG then
+					announceLuckyEgg(player)
+				end
+			end
+		elseif isValidPassId(pass.id) and ownsPass(player, pass.id) then
 			syncPassOwnership(data, pass, true)
 			table.insert(owned, pass.name)
 
@@ -380,11 +406,14 @@ PromptPassEvent.Parent = Remotes
 
 PromptPassEvent.OnServerEvent:Connect(function(player, passId)
 	-- Validate passId exists in our table
-	local valid = false
+	local requestedPass = nil
 	for _, pass in ipairs(GAMEPASSES) do
-		if isValidPassId(pass.id) and pass.id == passId then valid = true break end
+		if isValidPassId(pass.id) and pass.id == passId then
+			requestedPass = pass
+			break
+		end
 	end
-	if not valid then return end
+	if not requestedPass or not isPassAvailable(requestedPass) then return end
 
 	MarketplaceService:PromptGamePassPurchase(player, passId)
 end)
@@ -394,6 +423,7 @@ end)
 
 MarketplaceService.PromptGamePassPurchaseFinished:Connect(function(player, passId, wasPurchased)
 	if not wasPurchased then return end
+	if not Config.isGamepassIdAvailable(passId) then return end
 
 	local data = getSharedData(player)
 	if not data then return end
@@ -437,6 +467,8 @@ GetPassInfoFunc.OnServerInvoke = function(player)
 
 	local result = {}
 	for _, pass in ipairs(GAMEPASSES) do
+		local available = isPassAvailable(pass)
+		local ownedPass = isPassOwned(owned, pass)
 		table.insert(result, {
 			id = pass.id,
 			name = pass.name,
@@ -444,7 +476,10 @@ GetPassInfoFunc.OnServerInvoke = function(player)
 			icon = pass.icon,
 			price = pass.price,
 			tag = pass.tag,
-			owned = owned[pass.id] == true or (pass.key and owned[pass.key] == true),
+			owned = ownedPass,
+			available = available,
+			status = available and (ownedPass and "owned" or "buyable") or "unavailable",
+			unavailableReason = available and nil or Config.UNAVAILABLE_GAMEPASS_LABEL,
 		})
 	end
 	return result

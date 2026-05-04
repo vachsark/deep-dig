@@ -1362,13 +1362,46 @@ cardsLayout.Parent = cardsFrame
 
 local passCards = {} -- passId → { frame, buyBtn, statusLabel }
 
+local function isPassInfoAvailable(passInfo)
+	return passInfo.available ~= false and passInfo.status ~= "unavailable"
+end
+
+local function setCardButtonState(card)
+	if not card.available then
+		card.buyBtn.Text = card.unavailableReason or Config.UNAVAILABLE_GAMEPASS_LABEL
+		card.buyBtn.BackgroundColor3 = Color3.fromRGB(78, 76, 88)
+		card.buyBtn.TextColor3 = Color3.fromRGB(180, 176, 195)
+		card.buyBtn.Active = false
+		card.buyBtn.AutoButtonColor = false
+		card.buyBtn.Selectable = false
+		return
+	end
+
+	if card.owned then
+		card.buyBtn.Text = "✓ Owned"
+		card.buyBtn.BackgroundColor3 = Color3.fromRGB(40, 120, 40)
+		card.buyBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+		card.buyBtn.Active = false
+		card.buyBtn.AutoButtonColor = false
+		card.buyBtn.Selectable = false
+	else
+		card.buyBtn.Text = "R$ " .. tostring(card.price)
+		card.buyBtn.BackgroundColor3 = card.color
+		card.buyBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+		card.buyBtn.Active = true
+		card.buyBtn.AutoButtonColor = true
+		card.buyBtn.Selectable = true
+	end
+end
+
 local function buildPassCard(passInfo)
 	local passUi = getPassUiStyle(passInfo.id)
+	local available = isPassInfoAvailable(passInfo)
 
 	local card = Instance.new("Frame")
 	card.Name = "Card_" .. passInfo.id
 	card.Size = UDim2.new(1, 0, 0, 70)
-	card.BackgroundColor3 = Color3.fromRGB(28, 24, 40)
+	card.BackgroundColor3 = available and Color3.fromRGB(28, 24, 40) or Color3.fromRGB(32, 31, 38)
 	card.BackgroundTransparency = 0
 	card.BorderSizePixel = 0
 	card.LayoutOrder = passInfo.id
@@ -1382,7 +1415,7 @@ local function buildPassCard(passInfo)
 	-- Left accent strip
 	local strip = Instance.new("Frame")
 	strip.Size = UDim2.new(0, 6, 1, 0)
-	strip.BackgroundColor3 = passUi.color
+	strip.BackgroundColor3 = available and passUi.color or Color3.fromRGB(92, 90, 104)
 	strip.BorderSizePixel = 0
 	strip.ZIndex = 12
 	strip.Parent = card
@@ -1397,7 +1430,7 @@ local function buildPassCard(passInfo)
 	nameLabel.Position = UDim2.new(0, 14, 0, 8)
 	nameLabel.BackgroundTransparency = 1
 	nameLabel.Text = passInfo.name
-	nameLabel.TextColor3 = Color3.fromRGB(240, 230, 255)
+	nameLabel.TextColor3 = available and Color3.fromRGB(240, 230, 255) or Color3.fromRGB(190, 186, 205)
 	nameLabel.TextSize = 16
 	nameLabel.Font = Enum.Font.GothamBlack
 	nameLabel.TextXAlignment = Enum.TextXAlignment.Left
@@ -1410,7 +1443,7 @@ local function buildPassCard(passInfo)
 	descLabel.Position = UDim2.new(0, 14, 0, 32)
 	descLabel.BackgroundTransparency = 1
 	descLabel.Text = passInfo.description
-	descLabel.TextColor3 = Color3.fromRGB(170, 160, 190)
+	descLabel.TextColor3 = available and Color3.fromRGB(170, 160, 190) or Color3.fromRGB(135, 132, 150)
 	descLabel.TextSize = 12
 	descLabel.Font = Enum.Font.Gotham
 	descLabel.TextXAlignment = Enum.TextXAlignment.Left
@@ -1436,13 +1469,27 @@ local function buildPassCard(passInfo)
 	buyBtnCorner.CornerRadius = UDim.new(0, 8)
 	buyBtnCorner.Parent = buyBtn
 
+	local cardState = {
+		frame = card,
+		buyBtn = buyBtn,
+		available = available,
+		owned = passInfo.owned == true,
+		price = passInfo.price,
+		color = passUi.color,
+		unavailableReason = passInfo.unavailableReason,
+	}
+	passCards[passInfo.id] = cardState
+	setCardButtonState(cardState)
+
 	buyBtn.MouseButton1Click:Connect(function()
+		if not cardState.available or cardState.owned then
+			return
+		end
 		if Remotes:FindFirstChild("PromptGamepass") then
 			Remotes.PromptGamepass:FireServer(passInfo.id)
 		end
 	end)
 
-	passCards[passInfo.id] = { frame = card, buyBtn = buyBtn }
 	return card
 end
 
@@ -1450,13 +1497,8 @@ local function setCardOwned(passId, owned)
 	local card = passCards[passId]
 	if not card then return end
 
-	if owned then
-		card.buyBtn.Text = "✓ Owned"
-		card.buyBtn.BackgroundColor3 = Color3.fromRGB(40, 120, 40)
-		card.buyBtn.Active = false
-	else
-		card.buyBtn.Active = true
-	end
+	card.owned = owned == true
+	setCardButtonState(card)
 end
 
 -- Toggle shop panel

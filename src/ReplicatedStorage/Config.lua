@@ -54,6 +54,17 @@ Config.GAMEPASS_ARTIFACT_DETECTOR_ID = 7
 Config.GAMEPASS_ARTIFACT_DETECTOR = "artifact_detector"
 Config.GAMEPASS_REBIRTH_BOOST_ID = 8
 Config.GAMEPASS_REBIRTH_BOOST = "rebirth_boost"
+Config.UNAVAILABLE_GAMEPASS_IDS = {
+	[1] = true,
+	[2] = true,
+	[3] = true,
+	[4] = true,
+	[5] = true,
+	[6] = true,
+	[7] = true,
+	[8] = true,
+}
+Config.UNAVAILABLE_GAMEPASS_LABEL = "Coming Soon"
 Config.STREAK_REVIVE_PRODUCT_ID = 1234567890 -- Placeholder; not launch-ready. Replace with a real Developer Product ID.
 Config.STREAK_REVIVE_PLACEHOLDER_PRODUCT_ID = 1234567890
 Config.STREAK_REVIVE_PRICE = 50
@@ -66,6 +77,12 @@ function Config.isStreakReviveProductIdValid(productId)
 	return type(productId) == "number"
 		and productId ~= 0
 		and productId ~= Config.STREAK_REVIVE_PLACEHOLDER_PRODUCT_ID
+end
+
+function Config.isGamepassIdAvailable(passId)
+	return type(passId) == "number"
+		and passId > 0
+		and Config.UNAVAILABLE_GAMEPASS_IDS[passId] ~= true
 end
 
 -- Digging crews
