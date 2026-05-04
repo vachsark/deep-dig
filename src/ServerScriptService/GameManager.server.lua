@@ -900,7 +900,7 @@ local function triggerRandomEvent(player)
 	end
 
 	-- Notify all players
-	EventTriggeredEvent:FireAllClients(event.name, event.message, event.duration)
+	EventTriggeredEvent:FireAllClients(event.name, event.message, event.duration, event.effect)
 end
 
 BlockBrokenEvent.Event:Connect(function(player, blockPosition)

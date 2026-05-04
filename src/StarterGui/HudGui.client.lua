@@ -489,8 +489,22 @@ local eventShakeBaseCFrame = nil
 local eventShakeBound = false
 local eventShakeState = nil
 
-local function isEarthquakeEvent(eventName, message)
-	if eventName == "Earthquake" then
+local function normalizeEventKey(value)
+	if type(value) ~= "string" then
+		return ""
+	end
+
+	return string.gsub(string.lower(value), "[^%w]", "")
+end
+
+local function isEarthquakeEvent(eventName, message, effectId)
+	local effectKey = normalizeEventKey(effectId)
+	if effectKey == "earthquake" or effectKey == "instantdig" then
+		return true
+	end
+
+	local nameKey = normalizeEventKey(eventName)
+	if nameKey == "earthquake" then
 		return true
 	end
 
@@ -523,34 +537,49 @@ local function clearEventCameraShake(sequence)
 	end
 end
 
-local function getEventShakeProfile(eventName)
-	if eventName == "Earthquake" then
-		return 0.52, 0.22, 0.85, 24
-	end
+local EVENT_SHAKE_PROFILES = {
+	fossillayer = { duration = 0.30, positionStrength = 0.08, rotationStrength = 0.20, noiseFrequency = 18 },
+	["2xrare"] = { duration = 0.30, positionStrength = 0.08, rotationStrength = 0.20, noiseFrequency = 18 },
+	goldvein = { duration = 0.28, positionStrength = 0.06, rotationStrength = 0.16, noiseFrequency = 24 },
+	goldrush = { duration = 0.28, positionStrength = 0.06, rotationStrength = 0.16, noiseFrequency = 24 },
+	cavesystem = { duration = 0.38, positionStrength = 0.13, rotationStrength = 0.34, noiseFrequency = 16 },
+	bonusloot = { duration = 0.38, positionStrength = 0.13, rotationStrength = 0.34, noiseFrequency = 16 },
+	luckyhour = { duration = 0.24, positionStrength = 0.05, rotationStrength = 0.12, noiseFrequency = 30 },
+	echoesfrombelow = { duration = 0.46, positionStrength = 0.10, rotationStrength = 0.46, noiseFrequency = 12 },
+	echoblocks = { duration = 0.46, positionStrength = 0.10, rotationStrength = 0.46, noiseFrequency = 12 },
+}
 
-	if eventName == "CaveSystem" then
-		return 0.34, 0.12, 0.32, 20
-	end
+local DEFAULT_EVENT_SHAKE_PROFILE = { duration = 0.26, positionStrength = 0.10, rotationStrength = 0.24, noiseFrequency = 18 }
+local EVENT_SHAKE_MAX_RANDOM_DURATION = 180
 
-	if eventName == "GoldVein" or eventName == "FossilLayer" then
-		return 0.28, 0.08, 0.2, 18
+for _, configuredEvent in ipairs(Config.EVENTS or {}) do
+	if type(configuredEvent.duration) == "number" then
+		EVENT_SHAKE_MAX_RANDOM_DURATION = math.max(EVENT_SHAKE_MAX_RANDOM_DURATION, configuredEvent.duration)
 	end
-
-	return 0.26, 0.1, 0.24, 18
 end
 
-local function playEventCameraShake(eventName)
+local function shouldPlayEventCameraShake(duration)
+	return type(duration) ~= "number" or duration <= EVENT_SHAKE_MAX_RANDOM_DURATION
+end
+
+local function getEventShakeProfile(eventName, effectId)
+	return EVENT_SHAKE_PROFILES[normalizeEventKey(effectId)]
+		or EVENT_SHAKE_PROFILES[normalizeEventKey(eventName)]
+		or DEFAULT_EVENT_SHAKE_PROFILE
+end
+
+local function playEventCameraShake(eventName, effectId)
 	eventShakeSequence = eventShakeSequence + 1
 	local sequence = eventShakeSequence
-	local duration, positionStrength, rotationStrength, noiseFrequency = getEventShakeProfile(eventName)
+	local profile = getEventShakeProfile(eventName, effectId)
 
 	eventShakeState = {
 		sequence = sequence,
 		startTime = os.clock(),
-		duration = duration,
-		positionStrength = positionStrength,
-		rotationStrength = rotationStrength,
-		noiseFrequency = noiseFrequency,
+		duration = profile.duration,
+		positionStrength = profile.positionStrength,
+		rotationStrength = profile.rotationStrength,
+		noiseFrequency = profile.noiseFrequency,
 		seed = sequence * 37,
 	}
 
@@ -1721,9 +1750,9 @@ Remotes.ItemFound.OnClientEvent:Connect(function(item)
 	showNotification("Found: " .. item.name .. " (+" .. item.sellValue .. " coins)", item.rarity)
 end)
 
-Remotes.EventTriggered.OnClientEvent:Connect(function(eventName, message, duration)
-	if not isEarthquakeEvent(eventName, message) then
-		playEventCameraShake(eventName)
+Remotes.EventTriggered.OnClientEvent:Connect(function(eventName, message, duration, effectId)
+	if shouldPlayEventCameraShake(duration) and not isEarthquakeEvent(eventName, message, effectId) then
+		playEventCameraShake(eventName, effectId)
 	end
 
 	showNotification("⚡ " .. message, "Legendary")
