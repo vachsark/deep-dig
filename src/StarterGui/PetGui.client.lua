@@ -83,6 +83,10 @@ local FEED_HEADER_COLOR = Color3.fromRGB(255, 130, 80)
 -- mark MAX cards in the grid without burning a server round-trip per click.
 local MAX_PET_LEVEL = 20
 
+local function xpForLevel(level)
+	return 100 + (level - 1) * 50
+end
+
 -- ═══════════════════════════════════════════════════════════════════
 -- Screen GUI scaffolding
 -- ═══════════════════════════════════════════════════════════════════
@@ -573,6 +577,7 @@ local function applyInventory(payload)
 					rarity = record.rarity or "Common",
 					egg = record.egg,
 					level = record.level or 1,
+					xp = record.xp or 0,
 					acquiredAt = record.acquiredAt,
 					multipliers = multipliers,
 				})
@@ -597,24 +602,29 @@ local function updateToggleBadge()
 	toggleBadge.Visible = count > 0
 end
 
-local function formatMultiplierPreview(multipliers)
-	-- Pick the strongest non-1.0 stat for the preview so the card stays compact.
-	local stats = {
-		{ key = "luck", label = "luck" },
-		{ key = "loot_value", label = "loot" },
-		{ key = "dig_speed", label = "speed" },
-	}
-	local bestLine = nil
-	local bestDelta = 0
-	for _, stat in ipairs(stats) do
-		local v = multipliers and multipliers[stat.key] or 1
-		local delta = v - 1
-		if delta > bestDelta then
-			bestDelta = delta
-			bestLine = string.format("+%d%% %s", math.floor(delta * 100 + 0.5), stat.label)
-		end
+local function formatMultiplierDelta(multipliers, key)
+	local value = multipliers and multipliers[key] or 1
+	local delta = math.max(value - 1, 0)
+	return string.format("+%d%%", math.floor(delta * 100 + 0.5))
+end
+
+local function formatMultiplierRows(multipliers)
+	return
+		string.format(
+			"luck %s  loot %s",
+			formatMultiplierDelta(multipliers, "luck"),
+			formatMultiplierDelta(multipliers, "loot_value")
+		),
+		string.format("speed %s", formatMultiplierDelta(multipliers, "dig_speed"))
+end
+
+local function formatXpProgress(entry)
+	local level = entry.level or 1
+	if level >= MAX_PET_LEVEL then
+		return "XP MAX"
 	end
-	return bestLine or "no buffs"
+
+	return string.format("XP %d / %d", entry.xp or 0, xpForLevel(level))
 end
 
 local handleFeedCardClick
@@ -716,16 +726,45 @@ local function buildPetCard(entry)
 	rarityLabel.TextXAlignment = Enum.TextXAlignment.Left
 	rarityLabel.Parent = card
 
-	local mulLabel = Instance.new("TextLabel")
-	mulLabel.Size = UDim2.new(1, -10, 0, 14)
-	mulLabel.Position = UDim2.new(0, 5, 0, 44)
-	mulLabel.BackgroundTransparency = 1
-	mulLabel.Text = formatMultiplierPreview(entry.multipliers)
-	mulLabel.TextColor3 = TEXT_MUTED
-	mulLabel.TextSize = 11
-	mulLabel.Font = Enum.Font.Gotham
-	mulLabel.TextXAlignment = Enum.TextXAlignment.Left
-	mulLabel.Parent = card
+	local statLine1, statLine2 = formatMultiplierRows(entry.multipliers)
+
+	local statLabel1 = Instance.new("TextLabel")
+	statLabel1.Size = UDim2.new(1, -10, 0, 12)
+	statLabel1.Position = UDim2.new(0, 5, 0, 43)
+	statLabel1.BackgroundTransparency = 1
+	statLabel1.Text = statLine1
+	statLabel1.TextColor3 = TEXT_MUTED
+	statLabel1.TextSize = 9
+	statLabel1.Font = Enum.Font.Gotham
+	statLabel1.TextXAlignment = Enum.TextXAlignment.Left
+	statLabel1.TextTruncate = Enum.TextTruncate.AtEnd
+	statLabel1.Parent = card
+
+	local statLabel2 = Instance.new("TextLabel")
+	statLabel2.Size = UDim2.new(1, -10, 0, 12)
+	statLabel2.Position = UDim2.new(0, 5, 0, 55)
+	statLabel2.BackgroundTransparency = 1
+	statLabel2.Text = statLine2
+	statLabel2.TextColor3 = TEXT_MUTED
+	statLabel2.TextSize = 9
+	statLabel2.Font = Enum.Font.Gotham
+	statLabel2.TextXAlignment = Enum.TextXAlignment.Left
+	statLabel2.TextTruncate = Enum.TextTruncate.AtEnd
+	statLabel2.Parent = card
+
+	if feedMode then
+		local xpLabel = Instance.new("TextLabel")
+		xpLabel.Size = UDim2.new(1, -10, 0, 12)
+		xpLabel.Position = UDim2.new(0, 5, 0, 67)
+		xpLabel.BackgroundTransparency = 1
+		xpLabel.Text = formatXpProgress(entry)
+		xpLabel.TextColor3 = isMaxLevel and ACCENT_GOLD or TEXT_MUTED
+		xpLabel.TextSize = 9
+		xpLabel.Font = Enum.Font.GothamMedium
+		xpLabel.TextXAlignment = Enum.TextXAlignment.Left
+		xpLabel.TextTruncate = Enum.TextTruncate.AtEnd
+		xpLabel.Parent = card
+	end
 
 	-- MAX badge — only shown in feed mode, since equip mode doesn't care.
 	if feedMode and isMaxLevel then
@@ -752,8 +791,8 @@ local function buildPetCard(entry)
 	-- doubles as the click-zone for the feed flow.
 	local actionButton = Instance.new("TextButton")
 	actionButton.Name = "Action"
-	actionButton.Size = UDim2.new(1, -10, 0, 26)
-	actionButton.Position = UDim2.new(0, 5, 1, -32)
+	actionButton.Size = UDim2.new(1, -10, 0, 22)
+	actionButton.Position = UDim2.new(0, 5, 1, -28)
 	actionButton.BorderSizePixel = 0
 	actionButton.TextSize = 12
 	actionButton.Font = Enum.Font.GothamBold
