@@ -1187,6 +1187,10 @@ SellItemEvent.OnServerEvent:Connect(function(player, inventoryIndex)
 	if not item then return end
 
 	awardSellPayout(player, data, item.sellValue, false)
+	if PlaySound then
+		PlaySound:FireClient(player, "sell_coins")
+	end
+
 	table.remove(data.inventory, inventoryIndex)
 
 	applyFirstSellAffordabilityGrant(player, data)
