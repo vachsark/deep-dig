@@ -175,6 +175,31 @@ fragLabel.Font = Enum.Font.GothamBold
 fragLabel.TextXAlignment = Enum.TextXAlignment.Left
 fragLabel.Parent = screenGui
 
+local FRAGMENT_TEXT_BASE_SIZE = fragLabel.TextSize
+local FRAGMENT_TEXT_REST_COLOR = Color3.fromRGB(160, 80, 200)
+local previousFragmentValue = nil
+local fragmentPulseSequence = 0
+
+local function pulseFragmentLabel()
+	fragmentPulseSequence = fragmentPulseSequence + 1
+	local sequence = fragmentPulseSequence
+
+	fragLabel.TextColor3 = Color3.fromRGB(230, 190, 255)
+	fragLabel.TextSize = FRAGMENT_TEXT_BASE_SIZE + 5
+
+	local settle = TweenService:Create(
+		fragLabel,
+		TweenInfo.new(0.14, Enum.EasingStyle.Back, Enum.EasingDirection.Out),
+		{ TextSize = FRAGMENT_TEXT_BASE_SIZE, TextColor3 = FRAGMENT_TEXT_REST_COLOR }
+	)
+	settle:Play()
+	settle.Completed:Connect(function()
+		if sequence ~= fragmentPulseSequence then return end
+		fragLabel.TextSize = FRAGMENT_TEXT_BASE_SIZE
+		fragLabel.TextColor3 = FRAGMENT_TEXT_REST_COLOR
+	end)
+end
+
 -- ─── Login streak display ────────────────────────────────────────────────────
 
 local streakLabel = Instance.new("TextLabel")
@@ -1708,8 +1733,13 @@ Remotes.UpdateHUD.OnClientEvent:Connect(function(data)
 	if data.inventoryCount ~= nil or data.inventoryCapacity ~= nil then
 		setInventoryDisplay(data.inventoryCount, data.inventoryCapacity)
 	end
-	if data.fragments then
-		fragLabel.Text = "Fragments: " .. tostring(data.fragments)
+	if data.fragments ~= nil then
+		local newFragments = math.floor(data.fragments)
+		fragLabel.Text = "Fragments: " .. tostring(newFragments)
+		if previousFragmentValue ~= nil and newFragments > previousFragmentValue then
+			pulseFragmentLabel()
+		end
+		previousFragmentValue = newFragments
 	end
 	if data.nextToolCost and data.nextToolName then
 		upgradeButton.Text = "⬆️ " .. data.nextToolName .. " ($" .. data.nextToolCost .. ")"
@@ -1957,6 +1987,10 @@ task.spawn(function()
 		toolLabel.Text = "🔧 " .. data.toolName
 		blocksLabel.Text = "Blocks: " .. tostring(data.totalBlocksDug)
 		setInventoryDisplay(#data.inventory, data.inventoryCapacity)
+		if data.fragments ~= nil then
+			previousFragmentValue = math.floor(data.fragments)
+			fragLabel.Text = "Fragments: " .. tostring(previousFragmentValue)
+		end
 		currentToolTier = data.toolTier
 		initializeFtueGuide(data)
 		refreshStreakRevivePrompt(data)
