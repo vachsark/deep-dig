@@ -13,19 +13,23 @@ local EnemyCombatFeedback = Remotes:WaitForChild("EnemyCombatFeedback")
 local LOCAL_PLAY_SOUND_NAME = "DeepDigLocalPlaySound"
 
 local HEALTH_BAR_NAME = "DeepDigEnemyHealthBar"
+local ENEMY_SPAWN_CUE_NAME = "DeepDigEnemySpawnCue"
 local AGGRO_WARNING_NAME = "DeepDigEnemyAggroWarning"
 local MINIBOSS_WARNING_NAME = "DeepDigEnemyMinibossWarning"
 local MAX_DISTANCE = 80
 local BAR_WIDTH = 120
 local BAR_HEIGHT = 36
 local HIT_COLOR = Color3.fromRGB(255, 245, 160)
+local ENEMY_SPAWN_COLOR = Color3.fromRGB(198, 132, 62)
 local DEFEAT_COLOR = Color3.fromRGB(255, 95, 70)
 local AGGRO_COLOR = Color3.fromRGB(255, 175, 45)
 local MINIBOSS_COLOR = Color3.fromRGB(210, 85, 255)
 local HIT_SCALE = 1.08
+local ENEMY_SPAWN_SCALE = 1.06
 local DEFEAT_SCALE = 1.16
 local AGGRO_SCALE = 1.12
 local MINIBOSS_SCALE = 1.32
+local ENEMY_SPAWN_CUE_DURATION = 0.52
 local AGGRO_WARNING_DURATION = 0.58
 local MINIBOSS_WARNING_DURATION = 1.05
 local PLAYER_HIT_DISPLAY_ORDER = 80
@@ -103,6 +107,11 @@ local function cleanupEnemy(model)
 	end
 
 	local root = model and model:FindFirstChild("HumanoidRootPart")
+	local enemySpawnCue = root and root:FindFirstChild(ENEMY_SPAWN_CUE_NAME)
+	if enemySpawnCue then
+		enemySpawnCue:Destroy()
+	end
+
 	local aggroWarning = root and root:FindFirstChild(AGGRO_WARNING_NAME)
 	if aggroWarning then
 		aggroWarning:Destroy()
@@ -435,6 +444,82 @@ local function playPlayerHitFeedback()
 	playPlayerHitJolt()
 end
 
+local function showEnemySpawnCue(model)
+	if not model or not model:IsA("Model") or not model:IsDescendantOf(workspace) then
+		return
+	end
+
+	local root = model:FindFirstChild("HumanoidRootPart")
+	if not root or not root:IsA("BasePart") then
+		return
+	end
+
+	local existing = root:FindFirstChild(ENEMY_SPAWN_CUE_NAME)
+	if existing then
+		existing:Destroy()
+	end
+
+	local billboard = Instance.new("BillboardGui")
+	billboard.Name = ENEMY_SPAWN_CUE_NAME
+	billboard.Adornee = root
+	billboard.AlwaysOnTop = true
+	billboard.MaxDistance = MAX_DISTANCE
+	billboard.Size = UDim2.fromOffset(82, 24)
+	billboard.StudsOffset = Vector3.new(0, 4.05, 0)
+	billboard.Parent = root
+
+	local label = Instance.new("TextLabel")
+	label.Name = "Cue"
+	label.Size = UDim2.fromScale(1, 1)
+	label.BackgroundTransparency = 1
+	label.Text = "surfaced"
+	label.TextColor3 = ENEMY_SPAWN_COLOR
+	label.TextStrokeTransparency = 0.28
+	label.TextSize = 14
+	label.Font = Enum.Font.GothamBold
+	label.Parent = billboard
+
+	local stroke = Instance.new("UIStroke")
+	stroke.Color = Color3.fromRGB(60, 36, 18)
+	stroke.Transparency = 0.22
+	stroke.Thickness = 1
+	stroke.Parent = label
+
+	local moveTween = TweenService:Create(billboard, TweenInfo.new(
+		ENEMY_SPAWN_CUE_DURATION,
+		Enum.EasingStyle.Quad,
+		Enum.EasingDirection.Out
+	), {
+		Size = UDim2.fromOffset(94, 28),
+		StudsOffset = Vector3.new(0, 4.45, 0),
+	})
+	local fadeTween = TweenService:Create(label, TweenInfo.new(
+		ENEMY_SPAWN_CUE_DURATION,
+		Enum.EasingStyle.Quad,
+		Enum.EasingDirection.Out
+	), {
+		TextTransparency = 1,
+		TextStrokeTransparency = 1,
+	})
+	local strokeTween = TweenService:Create(stroke, TweenInfo.new(
+		ENEMY_SPAWN_CUE_DURATION,
+		Enum.EasingStyle.Quad,
+		Enum.EasingDirection.Out
+	), {
+		Transparency = 1,
+	})
+
+	moveTween:Play()
+	fadeTween:Play()
+	strokeTween:Play()
+
+	task.delay(ENEMY_SPAWN_CUE_DURATION + 0.05, function()
+		if billboard.Parent then
+			billboard:Destroy()
+		end
+	end)
+end
+
 local function showAggroWarning(model)
 	if not model or not model:IsA("Model") or not model:IsDescendantOf(workspace) then
 		return
@@ -613,12 +698,18 @@ local function pulseEnemy(model, feedbackType)
 
 	local isDefeated = feedbackType == "defeated"
 	local isAggro = feedbackType == "aggro"
+	local isEnemySpawn = feedbackType == "enemy_spawn"
 	local isMinibossSpawn = feedbackType == "miniboss_spawn"
 	local pulseColor = HIT_COLOR
 	local pulseScale = HIT_SCALE
 	local pulseDuration = 0.16
 	local restoreDelay = 0.3
-	if isDefeated then
+	if isEnemySpawn then
+		pulseColor = ENEMY_SPAWN_COLOR
+		pulseScale = ENEMY_SPAWN_SCALE
+		pulseDuration = 0.18
+		restoreDelay = 0.32
+	elseif isDefeated then
 		pulseColor = DEFEAT_COLOR
 		pulseScale = DEFEAT_SCALE
 		pulseDuration = 0.28
@@ -670,13 +761,15 @@ EnemyCombatFeedback.OnClientEvent:Connect(function(payload)
 		return
 	end
 
-	if feedbackType ~= "hit" and feedbackType ~= "defeated" and feedbackType ~= "aggro" and feedbackType ~= "miniboss_spawn" then
+	if feedbackType ~= "hit" and feedbackType ~= "defeated" and feedbackType ~= "aggro" and feedbackType ~= "enemy_spawn" and feedbackType ~= "miniboss_spawn" then
 		return
 	end
 
 	if LocalPlaySound and LocalPlaySound:IsA("BindableEvent") then
 		if feedbackType == "aggro" then
 			LocalPlaySound:Fire("enemy_aggro")
+		elseif feedbackType == "enemy_spawn" then
+			LocalPlaySound:Fire("enemy_spawn")
 		elseif feedbackType == "miniboss_spawn" then
 			LocalPlaySound:Fire("enemy_miniboss_spawn")
 		else
@@ -686,6 +779,8 @@ EnemyCombatFeedback.OnClientEvent:Connect(function(payload)
 
 	if feedbackType == "aggro" then
 		showAggroWarning(payload.model)
+	elseif feedbackType == "enemy_spawn" then
+		showEnemySpawnCue(payload.model)
 	elseif feedbackType == "miniboss_spawn" then
 		showMinibossWarning(payload.model)
 	end

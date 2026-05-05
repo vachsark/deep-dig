@@ -75,6 +75,12 @@ local SOUNDS = {
 		volume = 0.45,
 		playbackSpeed = 1.35,
 	},
+	enemy_spawn = {
+		id = "rbxassetid://9114013169", -- soft dirt surfacing thud
+		volume = 0.32,
+		playbackSpeed = 0.82,
+		pitchRange = { 0.96, 1.04 },
+	},
 	enemy_defeated = {
 		id = "rbxassetid://5852285683", -- stronger defeated cue
 		volume = 0.85,

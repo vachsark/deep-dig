@@ -411,6 +411,9 @@ local function spawnEnemyForPlayer(player)
 
 	model.PrimaryPart = root
 	model.Parent = enemiesFolder
+	if not enemy.isMiniboss then
+		fireEnemyCombatFeedback(player, "enemy_spawn", model)
+	end
 
 	local record = {
 		model = model,
