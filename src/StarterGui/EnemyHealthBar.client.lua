@@ -13,6 +13,7 @@ local EnemyCombatFeedback = Remotes:WaitForChild("EnemyCombatFeedback")
 local LOCAL_PLAY_SOUND_NAME = "DeepDigLocalPlaySound"
 
 local HEALTH_BAR_NAME = "DeepDigEnemyHealthBar"
+local DAMAGE_NUMBER_NAME = "DeepDigEnemyDamageNumber"
 local ENEMY_SPAWN_CUE_NAME = "DeepDigEnemySpawnCue"
 local AGGRO_WARNING_NAME = "DeepDigEnemyAggroWarning"
 local MINIBOSS_WARNING_NAME = "DeepDigEnemyMinibossWarning"
@@ -25,6 +26,7 @@ local DEFEAT_COLOR = Color3.fromRGB(255, 95, 70)
 local AGGRO_COLOR = Color3.fromRGB(255, 175, 45)
 local MINIBOSS_COLOR = Color3.fromRGB(210, 85, 255)
 local HIT_SCALE = 1.08
+local DAMAGE_NUMBER_DURATION = 0.42
 local ENEMY_SPAWN_SCALE = 1.06
 local DEFEAT_SCALE = 1.16
 local AGGRO_SCALE = 1.12
@@ -444,6 +446,87 @@ local function playPlayerHitFeedback()
 	playPlayerHitJolt()
 end
 
+local function showDamageNumber(model, damage)
+	if typeof(damage) ~= "number" or damage <= 0 then
+		return
+	end
+
+	if not model or not model:IsA("Model") or not model:IsDescendantOf(workspace) then
+		return
+	end
+
+	local root = model:FindFirstChild("HumanoidRootPart")
+	if not root or not root:IsA("BasePart") then
+		return
+	end
+
+	local billboard = Instance.new("BillboardGui")
+	billboard.Name = DAMAGE_NUMBER_NAME
+	billboard.Adornee = root
+	billboard.AlwaysOnTop = true
+	billboard.MaxDistance = MAX_DISTANCE
+	billboard.Size = UDim2.fromOffset(64, 24)
+	billboard.StudsOffset = Vector3.new(math.random(-12, 12) / 100, 4.15, 0)
+	billboard.Parent = root
+
+	local label = Instance.new("TextLabel")
+	label.Name = "Damage"
+	label.Size = UDim2.fromScale(1, 1)
+	label.BackgroundTransparency = 1
+	label.Text = string.format("-%d", math.floor(damage + 0.5))
+	label.TextColor3 = HIT_COLOR
+	label.TextStrokeTransparency = 0.18
+	label.TextSize = 18
+	label.Font = Enum.Font.GothamBlack
+	label.Parent = billboard
+
+	local stroke = Instance.new("UIStroke")
+	stroke.Color = Color3.fromRGB(65, 46, 8)
+	stroke.Transparency = 0.08
+	stroke.Thickness = 1
+	stroke.Parent = label
+
+	local riseTween = TweenService:Create(billboard, TweenInfo.new(
+		DAMAGE_NUMBER_DURATION,
+		Enum.EasingStyle.Quad,
+		Enum.EasingDirection.Out
+	), {
+		Size = UDim2.fromOffset(72, 28),
+		StudsOffset = billboard.StudsOffset + Vector3.new(0, 0.72, 0),
+	})
+	local fadeTween = TweenService:Create(label, TweenInfo.new(
+		DAMAGE_NUMBER_DURATION,
+		Enum.EasingStyle.Quad,
+		Enum.EasingDirection.Out
+	), {
+		TextTransparency = 1,
+		TextStrokeTransparency = 1,
+	})
+	local strokeTween = TweenService:Create(stroke, TweenInfo.new(
+		DAMAGE_NUMBER_DURATION,
+		Enum.EasingStyle.Quad,
+		Enum.EasingDirection.Out
+	), {
+		Transparency = 1,
+	})
+
+	riseTween:Play()
+	fadeTween:Play()
+	strokeTween:Play()
+
+	fadeTween.Completed:Once(function()
+		if billboard.Parent then
+			billboard:Destroy()
+		end
+	end)
+
+	task.delay(DAMAGE_NUMBER_DURATION + 0.08, function()
+		if billboard.Parent then
+			billboard:Destroy()
+		end
+	end)
+end
+
 local function showEnemySpawnCue(model)
 	if not model or not model:IsA("Model") or not model:IsDescendantOf(workspace) then
 		return
@@ -775,6 +858,10 @@ EnemyCombatFeedback.OnClientEvent:Connect(function(payload)
 		else
 			LocalPlaySound:Fire(feedbackType == "defeated" and "enemy_defeated" or "enemy_hit")
 		end
+	end
+
+	if feedbackType == "hit" then
+		showDamageNumber(payload.model, payload.damage)
 	end
 
 	if feedbackType == "aggro" then

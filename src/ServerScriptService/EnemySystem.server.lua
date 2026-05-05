@@ -229,12 +229,16 @@ local function payEnemyReward(record)
 	)
 end
 
-local function fireEnemyCombatFeedback(player, feedbackType, model)
+local function fireEnemyCombatFeedback(player, feedbackType, model, damage)
 	if player and player.Parent == Players and model and model.Parent then
-		EnemyCombatFeedback:FireClient(player, {
+		local payload = {
 			type = feedbackType,
 			model = model,
-		})
+		}
+		if damage then
+			payload.damage = damage
+		end
+		EnemyCombatFeedback:FireClient(player, payload)
 	end
 end
 
@@ -493,9 +497,7 @@ EnemyHitEvent.OnServerEvent:Connect(function(player, enemyModel)
 	nextAttackAtByUserId[player.UserId] = now + ATTACK_COOLDOWN
 	record.lastAttacker = player
 	record.humanoid:TakeDamage(damage)
-	if record.humanoid.Health > 0 then
-		fireEnemyCombatFeedback(player, "hit", record.model)
-	end
+	fireEnemyCombatFeedback(player, "hit", record.model, damage)
 end)
 
 Players.PlayerAdded:Connect(startSpawnLoop)
