@@ -80,6 +80,11 @@ local SOUNDS = {
 		volume = 0.85,
 		playbackSpeed = 0.88,
 	},
+	enemy_miniboss_spawn = {
+		id = "rbxassetid://5982968246", -- deep warning horn
+		volume = 0.9,
+		playbackSpeed = 0.72,
+	},
 	resurface_fanfare = {
 		id = "rbxassetid://6079316752", -- triumphant fanfare
 		volume = 1.0,

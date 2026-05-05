@@ -238,6 +238,15 @@ local function fireEnemyCombatFeedback(player, feedbackType, model)
 	end
 end
 
+local function notifyMinibossSpawn(player, enemy, model)
+	if not enemy.isMiniboss then
+		return
+	end
+
+	NotifyEvent:FireClient(player, enemy.name .. " has surfaced nearby!", "Legendary")
+	fireEnemyCombatFeedback(player, "miniboss_spawn", model)
+end
+
 local function onEnemyDied(record)
 	if record.dead then
 		return
@@ -428,6 +437,7 @@ local function spawnEnemyForPlayer(player)
 	liveEnemies[model] = record
 	enemiesByPlayer[player] = enemiesByPlayer[player] or {}
 	table.insert(enemiesByPlayer[player], record)
+	notifyMinibossSpawn(player, enemy, model)
 end
 
 local function startSpawnLoop(player)

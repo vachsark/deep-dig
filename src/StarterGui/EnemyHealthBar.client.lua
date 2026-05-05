@@ -14,16 +14,20 @@ local LOCAL_PLAY_SOUND_NAME = "DeepDigLocalPlaySound"
 
 local HEALTH_BAR_NAME = "DeepDigEnemyHealthBar"
 local AGGRO_WARNING_NAME = "DeepDigEnemyAggroWarning"
+local MINIBOSS_WARNING_NAME = "DeepDigEnemyMinibossWarning"
 local MAX_DISTANCE = 80
 local BAR_WIDTH = 120
 local BAR_HEIGHT = 36
 local HIT_COLOR = Color3.fromRGB(255, 245, 160)
 local DEFEAT_COLOR = Color3.fromRGB(255, 95, 70)
 local AGGRO_COLOR = Color3.fromRGB(255, 175, 45)
+local MINIBOSS_COLOR = Color3.fromRGB(210, 85, 255)
 local HIT_SCALE = 1.08
 local DEFEAT_SCALE = 1.16
 local AGGRO_SCALE = 1.12
+local MINIBOSS_SCALE = 1.32
 local AGGRO_WARNING_DURATION = 0.58
+local MINIBOSS_WARNING_DURATION = 1.05
 local PLAYER_HIT_DISPLAY_ORDER = 80
 local PLAYER_HIT_FLASH_TRANSPARENCY = 0.48
 local PLAYER_HIT_FLASH_FADE = 0.2
@@ -102,6 +106,11 @@ local function cleanupEnemy(model)
 	local aggroWarning = root and root:FindFirstChild(AGGRO_WARNING_NAME)
 	if aggroWarning then
 		aggroWarning:Destroy()
+	end
+
+	local minibossWarning = root and root:FindFirstChild(MINIBOSS_WARNING_NAME)
+	if minibossWarning then
+		minibossWarning:Destroy()
 	end
 
 	local feedbackRecord = activeFeedback[model]
@@ -502,6 +511,82 @@ local function showAggroWarning(model)
 	end)
 end
 
+local function showMinibossWarning(model)
+	if not model or not model:IsA("Model") or not model:IsDescendantOf(workspace) then
+		return
+	end
+
+	local root = model:FindFirstChild("HumanoidRootPart")
+	if not root or not root:IsA("BasePart") then
+		return
+	end
+
+	local existing = root:FindFirstChild(MINIBOSS_WARNING_NAME)
+	if existing then
+		existing:Destroy()
+	end
+
+	local billboard = Instance.new("BillboardGui")
+	billboard.Name = MINIBOSS_WARNING_NAME
+	billboard.Adornee = root
+	billboard.AlwaysOnTop = true
+	billboard.MaxDistance = MAX_DISTANCE
+	billboard.Size = UDim2.fromOffset(150, 42)
+	billboard.StudsOffset = Vector3.new(0, 5.25, 0)
+	billboard.Parent = root
+
+	local label = Instance.new("TextLabel")
+	label.Name = "Warning"
+	label.Size = UDim2.fromScale(1, 1)
+	label.BackgroundTransparency = 1
+	label.Text = "MINIBOSS"
+	label.TextColor3 = MINIBOSS_COLOR
+	label.TextStrokeTransparency = 0.12
+	label.TextSize = 22
+	label.Font = Enum.Font.GothamBlack
+	label.Parent = billboard
+
+	local stroke = Instance.new("UIStroke")
+	stroke.Color = Color3.fromRGB(25, 5, 40)
+	stroke.Transparency = 0.05
+	stroke.Thickness = 2
+	stroke.Parent = label
+
+	local moveTween = TweenService:Create(billboard, TweenInfo.new(
+		MINIBOSS_WARNING_DURATION,
+		Enum.EasingStyle.Back,
+		Enum.EasingDirection.Out
+	), {
+		Size = UDim2.fromOffset(190, 54),
+		StudsOffset = Vector3.new(0, 6.15, 0),
+	})
+	local fadeTween = TweenService:Create(label, TweenInfo.new(
+		MINIBOSS_WARNING_DURATION,
+		Enum.EasingStyle.Quad,
+		Enum.EasingDirection.Out
+	), {
+		TextTransparency = 1,
+		TextStrokeTransparency = 1,
+	})
+	local strokeTween = TweenService:Create(stroke, TweenInfo.new(
+		MINIBOSS_WARNING_DURATION,
+		Enum.EasingStyle.Quad,
+		Enum.EasingDirection.Out
+	), {
+		Transparency = 1,
+	})
+
+	moveTween:Play()
+	fadeTween:Play()
+	strokeTween:Play()
+
+	task.delay(MINIBOSS_WARNING_DURATION + 0.05, function()
+		if billboard.Parent then
+			billboard:Destroy()
+		end
+	end)
+end
+
 local function pulseEnemy(model, feedbackType)
 	if not model or not model:IsA("Model") or not model:IsDescendantOf(workspace) then
 		return
@@ -528,6 +613,7 @@ local function pulseEnemy(model, feedbackType)
 
 	local isDefeated = feedbackType == "defeated"
 	local isAggro = feedbackType == "aggro"
+	local isMinibossSpawn = feedbackType == "miniboss_spawn"
 	local pulseColor = HIT_COLOR
 	local pulseScale = HIT_SCALE
 	local pulseDuration = 0.16
@@ -542,6 +628,11 @@ local function pulseEnemy(model, feedbackType)
 		pulseScale = AGGRO_SCALE
 		pulseDuration = 0.24
 		restoreDelay = 0.4
+	elseif isMinibossSpawn then
+		pulseColor = MINIBOSS_COLOR
+		pulseScale = MINIBOSS_SCALE
+		pulseDuration = 0.38
+		restoreDelay = 0.72
 	end
 
 	root.Color = pulseColor
@@ -579,13 +670,15 @@ EnemyCombatFeedback.OnClientEvent:Connect(function(payload)
 		return
 	end
 
-	if feedbackType ~= "hit" and feedbackType ~= "defeated" and feedbackType ~= "aggro" then
+	if feedbackType ~= "hit" and feedbackType ~= "defeated" and feedbackType ~= "aggro" and feedbackType ~= "miniboss_spawn" then
 		return
 	end
 
 	if LocalPlaySound and LocalPlaySound:IsA("BindableEvent") then
 		if feedbackType == "aggro" then
 			LocalPlaySound:Fire("enemy_aggro")
+		elseif feedbackType == "miniboss_spawn" then
+			LocalPlaySound:Fire("enemy_miniboss_spawn")
 		else
 			LocalPlaySound:Fire(feedbackType == "defeated" and "enemy_defeated" or "enemy_hit")
 		end
@@ -593,6 +686,8 @@ EnemyCombatFeedback.OnClientEvent:Connect(function(payload)
 
 	if feedbackType == "aggro" then
 		showAggroWarning(payload.model)
+	elseif feedbackType == "miniboss_spawn" then
+		showMinibossWarning(payload.model)
 	end
 
 	pulseEnemy(payload.model, feedbackType)
