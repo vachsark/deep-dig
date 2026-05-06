@@ -42,6 +42,20 @@ for _, quest in ipairs(QuestDatabase) do
 	questById[quest.id] = quest
 end
 
+local weeklyQuestById = {}
+local function indexWeeklyQuest(quest)
+	if type(quest) == "table" and type(quest.id) == "string" then
+		weeklyQuestById[quest.id] = quest
+	end
+end
+
+indexWeeklyQuest(QuestDatabase.weeklyQuest)
+if type(QuestDatabase.weeklyQuests) == "table" then
+	for _, quest in ipairs(QuestDatabase.weeklyQuests) do
+		indexWeeklyQuest(quest)
+	end
+end
+
 local function currentDay()
 	return os.date("!%Y-%m-%d")
 end
@@ -52,6 +66,38 @@ local function currentWeekKey()
 	-- call. %W (Monday-based week of year) works and is just as stable
 	-- as a DataStore key for "the same week".
 	return os.date("!%Y-W%W")
+end
+
+local function selectedWeeklyQuestId(weekKey)
+	if type(QuestDatabase.weeklyRoll) == "function" then
+		local ok, questId = pcall(QuestDatabase.weeklyRoll, weekKey)
+		if ok and type(questId) == "string" and weeklyQuestById[questId] then
+			return questId
+		end
+	end
+
+	if type(QuestDatabase.weeklyQuest) == "table" then
+		return QuestDatabase.weeklyQuest.id
+	end
+
+	return nil
+end
+
+local function resolveWeeklyQuest(data)
+	if data and type(data.weeklyQuestId) == "string" and weeklyQuestById[data.weeklyQuestId] then
+		return weeklyQuestById[data.weeklyQuestId]
+	end
+
+	local questId = selectedWeeklyQuestId(currentWeekKey())
+	if questId then
+		return weeklyQuestById[questId]
+	end
+
+	if type(QuestDatabase.weeklyQuest) == "table" then
+		return QuestDatabase.weeklyQuest
+	end
+
+	return nil
 end
 
 local function dailySeed()
@@ -88,19 +134,33 @@ local function ensureQuestFields(data)
 	if type(data.weeklyQuestWeekKey) ~= "string" then
 		data.weeklyQuestWeekKey = ""
 	end
+	if type(data.weeklyQuestId) ~= "string" then
+		data.weeklyQuestId = ""
+	end
 end
 
 local function ensureWeeklyQuestState(data)
-	local weeklyQuest = QuestDatabase.weeklyQuest
-	if type(weeklyQuest) ~= "table" then
+	local weekKey = currentWeekKey()
+	local questId = selectedWeeklyQuestId(weekKey)
+	if not questId then
 		return
 	end
 
-	local weekKey = currentWeekKey()
 	if data.weeklyQuestWeekKey ~= weekKey then
 		data.weeklyQuestWeekKey = weekKey
+		data.weeklyQuestId = questId
 		data.weeklyQuestProgress = 0
 		data.weeklyQuestClaimed = false
+		return
+	end
+
+	if not weeklyQuestById[data.weeklyQuestId] then
+		data.weeklyQuestId = questId
+		local weeklyQuest = resolveWeeklyQuest(data)
+		if weeklyQuest and weeklyQuest.type ~= "daily_claims" then
+			data.weeklyQuestProgress = 0
+			data.weeklyQuestClaimed = false
+		end
 	end
 end
 
@@ -251,12 +311,11 @@ local function addProgress(data, questId, amount)
 end
 
 local function incrementWeeklyQuestProgress(data)
-	local weeklyQuest = QuestDatabase.weeklyQuest
-	if type(weeklyQuest) ~= "table" then
+	ensureWeeklyQuestState(data)
+	local weeklyQuest = resolveWeeklyQuest(data)
+	if type(weeklyQuest) ~= "table" or weeklyQuest.type ~= "daily_claims" then
 		return
 	end
-
-	ensureWeeklyQuestState(data)
 	if data.weeklyQuestClaimed then
 		return
 	end
@@ -349,6 +408,12 @@ local function applyProgress(player, eventType, eventData)
 				setProgress(data, questId, math.max(current, depth))
 			end
 		end
+
+		local weeklyQuest = resolveWeeklyQuest(data)
+		if type(weeklyQuest) == "table" and weeklyQuest.type == "depth_reached" and not data.weeklyQuestClaimed then
+			local current = getNumber(data.weeklyQuestProgress, 0)
+			data.weeklyQuestProgress = math.min(weeklyQuest.target, math.max(current, depth))
+		end
 		return
 	end
 
@@ -370,7 +435,7 @@ local function buildQuestStatus(player)
 	local day = currentDay()
 	local quests = {}
 	local weeklyStatus = nil
-	local weeklyQuest = QuestDatabase.weeklyQuest
+	local weeklyQuest = resolveWeeklyQuest(data)
 
 	if not data then
 		if type(weeklyQuest) == "table" then
@@ -407,6 +472,7 @@ local function buildQuestStatus(player)
 		end
 	end
 
+	weeklyQuest = resolveWeeklyQuest(data)
 	if type(weeklyQuest) == "table" then
 		local progress = math.min(weeklyQuest.target, getNumber(data.weeklyQuestProgress, 0))
 		weeklyStatus = {
@@ -460,7 +526,7 @@ local function claimQuest(player, questId)
 	end
 	ensureWeeklyQuestState(data)
 
-	local weeklyQuest = QuestDatabase.weeklyQuest
+	local weeklyQuest = resolveWeeklyQuest(data)
 	if type(weeklyQuest) == "table" and questId == weeklyQuest.id then
 		local progress = getNumber(data.weeklyQuestProgress, 0)
 		if data.weeklyQuestClaimed then

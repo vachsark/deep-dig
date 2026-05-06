@@ -105,8 +105,35 @@ module.weeklyQuest = {
 	reward = { coins = 2000, fragments = 12 },
 }
 
+module.weeklyQuests = {
+	module.weeklyQuest,
+	{
+		id = "weekly_depth_100",
+		description = "Reach depth 100 this week",
+		type = "depth_reached",
+		target = 100,
+		reward = { coins = 3200, fragments = 18 },
+	},
+}
+
+local function makeSeed(seed)
+	if type(seed) == "number" then
+		return math.floor(math.abs(seed))
+	end
+
+	if type(seed) == "string" then
+		local value = 0
+		for index = 1, #seed do
+			value = (value * 31 + string.byte(seed, index)) % 2147483647
+		end
+		return value
+	end
+
+	return 0
+end
+
 local function makeRng(seed)
-	local state = math.floor(math.abs(tonumber(seed) or 0)) % 2147483647
+	local state = makeSeed(seed) % 2147483647
 	if state == 0 then
 		state = 1
 	end
@@ -133,6 +160,24 @@ function module.dailyRoll(seed)
 	end
 
 	return { ids[1], ids[2], ids[3] }
+end
+
+function module.weeklyRoll(seed)
+	local pool = module.weeklyQuests
+	if type(pool) ~= "table" or #pool == 0 then
+		if type(module.weeklyQuest) == "table" then
+			return module.weeklyQuest.id
+		end
+		return nil
+	end
+
+	local rng = makeRng(seed)
+	local selectedQuest = pool[rng(#pool)]
+	if type(selectedQuest) ~= "table" then
+		return nil
+	end
+
+	return selectedQuest.id
 end
 
 return module
