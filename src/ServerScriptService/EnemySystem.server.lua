@@ -48,6 +48,9 @@ local SPAWN_INTERVAL = 30
 local MAX_ENEMIES_PER_PLAYER = 5
 local ATTACK_RANGE = 8
 local ATTACK_COOLDOWN = 0.5
+local STAGGER_DURATION = 0.18
+local STAGGER_WALKSPEED_MULTIPLIER = 0.25
+local STAGGER_KNOCKBACK_SPEED = 18
 local TOUCH_DAMAGE_COOLDOWN = 1
 local WALK_RADIUS = 12
 local IDLE_WANDER_INTERVAL = 3
@@ -431,6 +434,8 @@ local function spawnEnemyForPlayer(player)
 		lastAttacker = nil,
 		dead = false,
 		inAggroRange = false,
+		staggerToken = 0,
+		staggeredUntil = nil,
 		nextTouchDamageAtByUserId = {},
 	}
 
@@ -458,6 +463,52 @@ local function startSpawnLoop(player)
 			spawnEnemyForPlayer(player)
 			task.wait(SPAWN_INTERVAL)
 		end
+	end)
+end
+
+local function staggerEnemy(record, playerRoot, enemyRoot)
+	record.staggerToken = (record.staggerToken or 0) + 1
+	record.staggeredUntil = os.clock() + STAGGER_DURATION
+
+	local token = record.staggerToken
+	local walkSpeed = record.enemy.walkSpeed or 0
+	record.humanoid.WalkSpeed = math.max(0, walkSpeed * STAGGER_WALKSPEED_MULTIPLIER)
+
+	local offset = enemyRoot.Position - playerRoot.Position
+	local direction = nil
+	if offset.Magnitude > 0.05 then
+		direction = offset.Unit
+	else
+		direction = playerRoot.CFrame.LookVector
+	end
+
+	direction = Vector3.new(direction.X, 0, direction.Z)
+	if direction.Magnitude <= 0.05 then
+		direction = Vector3.new(0, 0, -1)
+	else
+		direction = direction.Unit
+	end
+
+	local currentVelocity = enemyRoot.AssemblyLinearVelocity
+	enemyRoot.AssemblyLinearVelocity = Vector3.new(
+		direction.X * STAGGER_KNOCKBACK_SPEED,
+		currentVelocity.Y,
+		direction.Z * STAGGER_KNOCKBACK_SPEED
+	)
+
+	task.delay(STAGGER_DURATION, function()
+		if record.staggerToken ~= token then
+			return
+		end
+		if record.dead or not record.model or not record.model.Parent then
+			return
+		end
+		if not record.humanoid or record.humanoid.Health <= 0 then
+			return
+		end
+
+		record.staggeredUntil = nil
+		record.humanoid.WalkSpeed = record.enemy.walkSpeed
 	end)
 end
 
@@ -497,6 +548,7 @@ EnemyHitEvent.OnServerEvent:Connect(function(player, enemyModel)
 	nextAttackAtByUserId[player.UserId] = now + ATTACK_COOLDOWN
 	record.lastAttacker = player
 	record.humanoid:TakeDamage(damage)
+	staggerEnemy(record, playerRoot, enemyRoot)
 	fireEnemyCombatFeedback(player, "hit", record.model, damage)
 end)
 
@@ -545,7 +597,9 @@ task.spawn(function()
 						record.inAggroRange = false
 					end
 
-					record.humanoid.WalkSpeed = record.enemy.walkSpeed
+					if not record.staggeredUntil or os.clock() >= record.staggeredUntil then
+						record.humanoid.WalkSpeed = record.enemy.walkSpeed
+					end
 					if targetPosition then
 						record.humanoid:MoveTo(targetPosition)
 					end
