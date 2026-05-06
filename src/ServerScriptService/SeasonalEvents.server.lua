@@ -67,6 +67,16 @@ local function getActiveSeason()
 	return nil
 end
 
+local function broadcastSeasonalEvent(season, player)
+	if not season then return end
+
+	if player then
+		EventTriggeredEvent:FireClient(player, season.name, season.message, 9999, season.effect)
+	else
+		EventTriggeredEvent:FireAllClients(season.name, season.message, 9999, season.effect)
+	end
+end
+
 -- Wait for GameManager to populate player data via the PlayerDataReady
 -- BindableEvent (mirrors the helper in Leaderboard.server.lua).
 local function awaitPlayerData(player, timeoutSeconds)
@@ -112,7 +122,7 @@ end
 -- handles long durations gracefully.
 
 if activeSeason then
-	EventTriggeredEvent:FireAllClients(activeSeason.name, activeSeason.message, 9999)
+	broadcastSeasonalEvent(activeSeason)
 end
 
 -- ─── Re-announce loop ────────────────────────────────────────────────────────
@@ -126,7 +136,7 @@ if activeSeason then
 			-- Re-check the season in case the calendar month rolled over mid-server.
 			local currentSeason = getActiveSeason()
 			if currentSeason then
-				EventTriggeredEvent:FireAllClients(currentSeason.name, currentSeason.message, 9999)
+				broadcastSeasonalEvent(currentSeason)
 			end
 		end
 	end)
@@ -149,6 +159,7 @@ local function onPlayerAdded(player)
 
 	-- Private notify the joining player about the active season.
 	NotifyEvent:FireClient(player, season.message, "Mythic")
+	broadcastSeasonalEvent(season, player)
 end
 
 Players.PlayerAdded:Connect(onPlayerAdded)

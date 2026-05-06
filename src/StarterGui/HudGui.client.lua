@@ -277,6 +277,84 @@ local groupBenefitCorner = Instance.new("UICorner")
 groupBenefitCorner.CornerRadius = UDim.new(0, 5)
 groupBenefitCorner.Parent = groupBenefitLabel
 
+local SEASON_BADGE_STYLES = {
+	halloween_loot = {
+		title = "Bone Hunt",
+		detail = "Skeletal items boosted",
+		background = Color3.fromRGB(70, 38, 24),
+		stroke = Color3.fromRGB(255, 130, 45),
+		titleColor = Color3.fromRGB(255, 205, 130),
+		detailColor = Color3.fromRGB(255, 230, 190),
+	},
+	winter_loot = {
+		title = "Frozen Depths",
+		detail = "Ice relics awakened",
+		background = Color3.fromRGB(26, 58, 78),
+		stroke = Color3.fromRGB(120, 220, 255),
+		titleColor = Color3.fromRGB(190, 245, 255),
+		detailColor = Color3.fromRGB(220, 250, 255),
+	},
+	spring_loot = {
+		title = "Spring: Fossil Rush",
+		detail = "+1 fragment while digging",
+		background = Color3.fromRGB(30, 72, 46),
+		stroke = Color3.fromRGB(95, 230, 120),
+		titleColor = Color3.fromRGB(190, 255, 195),
+		detailColor = Color3.fromRGB(225, 255, 220),
+	},
+	summer_loot = {
+		title = "Sun-Drenched Dig",
+		detail = "More world events",
+		background = Color3.fromRGB(86, 54, 22),
+		stroke = Color3.fromRGB(255, 190, 70),
+		titleColor = Color3.fromRGB(255, 230, 150),
+		detailColor = Color3.fromRGB(255, 240, 205),
+	},
+}
+
+local seasonBadge = Instance.new("Frame")
+seasonBadge.Name = "ActiveSeasonBadge"
+seasonBadge.Size = UDim2.new(0, 220, 0, 48)
+seasonBadge.Position = UDim2.new(0, 20, 0, 220)
+seasonBadge.BackgroundColor3 = Color3.fromRGB(30, 72, 46)
+seasonBadge.BackgroundTransparency = 0.1
+seasonBadge.BorderSizePixel = 0
+seasonBadge.Visible = false
+seasonBadge.Parent = screenGui
+
+local seasonBadgeCorner = Instance.new("UICorner")
+seasonBadgeCorner.CornerRadius = UDim.new(0, 7)
+seasonBadgeCorner.Parent = seasonBadge
+
+local seasonBadgeStroke = Instance.new("UIStroke")
+seasonBadgeStroke.Thickness = 2
+seasonBadgeStroke.Color = Color3.fromRGB(95, 230, 120)
+seasonBadgeStroke.Parent = seasonBadge
+
+local seasonBadgeTitle = Instance.new("TextLabel")
+seasonBadgeTitle.Name = "Title"
+seasonBadgeTitle.Size = UDim2.new(1, -20, 0, 22)
+seasonBadgeTitle.Position = UDim2.new(0, 10, 0, 5)
+seasonBadgeTitle.BackgroundTransparency = 1
+seasonBadgeTitle.Text = ""
+seasonBadgeTitle.TextColor3 = Color3.fromRGB(190, 255, 195)
+seasonBadgeTitle.TextSize = 14
+seasonBadgeTitle.Font = Enum.Font.GothamBlack
+seasonBadgeTitle.TextXAlignment = Enum.TextXAlignment.Left
+seasonBadgeTitle.Parent = seasonBadge
+
+local seasonBadgeDetail = Instance.new("TextLabel")
+seasonBadgeDetail.Name = "Detail"
+seasonBadgeDetail.Size = UDim2.new(1, -20, 0, 18)
+seasonBadgeDetail.Position = UDim2.new(0, 10, 0, 26)
+seasonBadgeDetail.BackgroundTransparency = 1
+seasonBadgeDetail.Text = ""
+seasonBadgeDetail.TextColor3 = Color3.fromRGB(225, 255, 220)
+seasonBadgeDetail.TextSize = 12
+seasonBadgeDetail.Font = Enum.Font.GothamBold
+seasonBadgeDetail.TextXAlignment = Enum.TextXAlignment.Left
+seasonBadgeDetail.Parent = seasonBadge
+
 local PASS_UI_STYLES = {
 	[1] = { color = Color3.fromRGB(255, 80, 80), label = "2× LOOT" },
 	[2] = { color = Color3.fromRGB(255, 200, 0), label = "★ VIP" },
@@ -349,6 +427,23 @@ local function updatePassBadges(ownedGamepasses)
 			badgeInstances[passId] = badge
 		end
 	end
+end
+
+local function updateSeasonBadge(effectId)
+	local seasonUi = SEASON_BADGE_STYLES[effectId]
+	if not seasonUi then
+		return false
+	end
+
+	seasonBadge.BackgroundColor3 = seasonUi.background
+	seasonBadgeStroke.Color = seasonUi.stroke
+	seasonBadgeTitle.Text = seasonUi.title
+	seasonBadgeTitle.TextColor3 = seasonUi.titleColor
+	seasonBadgeDetail.Text = seasonUi.detail
+	seasonBadgeDetail.TextColor3 = seasonUi.detailColor
+	seasonBadge.Visible = true
+
+	return true
 end
 
 -- ═══════════════════════════════════════════════════════════════════
@@ -1781,6 +1876,8 @@ Remotes.ItemFound.OnClientEvent:Connect(function(item)
 end)
 
 Remotes.EventTriggered.OnClientEvent:Connect(function(eventName, message, duration, effectId)
+	updateSeasonBadge(effectId)
+
 	if shouldPlayEventCameraShake(duration) and not isEarthquakeEvent(eventName, message, effectId) then
 		playEventCameraShake(eventName, effectId)
 	end
