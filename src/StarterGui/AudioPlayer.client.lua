@@ -75,6 +75,11 @@ local SOUNDS = {
 		volume = 0.45,
 		playbackSpeed = 1.35,
 	},
+	enemy_attack_warning = {
+		id = "rbxassetid://5982968246", -- compact attack windup warning
+		volume = 0.36,
+		playbackSpeed = 1.65,
+	},
 	enemy_spawn = {
 		id = "rbxassetid://9114013169", -- soft dirt surfacing thud
 		volume = 0.32,

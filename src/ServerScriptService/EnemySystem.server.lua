@@ -52,6 +52,8 @@ local STAGGER_DURATION = 0.18
 local STAGGER_WALKSPEED_MULTIPLIER = 0.25
 local STAGGER_KNOCKBACK_SPEED = 18
 local TOUCH_DAMAGE_COOLDOWN = 1
+local TOUCH_ATTACK_WINDUP = 0.35
+local TOUCH_ATTACK_RANGE_TOLERANCE = 2
 local WALK_RADIUS = 12
 local IDLE_WANDER_INTERVAL = 3
 local FIRST_ENEMY_DEPTH = 11
@@ -299,6 +301,66 @@ local function onEnemyDied(record)
 	end)
 end
 
+local function getAliveCharacterParts(player)
+	if not player or player.Parent ~= Players then
+		return nil, nil, nil
+	end
+
+	local character = player.Character
+	if not character then
+		return nil, nil, nil
+	end
+
+	local humanoid = character:FindFirstChildOfClass("Humanoid")
+	local root = character:FindFirstChild("HumanoidRootPart")
+	if not humanoid or humanoid.Health <= 0 or not root then
+		return nil, nil, nil
+	end
+
+	return character, humanoid, root
+end
+
+local function getTouchAttackRange(record)
+	local root = record.root
+	local largestEnemyAxis = 0
+	if root then
+		largestEnemyAxis = math.max(root.Size.X, root.Size.Y, root.Size.Z)
+	end
+
+	return (largestEnemyAxis * 0.5) + TOUCH_ATTACK_RANGE_TOLERANCE
+end
+
+local function applyPendingTouchAttack(record, player, userId)
+	record.pendingTouchAttacksByUserId[userId] = nil
+
+	if record.dead or not record.model or not record.model.Parent then
+		return
+	end
+	if not record.humanoid or record.humanoid.Health <= 0 then
+		return
+	end
+	if not record.root or not record.root.Parent then
+		return
+	end
+
+	local _, humanoid, playerRoot = getAliveCharacterParts(player)
+	if not humanoid or not playerRoot then
+		return
+	end
+
+	if (playerRoot.Position - record.root.Position).Magnitude > getTouchAttackRange(record) then
+		return
+	end
+
+	player:SetAttribute("DeepDig_LastEnemyDamageAt", os.clock())
+	humanoid:TakeDamage(record.enemy.damage)
+	EnemyCombatFeedback:FireClient(player, {
+		type = "player_hit",
+		damage = record.enemy.damage,
+		enemyName = record.model:GetAttribute("EnemyName") or record.enemy.name,
+	})
+end
+
 local function handleTouched(record, hit)
 	if record.dead or not hit then
 		return
@@ -310,25 +372,28 @@ local function handleTouched(record, hit)
 		return
 	end
 
-	local humanoid = character:FindFirstChildOfClass("Humanoid")
-	if not humanoid or humanoid.Health <= 0 then
+	local _, humanoid = getAliveCharacterParts(player)
+	if not humanoid then
 		return
 	end
 
+	local userId = player.UserId
 	local now = os.clock()
-	local nextDamageAt = record.nextTouchDamageAtByUserId[player.UserId] or 0
+	local nextDamageAt = record.nextTouchDamageAtByUserId[userId] or 0
 	if now < nextDamageAt then
 		return
 	end
+	if record.pendingTouchAttacksByUserId[userId] then
+		return
+	end
 
-	record.nextTouchDamageAtByUserId[player.UserId] = now + TOUCH_DAMAGE_COOLDOWN
-	player:SetAttribute("DeepDig_LastEnemyDamageAt", now)
-	humanoid:TakeDamage(record.enemy.damage)
-	EnemyCombatFeedback:FireClient(player, {
-		type = "player_hit",
-		damage = record.enemy.damage,
-		enemyName = record.model:GetAttribute("EnemyName") or record.enemy.name,
-	})
+	record.nextTouchDamageAtByUserId[userId] = now + TOUCH_DAMAGE_COOLDOWN
+	record.pendingTouchAttacksByUserId[userId] = true
+	fireEnemyCombatFeedback(player, "enemy_attack_warning", record.model, record.enemy.damage)
+
+	task.delay(TOUCH_ATTACK_WINDUP, function()
+		applyPendingTouchAttack(record, player, userId)
+	end)
 end
 
 local function compactOwnedEnemies(player)
@@ -471,6 +536,7 @@ local function spawnEnemyForPlayer(player)
 		staggerToken = 0,
 		staggeredUntil = nil,
 		nextTouchDamageAtByUserId = {},
+		pendingTouchAttacksByUserId = {},
 	}
 
 	record.touchConnection = root.Touched:Connect(function(hit)
