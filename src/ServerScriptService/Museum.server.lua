@@ -112,6 +112,16 @@ local function isSummerObsidianToolVariant(itemName)
 	return false
 end
 
+local function isWinterFrozenArtifactVariant(itemName)
+	for _, artifact in pairs(ItemDatabase.WINTER_FROZEN_ARTIFACTS or {}) do
+		if artifact.displayName == itemName then
+			return true
+		end
+	end
+
+	return false
+end
+
 local function hasCollectedSeasonalExclusive(collections, exclusive)
 	if not collections or not exclusive then
 		return false
@@ -140,6 +150,20 @@ local function hasCollectedSeasonalExclusive(collections, exclusive)
 	if exclusive.id == "summer" then
 		for _, tool in pairs(ItemDatabase.SUMMER_OBSIDIAN_TOOLS or {}) do
 			if collections[tool.displayName] == true then
+				return true
+			end
+		end
+
+		return false
+	end
+
+	if exclusive.id == "winter" then
+		if collections[exclusive.displayName] == true then
+			return true
+		end
+
+		for _, artifact in pairs(ItemDatabase.WINTER_FROZEN_ARTIFACTS or {}) do
+			if collections[artifact.displayName] == true then
 				return true
 			end
 		end
@@ -205,6 +229,7 @@ local function isSeasonalExclusiveName(itemName)
 	return isSpringDinoEggVariant(itemName)
 		or isHalloweenGhostFossilVariant(itemName)
 		or isSummerObsidianToolVariant(itemName)
+		or isWinterFrozenArtifactVariant(itemName)
 end
 
 local function createMuseumForPlayer(player)

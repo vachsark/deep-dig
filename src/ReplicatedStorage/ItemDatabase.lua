@@ -233,6 +233,45 @@ ItemDatabase.SUMMER_OBSIDIAN_TOOLS = {
 	},
 }
 
+ItemDatabase.WINTER_FROZEN_ARTIFACTS = {
+	Modern = {
+		displayName = "Modern Frozen Artifact",
+		rarity = "Rare",
+		baseValue = 110,
+		tint = Color3.fromRGB(150, 230, 255),
+	},
+	Industrial = {
+		displayName = "Industrial Frozen Artifact",
+		rarity = "Rare",
+		baseValue = 210,
+		tint = Color3.fromRGB(130, 220, 255),
+	},
+	Medieval = {
+		displayName = "Medieval Frozen Artifact",
+		rarity = "Epic",
+		baseValue = 480,
+		tint = Color3.fromRGB(115, 205, 255),
+	},
+	Ancient = {
+		displayName = "Ancient Frozen Artifact",
+		rarity = "Legendary",
+		baseValue = 1200,
+		tint = Color3.fromRGB(105, 190, 255),
+	},
+	Prehistoric = {
+		displayName = "Prehistoric Frozen Artifact",
+		rarity = "Legendary",
+		baseValue = 2600,
+		tint = Color3.fromRGB(125, 175, 255),
+	},
+	Unknown = {
+		displayName = "Unknown Frozen Artifact",
+		rarity = "Mythic",
+		baseValue = 8400,
+		tint = Color3.fromRGB(170, 150, 255),
+	},
+}
+
 local SEASONAL_EXCLUSIVE_BY_ID = {}
 for _, exclusive in ipairs(ItemDatabase.SEASONAL_EXCLUSIVES) do
 	SEASONAL_EXCLUSIVE_BY_ID[exclusive.id] = exclusive
@@ -325,6 +364,28 @@ function ItemDatabase.buildSummerObsidianTool(tierName)
 		color = tool.tint or rarityData.color,
 		seasonalExclusive = true,
 		seasonId = "summer",
+		tierName = tierName or "Unknown",
+	}
+end
+
+function ItemDatabase.buildWinterFrozenArtifact(tierName)
+	local artifact = ItemDatabase.WINTER_FROZEN_ARTIFACTS[tierName] or ItemDatabase.WINTER_FROZEN_ARTIFACTS.Unknown
+	if not artifact then
+		return nil
+	end
+
+	local rarity = artifact.rarity or "Legendary"
+	local rarityData = RARITY[rarity] or RARITY.Legendary
+	local baseValue = artifact.baseValue or 100
+
+	return {
+		name = artifact.displayName,
+		rarity = rarity,
+		baseValue = baseValue,
+		sellValue = baseValue * rarityData.multiplier,
+		color = artifact.tint or rarityData.color,
+		seasonalExclusive = true,
+		seasonId = "winter",
 		tierName = tierName or "Unknown",
 	}
 end
