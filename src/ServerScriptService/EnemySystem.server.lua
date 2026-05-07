@@ -254,6 +254,38 @@ local function notifyMinibossSpawn(player, enemy, model)
 	fireEnemyCombatFeedback(player, "miniboss_spawn", model)
 end
 
+local function getEnemyMaxHealth(record)
+	local attributeMaxHealth = record.model:GetAttribute("MaxHealth")
+	if typeof(attributeMaxHealth) == "number" and attributeMaxHealth > 0 then
+		return attributeMaxHealth
+	end
+
+	return math.max(record.humanoid.MaxHealth, 1)
+end
+
+local function checkMinibossEnrage(record, attacker, previousHealth)
+	if record.enraged or record.dead or not record.enemy.isMiniboss then
+		return
+	end
+
+	if not record.model or not record.model.Parent or not record.humanoid or record.humanoid.Health <= 0 then
+		return
+	end
+
+	local maxHealth = getEnemyMaxHealth(record)
+	local threshold = maxHealth * 0.5
+	if previousHealth <= threshold or record.humanoid.Health > threshold then
+		return
+	end
+
+	record.enraged = true
+	record.model:SetAttribute("HasEnraged", true)
+	fireEnemyCombatFeedback(record.owner, "miniboss_enrage", record.model)
+	if attacker and attacker ~= record.owner then
+		fireEnemyCombatFeedback(attacker, "miniboss_enrage", record.model)
+	end
+end
+
 local function onEnemyDied(record)
 	if record.dead then
 		return
@@ -399,6 +431,7 @@ local function spawnEnemyForPlayer(player)
 	model:SetAttribute("IsMiniboss", enemy.isMiniboss == true)
 	model:SetAttribute("EnemyRank", enemy.isMiniboss and "Miniboss" or "Enemy")
 	model:SetAttribute("MaxHealth", enemy.hp)
+	model:SetAttribute("HasEnraged", false)
 
 	local root = Instance.new("Part")
 	root.Name = "HumanoidRootPart"
@@ -434,6 +467,7 @@ local function spawnEnemyForPlayer(player)
 		lastAttacker = nil,
 		dead = false,
 		inAggroRange = false,
+		enraged = false,
 		staggerToken = 0,
 		staggeredUntil = nil,
 		nextTouchDamageAtByUserId = {},
@@ -547,7 +581,9 @@ EnemyHitEvent.OnServerEvent:Connect(function(player, enemyModel)
 	local damage = tool and tool.damage or 1
 	nextAttackAtByUserId[player.UserId] = now + ATTACK_COOLDOWN
 	record.lastAttacker = player
+	local previousHealth = record.humanoid.Health
 	record.humanoid:TakeDamage(damage)
+	checkMinibossEnrage(record, player, previousHealth)
 	staggerEnemy(record, playerRoot, enemyRoot)
 	fireEnemyCombatFeedback(player, "hit", record.model, damage)
 end)

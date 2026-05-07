@@ -17,6 +17,7 @@ local DAMAGE_NUMBER_NAME = "DeepDigEnemyDamageNumber"
 local ENEMY_SPAWN_CUE_NAME = "DeepDigEnemySpawnCue"
 local AGGRO_WARNING_NAME = "DeepDigEnemyAggroWarning"
 local MINIBOSS_WARNING_NAME = "DeepDigEnemyMinibossWarning"
+local MINIBOSS_ENRAGE_WARNING_NAME = "DeepDigEnemyMinibossEnrageWarning"
 local BOSS_BAR_GUI_NAME = "DeepDigMinibossBossBar"
 local MAX_DISTANCE = 80
 local BAR_WIDTH = 120
@@ -26,15 +27,19 @@ local ENEMY_SPAWN_COLOR = Color3.fromRGB(198, 132, 62)
 local DEFEAT_COLOR = Color3.fromRGB(255, 95, 70)
 local AGGRO_COLOR = Color3.fromRGB(255, 175, 45)
 local MINIBOSS_COLOR = Color3.fromRGB(210, 85, 255)
+local ENRAGE_COLOR = Color3.fromRGB(255, 70, 45)
 local HIT_SCALE = 1.08
 local DAMAGE_NUMBER_DURATION = 0.42
 local ENEMY_SPAWN_SCALE = 1.06
 local DEFEAT_SCALE = 1.16
 local AGGRO_SCALE = 1.12
 local MINIBOSS_SCALE = 1.32
+local ENRAGE_SCALE = 1.22
 local ENEMY_SPAWN_CUE_DURATION = 0.52
 local AGGRO_WARNING_DURATION = 0.58
 local MINIBOSS_WARNING_DURATION = 1.05
+local MINIBOSS_ENRAGE_WARNING_DURATION = 0.82
+local BOSS_BAR_ENRAGE_PULSE_DURATION = 0.42
 local PLAYER_HIT_DISPLAY_ORDER = 80
 local PLAYER_HIT_FLASH_TRANSPARENCY = 0.48
 local PLAYER_HIT_FLASH_FADE = 0.2
@@ -54,9 +59,11 @@ local activeFeedback = {}
 local bossBarGui = nil
 local bossBarFrame = nil
 local bossBarFill = nil
+local bossBarStroke = nil
 local bossBarNameLabel = nil
 local bossBarPercentLabel = nil
 local activeBossModel = nil
+local bossBarPulseSequence = 0
 local playerHitGui = nil
 local playerHitOverlay = nil
 local playerHitFlashTween = nil
@@ -147,11 +154,11 @@ local function ensureBossBar()
 	corner.CornerRadius = UDim.new(0, 8)
 	corner.Parent = bossBarFrame
 
-	local stroke = Instance.new("UIStroke")
-	stroke.Color = MINIBOSS_COLOR
-	stroke.Transparency = 0.28
-	stroke.Thickness = 1
-	stroke.Parent = bossBarFrame
+	bossBarStroke = Instance.new("UIStroke")
+	bossBarStroke.Color = MINIBOSS_COLOR
+	bossBarStroke.Transparency = 0.28
+	bossBarStroke.Thickness = 1
+	bossBarStroke.Parent = bossBarFrame
 
 	local accent = Instance.new("Frame")
 	accent.Name = "Accent"
@@ -294,6 +301,11 @@ local function cleanupEnemy(model)
 	local minibossWarning = root and root:FindFirstChild(MINIBOSS_WARNING_NAME)
 	if minibossWarning then
 		minibossWarning:Destroy()
+	end
+
+	local minibossEnrageWarning = root and root:FindFirstChild(MINIBOSS_ENRAGE_WARNING_NAME)
+	if minibossEnrageWarning then
+		minibossEnrageWarning:Destroy()
 	end
 
 	local feedbackRecord = activeFeedback[model]
@@ -1003,6 +1015,141 @@ local function showMinibossWarning(model)
 	end)
 end
 
+local function showMinibossEnrageWarning(model)
+	if not model or not model:IsA("Model") or not model:IsDescendantOf(workspace) then
+		return
+	end
+
+	local root = model:FindFirstChild("HumanoidRootPart")
+	if not root or not root:IsA("BasePart") then
+		return
+	end
+
+	local existing = root:FindFirstChild(MINIBOSS_ENRAGE_WARNING_NAME)
+	if existing then
+		existing:Destroy()
+	end
+
+	local billboard = Instance.new("BillboardGui")
+	billboard.Name = MINIBOSS_ENRAGE_WARNING_NAME
+	billboard.Adornee = root
+	billboard.AlwaysOnTop = true
+	billboard.MaxDistance = MAX_DISTANCE
+	billboard.Size = UDim2.fromOffset(142, 38)
+	billboard.StudsOffset = Vector3.new(0, 5.35, 0)
+	billboard.Parent = root
+
+	local label = Instance.new("TextLabel")
+	label.Name = "Warning"
+	label.Size = UDim2.fromScale(1, 1)
+	label.BackgroundTransparency = 1
+	label.Text = "ENRAGED"
+	label.TextColor3 = ENRAGE_COLOR
+	label.TextStrokeTransparency = 0.1
+	label.TextSize = 22
+	label.Font = Enum.Font.GothamBlack
+	label.Parent = billboard
+
+	local stroke = Instance.new("UIStroke")
+	stroke.Color = Color3.fromRGB(70, 8, 5)
+	stroke.Transparency = 0.04
+	stroke.Thickness = 2
+	stroke.Parent = label
+
+	local moveTween = TweenService:Create(billboard, TweenInfo.new(
+		MINIBOSS_ENRAGE_WARNING_DURATION,
+		Enum.EasingStyle.Back,
+		Enum.EasingDirection.Out
+	), {
+		Size = UDim2.fromOffset(178, 48),
+		StudsOffset = Vector3.new(0, 6.05, 0),
+	})
+	local fadeTween = TweenService:Create(label, TweenInfo.new(
+		MINIBOSS_ENRAGE_WARNING_DURATION,
+		Enum.EasingStyle.Quad,
+		Enum.EasingDirection.Out
+	), {
+		TextTransparency = 1,
+		TextStrokeTransparency = 1,
+	})
+	local strokeTween = TweenService:Create(stroke, TweenInfo.new(
+		MINIBOSS_ENRAGE_WARNING_DURATION,
+		Enum.EasingStyle.Quad,
+		Enum.EasingDirection.Out
+	), {
+		Transparency = 1,
+	})
+
+	moveTween:Play()
+	fadeTween:Play()
+	strokeTween:Play()
+
+	task.delay(MINIBOSS_ENRAGE_WARNING_DURATION + 0.05, function()
+		if billboard.Parent then
+			billboard:Destroy()
+		end
+	end)
+end
+
+local function pulseBossBarEnrage(model)
+	if not model or not model:IsA("Model") or model:GetAttribute("IsMiniboss") ~= true then
+		return
+	end
+
+	ensureBossBar()
+	updateBossBar()
+	if activeBossModel ~= model or not bossBarFrame or not bossBarFill or not bossBarStroke then
+		return
+	end
+
+	bossBarPulseSequence = bossBarPulseSequence + 1
+	local sequence = bossBarPulseSequence
+	local frameColor = bossBarFrame.BackgroundColor3
+	local frameTransparency = bossBarFrame.BackgroundTransparency
+	local fillColor = bossBarFill.BackgroundColor3
+
+	bossBarFrame.BackgroundColor3 = Color3.fromRGB(44, 13, 12)
+	bossBarFrame.BackgroundTransparency = 0
+	bossBarFill.BackgroundColor3 = ENRAGE_COLOR
+	bossBarStroke.Color = ENRAGE_COLOR
+	bossBarStroke.Transparency = 0
+	bossBarStroke.Thickness = 3
+
+	local frameTween = TweenService:Create(bossBarFrame, TweenInfo.new(
+		BOSS_BAR_ENRAGE_PULSE_DURATION,
+		Enum.EasingStyle.Quad,
+		Enum.EasingDirection.Out
+	), {
+		BackgroundColor3 = frameColor,
+		BackgroundTransparency = frameTransparency,
+	})
+	local fillTween = TweenService:Create(bossBarFill, TweenInfo.new(
+		BOSS_BAR_ENRAGE_PULSE_DURATION,
+		Enum.EasingStyle.Quad,
+		Enum.EasingDirection.Out
+	), {
+		BackgroundColor3 = fillColor,
+	})
+	local strokeTween = TweenService:Create(bossBarStroke, TweenInfo.new(
+		BOSS_BAR_ENRAGE_PULSE_DURATION,
+		Enum.EasingStyle.Quad,
+		Enum.EasingDirection.Out
+	), {
+		Color = MINIBOSS_COLOR,
+		Transparency = 0.28,
+		Thickness = 1,
+	})
+
+	frameTween:Play()
+	fillTween:Play()
+	strokeTween:Play()
+	strokeTween.Completed:Once(function()
+		if sequence == bossBarPulseSequence then
+			updateBossBar()
+		end
+	end)
+end
+
 local function pulseEnemy(model, feedbackType)
 	if not model or not model:IsA("Model") or not model:IsDescendantOf(workspace) then
 		return
@@ -1031,6 +1178,7 @@ local function pulseEnemy(model, feedbackType)
 	local isAggro = feedbackType == "aggro"
 	local isEnemySpawn = feedbackType == "enemy_spawn"
 	local isMinibossSpawn = feedbackType == "miniboss_spawn"
+	local isMinibossEnrage = feedbackType == "miniboss_enrage"
 	local pulseColor = HIT_COLOR
 	local pulseScale = HIT_SCALE
 	local pulseDuration = 0.16
@@ -1055,6 +1203,11 @@ local function pulseEnemy(model, feedbackType)
 		pulseScale = MINIBOSS_SCALE
 		pulseDuration = 0.38
 		restoreDelay = 0.72
+	elseif isMinibossEnrage then
+		pulseColor = ENRAGE_COLOR
+		pulseScale = ENRAGE_SCALE
+		pulseDuration = 0.28
+		restoreDelay = 0.5
 	end
 
 	root.Color = pulseColor
@@ -1092,7 +1245,7 @@ EnemyCombatFeedback.OnClientEvent:Connect(function(payload)
 		return
 	end
 
-	if feedbackType ~= "hit" and feedbackType ~= "defeated" and feedbackType ~= "aggro" and feedbackType ~= "enemy_spawn" and feedbackType ~= "miniboss_spawn" then
+	if feedbackType ~= "hit" and feedbackType ~= "defeated" and feedbackType ~= "aggro" and feedbackType ~= "enemy_spawn" and feedbackType ~= "miniboss_spawn" and feedbackType ~= "miniboss_enrage" then
 		return
 	end
 
@@ -1103,6 +1256,8 @@ EnemyCombatFeedback.OnClientEvent:Connect(function(payload)
 			LocalPlaySound:Fire("enemy_spawn")
 		elseif feedbackType == "miniboss_spawn" then
 			LocalPlaySound:Fire("enemy_miniboss_spawn")
+		elseif feedbackType == "miniboss_enrage" then
+			LocalPlaySound:Fire("enemy_miniboss_enrage")
 		else
 			LocalPlaySound:Fire(feedbackType == "defeated" and "enemy_defeated" or "enemy_hit")
 		end
@@ -1118,6 +1273,9 @@ EnemyCombatFeedback.OnClientEvent:Connect(function(payload)
 		showEnemySpawnCue(payload.model)
 	elseif feedbackType == "miniboss_spawn" then
 		showMinibossWarning(payload.model)
+	elseif feedbackType == "miniboss_enrage" then
+		pulseBossBarEnrage(payload.model)
+		showMinibossEnrageWarning(payload.model)
 	end
 
 	pulseEnemy(payload.model, feedbackType)

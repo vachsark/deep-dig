@@ -91,6 +91,11 @@ local SOUNDS = {
 		volume = 0.9,
 		playbackSpeed = 0.72,
 	},
+	enemy_miniboss_enrage = {
+		id = "rbxassetid://5982968246", -- sharper warning horn
+		volume = 0.82,
+		playbackSpeed = 1.08,
+	},
 	resurface_fanfare = {
 		id = "rbxassetid://6079316752", -- triumphant fanfare
 		volume = 1.0,
