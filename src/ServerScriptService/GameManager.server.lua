@@ -1140,10 +1140,15 @@ BlockBrokenEvent.Event:Connect(function(player, blockPosition)
 
 					-- Notify all players for rare+ finds
 					if item.rarity == "Epic" or item.rarity == "Legendary" or item.rarity == "Mythic" then
-						NotifyEvent:FireAllClients(
-							player.Name .. " found a " .. item.rarity .. " " .. item.name .. "!",
-							item.rarity
-						)
+						for _, otherPlayer in ipairs(Players:GetPlayers()) do
+							if otherPlayer ~= player then
+								NotifyEvent:FireClient(
+									otherPlayer,
+									player.Name .. " found a " .. item.rarity .. " " .. item.name .. "!",
+									item.rarity
+								)
+							end
+						end
 					end
 				end
 			end
