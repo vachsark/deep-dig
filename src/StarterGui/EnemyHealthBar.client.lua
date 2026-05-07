@@ -37,6 +37,8 @@ local MINIBOSS_WARNING_DURATION = 1.05
 local PLAYER_HIT_DISPLAY_ORDER = 80
 local PLAYER_HIT_FLASH_TRANSPARENCY = 0.48
 local PLAYER_HIT_FLASH_FADE = 0.2
+local PLAYER_HIT_READOUT_NAME = "PlayerDamageReadout"
+local PLAYER_HIT_READOUT_DURATION = 0.5
 local PLAYER_HIT_JOLT_BIND_NAME = "DeepDigPlayerHitCameraJolt"
 local PLAYER_HIT_JOLT_DURATION = 0.14
 local PLAYER_HIT_JOLT_POSITION = 0.32
@@ -48,6 +50,7 @@ local playerHitGui = nil
 local playerHitOverlay = nil
 local playerHitFlashTween = nil
 local playerHitFlashSequence = 0
+local playerHitReadoutSequence = 0
 local playerHitJoltSequence = 0
 local playerHitJoltState = nil
 local playerHitJoltBound = false
@@ -356,6 +359,67 @@ local function playPlayerHitFlash()
 	end)
 end
 
+local function showPlayerHitReadout(damage)
+	if typeof(damage) ~= "number" or damage <= 0 then
+		return
+	end
+
+	ensurePlayerHitOverlay()
+	playerHitReadoutSequence = playerHitReadoutSequence + 1
+	local sequence = playerHitReadoutSequence
+
+	local label = Instance.new("TextLabel")
+	label.Name = PLAYER_HIT_READOUT_NAME
+	label.AnchorPoint = Vector2.new(0.5, 0.5)
+	label.Position = UDim2.fromScale(0.5, 0.42)
+	label.Size = UDim2.fromOffset(160, 48)
+	label.BackgroundTransparency = 1
+	label.Text = string.format("-%d", math.floor(damage + 0.5))
+	label.TextColor3 = Color3.fromRGB(255, 82, 72)
+	label.TextStrokeTransparency = 0.12
+	label.TextSize = 36
+	label.Font = Enum.Font.GothamBlack
+	label.ZIndex = 2
+	label.Parent = playerHitGui
+
+	local stroke = Instance.new("UIStroke")
+	stroke.Color = Color3.fromRGB(80, 12, 8)
+	stroke.Transparency = 0.04
+	stroke.Thickness = 2
+	stroke.Parent = label
+
+	local moveTween = TweenService:Create(label, TweenInfo.new(
+		PLAYER_HIT_READOUT_DURATION,
+		Enum.EasingStyle.Quad,
+		Enum.EasingDirection.Out
+	), {
+		Position = UDim2.fromScale(0.5, 0.36),
+		TextTransparency = 1,
+		TextStrokeTransparency = 1,
+	})
+	local strokeTween = TweenService:Create(stroke, TweenInfo.new(
+		PLAYER_HIT_READOUT_DURATION,
+		Enum.EasingStyle.Quad,
+		Enum.EasingDirection.Out
+	), {
+		Transparency = 1,
+	})
+
+	moveTween:Play()
+	strokeTween:Play()
+	moveTween.Completed:Once(function()
+		if sequence == playerHitReadoutSequence and label.Parent then
+			label:Destroy()
+		end
+	end)
+
+	task.delay(PLAYER_HIT_READOUT_DURATION + 0.08, function()
+		if label.Parent then
+			label:Destroy()
+		end
+	end)
+end
+
 local function removeLastPlayerHitJolt(camera)
 	if camera and lastPlayerHitJoltActive then
 		camera.CFrame = camera.CFrame * lastPlayerHitJoltCFrame:Inverse()
@@ -437,12 +501,13 @@ local function playPlayerHitJolt()
 	ensurePlayerHitJoltBinding()
 end
 
-local function playPlayerHitFeedback()
+local function playPlayerHitFeedback(damage)
 	if LocalPlaySound and LocalPlaySound:IsA("BindableEvent") then
 		LocalPlaySound:Fire("enemy_hit")
 	end
 
 	playPlayerHitFlash()
+	showPlayerHitReadout(damage)
 	playPlayerHitJolt()
 end
 
@@ -840,7 +905,7 @@ EnemyCombatFeedback.OnClientEvent:Connect(function(payload)
 
 	local feedbackType = payload.type
 	if feedbackType == "player_hit" then
-		playPlayerHitFeedback()
+		playPlayerHitFeedback(payload.damage)
 		return
 	end
 
