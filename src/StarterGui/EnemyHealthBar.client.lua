@@ -17,6 +17,7 @@ local DAMAGE_NUMBER_NAME = "DeepDigEnemyDamageNumber"
 local ENEMY_SPAWN_CUE_NAME = "DeepDigEnemySpawnCue"
 local AGGRO_WARNING_NAME = "DeepDigEnemyAggroWarning"
 local MINIBOSS_WARNING_NAME = "DeepDigEnemyMinibossWarning"
+local BOSS_BAR_GUI_NAME = "DeepDigMinibossBossBar"
 local MAX_DISTANCE = 80
 local BAR_WIDTH = 120
 local BAR_HEIGHT = 36
@@ -43,9 +44,19 @@ local PLAYER_HIT_JOLT_BIND_NAME = "DeepDigPlayerHitCameraJolt"
 local PLAYER_HIT_JOLT_DURATION = 0.14
 local PLAYER_HIT_JOLT_POSITION = 0.32
 local PLAYER_HIT_JOLT_ROTATION = 0.75
+local BOSS_BAR_DISPLAY_ORDER = 70
+local BOSS_BAR_WIDTH = 380
+local BOSS_BAR_HEIGHT = 52
 
 local trackedEnemies = {}
+local trackedEnemyOrder = {}
 local activeFeedback = {}
+local bossBarGui = nil
+local bossBarFrame = nil
+local bossBarFill = nil
+local bossBarNameLabel = nil
+local bossBarPercentLabel = nil
+local activeBossModel = nil
 local playerHitGui = nil
 local playerHitOverlay = nil
 local playerHitFlashTween = nil
@@ -100,6 +111,157 @@ local function disconnectAll(connections)
 	end
 end
 
+local function ensureBossBar()
+	if bossBarFrame and bossBarFrame.Parent then
+		return
+	end
+
+	local playerGui = player:FindFirstChildOfClass("PlayerGui") or player:WaitForChild("PlayerGui")
+
+	bossBarGui = Instance.new("ScreenGui")
+	bossBarGui.Name = BOSS_BAR_GUI_NAME
+	bossBarGui.ResetOnSpawn = false
+	bossBarGui.IgnoreGuiInset = true
+	bossBarGui.DisplayOrder = BOSS_BAR_DISPLAY_ORDER
+	bossBarGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+	bossBarGui.Parent = playerGui
+
+	bossBarFrame = Instance.new("Frame")
+	bossBarFrame.Name = "BossBar"
+	bossBarFrame.AnchorPoint = Vector2.new(0.5, 0)
+	bossBarFrame.Position = UDim2.new(0.5, 0, 0, 58)
+	bossBarFrame.Size = UDim2.fromOffset(BOSS_BAR_WIDTH, BOSS_BAR_HEIGHT)
+	bossBarFrame.BackgroundColor3 = Color3.fromRGB(18, 15, 22)
+	bossBarFrame.BackgroundTransparency = 0.08
+	bossBarFrame.BorderSizePixel = 0
+	bossBarFrame.Visible = false
+	bossBarFrame.ZIndex = 1
+	bossBarFrame.Parent = bossBarGui
+
+	local sizeConstraint = Instance.new("UISizeConstraint")
+	sizeConstraint.MinSize = Vector2.new(260, BOSS_BAR_HEIGHT)
+	sizeConstraint.MaxSize = Vector2.new(BOSS_BAR_WIDTH, BOSS_BAR_HEIGHT)
+	sizeConstraint.Parent = bossBarFrame
+
+	local corner = Instance.new("UICorner")
+	corner.CornerRadius = UDim.new(0, 8)
+	corner.Parent = bossBarFrame
+
+	local stroke = Instance.new("UIStroke")
+	stroke.Color = MINIBOSS_COLOR
+	stroke.Transparency = 0.28
+	stroke.Thickness = 1
+	stroke.Parent = bossBarFrame
+
+	local accent = Instance.new("Frame")
+	accent.Name = "Accent"
+	accent.Size = UDim2.new(1, 0, 0, 3)
+	accent.BackgroundColor3 = MINIBOSS_COLOR
+	accent.BorderSizePixel = 0
+	accent.ZIndex = 2
+	accent.Parent = bossBarFrame
+
+	local accentCorner = Instance.new("UICorner")
+	accentCorner.CornerRadius = UDim.new(0, 8)
+	accentCorner.Parent = accent
+
+	bossBarNameLabel = Instance.new("TextLabel")
+	bossBarNameLabel.Name = "BossName"
+	bossBarNameLabel.Position = UDim2.fromOffset(14, 8)
+	bossBarNameLabel.Size = UDim2.new(1, -98, 0, 18)
+	bossBarNameLabel.BackgroundTransparency = 1
+	bossBarNameLabel.TextColor3 = Color3.fromRGB(255, 242, 255)
+	bossBarNameLabel.TextStrokeTransparency = 0.55
+	bossBarNameLabel.TextSize = 15
+	bossBarNameLabel.Font = Enum.Font.GothamBlack
+	bossBarNameLabel.TextXAlignment = Enum.TextXAlignment.Left
+	bossBarNameLabel.TextTruncate = Enum.TextTruncate.AtEnd
+	bossBarNameLabel.ZIndex = 2
+	bossBarNameLabel.Parent = bossBarFrame
+
+	bossBarPercentLabel = Instance.new("TextLabel")
+	bossBarPercentLabel.Name = "BossPercent"
+	bossBarPercentLabel.Position = UDim2.new(1, -78, 0, 8)
+	bossBarPercentLabel.Size = UDim2.fromOffset(64, 18)
+	bossBarPercentLabel.BackgroundTransparency = 1
+	bossBarPercentLabel.TextColor3 = Color3.fromRGB(255, 220, 255)
+	bossBarPercentLabel.TextStrokeTransparency = 0.55
+	bossBarPercentLabel.TextSize = 14
+	bossBarPercentLabel.Font = Enum.Font.GothamBold
+	bossBarPercentLabel.TextXAlignment = Enum.TextXAlignment.Right
+	bossBarPercentLabel.ZIndex = 2
+	bossBarPercentLabel.Parent = bossBarFrame
+
+	local back = Instance.new("Frame")
+	back.Name = "HealthBack"
+	back.Position = UDim2.fromOffset(14, 31)
+	back.Size = UDim2.new(1, -28, 0, 11)
+	back.BackgroundColor3 = Color3.fromRGB(35, 28, 42)
+	back.BackgroundTransparency = 0.08
+	back.BorderSizePixel = 0
+	back.ZIndex = 2
+	back.Parent = bossBarFrame
+
+	local backCorner = Instance.new("UICorner")
+	backCorner.CornerRadius = UDim.new(0, 5)
+	backCorner.Parent = back
+
+	bossBarFill = Instance.new("Frame")
+	bossBarFill.Name = "HealthFill"
+	bossBarFill.Size = UDim2.fromScale(1, 1)
+	bossBarFill.BackgroundColor3 = MINIBOSS_COLOR
+	bossBarFill.BorderSizePixel = 0
+	bossBarFill.ZIndex = 3
+	bossBarFill.Parent = back
+
+	local fillCorner = Instance.new("UICorner")
+	fillCorner.CornerRadius = UDim.new(0, 5)
+	fillCorner.Parent = bossBarFill
+end
+
+local function getBossMaxHealth(model, humanoid)
+	local attributeMaxHealth = model:GetAttribute("MaxHealth")
+	if typeof(attributeMaxHealth) == "number" and attributeMaxHealth > 0 then
+		return attributeMaxHealth
+	end
+
+	return math.max(humanoid.MaxHealth, 1)
+end
+
+local function getFirstLiveMiniboss()
+	for _, model in ipairs(trackedEnemyOrder) do
+		local record = trackedEnemies[model]
+		if record and record.isMiniboss and model.Parent and record.humanoid and record.humanoid.Health > 0 then
+			return model, record
+		end
+	end
+
+	return nil, nil
+end
+
+local function updateBossBar()
+	local model, record = getFirstLiveMiniboss()
+	if not model or not record then
+		activeBossModel = nil
+		if bossBarFrame then
+			bossBarFrame.Visible = false
+		end
+		return
+	end
+
+	ensureBossBar()
+
+	activeBossModel = model
+	local humanoid = record.humanoid
+	local maxHealth = getBossMaxHealth(model, humanoid)
+	local ratio = math.clamp(humanoid.Health / maxHealth, 0, 1)
+	bossBarNameLabel.Text = model:GetAttribute("EnemyName") or model.Name
+	bossBarPercentLabel.Text = string.format("%d%%", math.ceil(ratio * 100))
+	bossBarFill.Size = UDim2.fromScale(ratio, 1)
+	bossBarFill.BackgroundColor3 = getHealthColor(ratio):Lerp(MINIBOSS_COLOR, 0.35)
+	bossBarFrame.Visible = true
+end
+
 local function cleanupEnemy(model)
 	local record = trackedEnemies[model]
 	if record then
@@ -108,6 +270,13 @@ local function cleanupEnemy(model)
 
 		if record.gui and record.gui.Parent then
 			record.gui:Destroy()
+		end
+	end
+
+	for index, trackedModel in ipairs(trackedEnemyOrder) do
+		if trackedModel == model then
+			table.remove(trackedEnemyOrder, index)
+			break
 		end
 	end
 
@@ -133,6 +302,10 @@ local function cleanupEnemy(model)
 			feedbackRecord.tween:Cancel()
 		end
 		activeFeedback[model] = nil
+	end
+
+	if activeBossModel == model or record then
+		updateBossBar()
 	end
 end
 
@@ -227,8 +400,11 @@ local function trackEnemy(model)
 		local record = {
 			gui = gui,
 			connections = {},
+			humanoid = humanoid,
+			isMiniboss = model:GetAttribute("IsMiniboss") == true,
 		}
 		trackedEnemies[model] = record
+		table.insert(trackedEnemyOrder, model)
 
 		local function update()
 			if not model.Parent or humanoid.Health <= 0 then
@@ -241,9 +417,16 @@ local function trackEnemy(model)
 			fill.Size = UDim2.fromScale(ratio, 1)
 			fill.BackgroundColor3 = getHealthColor(ratio)
 			hpLabel.Text = string.format("%d/%d", math.ceil(humanoid.Health), math.ceil(maxHealth))
+			updateBossBar()
 		end
 
 		table.insert(record.connections, humanoid.HealthChanged:Connect(update))
+		table.insert(record.connections, model:GetAttributeChangedSignal("EnemyName"):Connect(updateBossBar))
+		table.insert(record.connections, model:GetAttributeChangedSignal("MaxHealth"):Connect(updateBossBar))
+		table.insert(record.connections, model:GetAttributeChangedSignal("IsMiniboss"):Connect(function()
+			record.isMiniboss = model:GetAttribute("IsMiniboss") == true
+			updateBossBar()
+		end))
 		table.insert(record.connections, humanoid.Died:Connect(function()
 			cleanupEnemy(model)
 		end))
