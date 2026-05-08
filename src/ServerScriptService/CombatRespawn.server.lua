@@ -6,6 +6,12 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Remotes = ReplicatedStorage:WaitForChild("Remotes")
 local NotifyEvent = Remotes:WaitForChild("Notify")
+local CombatRespawnFeedback = Remotes:FindFirstChild("CombatRespawnFeedback")
+if not CombatRespawnFeedback then
+	CombatRespawnFeedback = Instance.new("RemoteEvent")
+	CombatRespawnFeedback.Name = "CombatRespawnFeedback"
+	CombatRespawnFeedback.Parent = Remotes
+end
 
 local ENEMY_DAMAGE_WINDOW = 6
 local RESPAWN_WINDOW = 20
@@ -52,6 +58,9 @@ local function surfaceCharacter(player, character)
 
 	pendingCombatRespawnAtByUserId[player.UserId] = nil
 	character:PivotTo(getSurfaceCFrame())
+	CombatRespawnFeedback:FireClient(player, {
+		type = "enemy_knockout_resurface",
+	})
 	NotifyEvent:FireClient(player, "Knocked out - resurfaced safely.", "Common")
 end
 
