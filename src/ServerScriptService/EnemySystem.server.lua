@@ -203,12 +203,12 @@ end
 local function payEnemyReward(record)
 	local player = record.lastAttacker or record.owner
 	if not player or player.Parent ~= Players then
-		return
+		return nil
 	end
 
 	local data = getSharedData(player)
 	if not data then
-		return
+		return nil
 	end
 
 	local enemy = record.enemy
@@ -232,9 +232,24 @@ local function payEnemyReward(record)
 		enemy,
 		itemReward
 	)
+
+	local rewardSummary = {
+		coins = enemy.coinDrop,
+		fragments = enemy.fragmentDrop,
+		isMiniboss = enemy.isMiniboss == true,
+	}
+	if itemReward then
+		rewardSummary.item = {
+			name = itemReward.name,
+			rarity = itemReward.rarity,
+			color = itemReward.color,
+		}
+	end
+
+	return player, rewardSummary
 end
 
-local function fireEnemyCombatFeedback(player, feedbackType, model, damage)
+local function fireEnemyCombatFeedback(player, feedbackType, model, damage, reward)
 	if player and player.Parent == Players and model and model.Parent then
 		local payload = {
 			type = feedbackType,
@@ -242,6 +257,9 @@ local function fireEnemyCombatFeedback(player, feedbackType, model, damage)
 		}
 		if damage then
 			payload.damage = damage
+		end
+		if reward then
+			payload.reward = reward
 		end
 		EnemyCombatFeedback:FireClient(player, payload)
 	end
@@ -294,10 +312,11 @@ local function onEnemyDied(record)
 	end
 
 	record.dead = true
-	fireEnemyCombatFeedback(record.lastAttacker or record.owner, "defeated", record.model)
-	payEnemyReward(record)
+	local rewardedPlayer, rewardSummary = payEnemyReward(record)
+	local feedbackPlayer = rewardedPlayer or record.lastAttacker or record.owner
+	fireEnemyCombatFeedback(feedbackPlayer, "defeated", record.model, nil, rewardSummary)
 	if record.enemy.isMiniboss then
-		fireEnemyCombatFeedback(record.lastAttacker or record.owner, "miniboss_defeated", record.model)
+		fireEnemyCombatFeedback(feedbackPlayer, "miniboss_defeated", record.model)
 	end
 	task.delay(2, function()
 		destroyEnemy(record)

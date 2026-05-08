@@ -14,6 +14,7 @@ local LOCAL_PLAY_SOUND_NAME = "DeepDigLocalPlaySound"
 
 local HEALTH_BAR_NAME = "DeepDigEnemyHealthBar"
 local DAMAGE_NUMBER_NAME = "DeepDigEnemyDamageNumber"
+local REWARD_BURST_NAME = "DeepDigEnemyRewardBurst"
 local ENEMY_SPAWN_CUE_NAME = "DeepDigEnemySpawnCue"
 local AGGRO_WARNING_NAME = "DeepDigEnemyAggroWarning"
 local ATTACK_WARNING_NAME = "DeepDigEnemyAttackWarning"
@@ -25,6 +26,8 @@ local MAX_DISTANCE = 80
 local BAR_WIDTH = 120
 local BAR_HEIGHT = 36
 local HIT_COLOR = Color3.fromRGB(255, 245, 160)
+local COIN_REWARD_COLOR = Color3.fromRGB(255, 214, 92)
+local FRAGMENT_REWARD_COLOR = Color3.fromRGB(124, 230, 255)
 local ENEMY_SPAWN_COLOR = Color3.fromRGB(198, 132, 62)
 local DEFEAT_COLOR = Color3.fromRGB(255, 95, 70)
 local MINIBOSS_DEFEAT_COLOR = Color3.fromRGB(255, 214, 92)
@@ -35,6 +38,8 @@ local MINIBOSS_COLOR = Color3.fromRGB(210, 85, 255)
 local ENRAGE_COLOR = Color3.fromRGB(255, 70, 45)
 local HIT_SCALE = 1.08
 local DAMAGE_NUMBER_DURATION = 0.42
+local REWARD_BURST_DURATION = 1.05
+local MINIBOSS_REWARD_BURST_DURATION = 1.35
 local ENEMY_SPAWN_SCALE = 1.06
 local DEFEAT_SCALE = 1.16
 local AGGRO_SCALE = 1.12
@@ -798,6 +803,181 @@ local function showDamageNumber(model, damage)
 	end)
 
 	task.delay(DAMAGE_NUMBER_DURATION + 0.08, function()
+		if billboard.Parent then
+			billboard:Destroy()
+		end
+	end)
+end
+
+local function addRewardLabel(parent, text, color, textSize, strokeColor)
+	local label = Instance.new("TextLabel")
+	label.Name = "RewardLine"
+	label.Size = UDim2.new(1, 0, 0, textSize + 4)
+	label.BackgroundTransparency = 1
+	label.Text = text
+	label.TextColor3 = color
+	label.TextStrokeTransparency = 0.12
+	label.TextSize = textSize
+	label.TextScaled = true
+	label.Font = Enum.Font.GothamBlack
+	label.TextXAlignment = Enum.TextXAlignment.Center
+	label.TextTruncate = Enum.TextTruncate.AtEnd
+	label.Parent = parent
+
+	local sizeConstraint = Instance.new("UITextSizeConstraint")
+	sizeConstraint.MinTextSize = 10
+	sizeConstraint.MaxTextSize = textSize
+	sizeConstraint.Parent = label
+
+	local stroke = Instance.new("UIStroke")
+	stroke.Color = strokeColor
+	stroke.Transparency = 0.04
+	stroke.Thickness = 1
+	stroke.Parent = label
+
+	return label, stroke
+end
+
+local function showRewardBurst(model, reward)
+	if typeof(reward) ~= "table" then
+		return
+	end
+
+	if not model or not model:IsA("Model") or not model:IsDescendantOf(workspace) then
+		return
+	end
+
+	local root = model:FindFirstChild("HumanoidRootPart")
+	if not root or not root:IsA("BasePart") then
+		return
+	end
+
+	local existing = root:FindFirstChild(REWARD_BURST_NAME)
+	if existing then
+		existing:Destroy()
+	end
+
+	local coins = tonumber(reward.coins) or 0
+	local fragments = tonumber(reward.fragments) or 0
+	local item = reward.item
+	local isMiniboss = reward.isMiniboss == true
+	local hasItem = typeof(item) == "table" and item.name ~= nil
+	local lineCount = 2
+	if hasItem then
+		lineCount = lineCount + 1
+	end
+	if isMiniboss then
+		lineCount = lineCount + 1
+	end
+
+	local width = isMiniboss and 184 or 148
+	local height = isMiniboss and (lineCount * 24 + 12) or (lineCount * 21 + 10)
+	local startOffset = isMiniboss and Vector3.new(0, 6.25, 0) or Vector3.new(0, 5.35, 0)
+	local duration = isMiniboss and MINIBOSS_REWARD_BURST_DURATION or REWARD_BURST_DURATION
+
+	local billboard = Instance.new("BillboardGui")
+	billboard.Name = REWARD_BURST_NAME
+	billboard.Adornee = root
+	billboard.AlwaysOnTop = true
+	billboard.MaxDistance = MAX_DISTANCE
+	billboard.Size = UDim2.fromOffset(width, height)
+	billboard.StudsOffset = startOffset
+	billboard.Parent = root
+
+	local container = Instance.new("Frame")
+	container.Name = "Rewards"
+	container.Size = UDim2.fromScale(1, 1)
+	container.BackgroundTransparency = 1
+	container.Parent = billboard
+
+	local listLayout = Instance.new("UIListLayout")
+	listLayout.FillDirection = Enum.FillDirection.Vertical
+	listLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+	listLayout.VerticalAlignment = Enum.VerticalAlignment.Center
+	listLayout.SortOrder = Enum.SortOrder.LayoutOrder
+	listLayout.Padding = UDim.new(0, isMiniboss and 1 or 0)
+	listLayout.Parent = container
+
+	local fadeTargets = {}
+	if isMiniboss then
+		local label, stroke = addRewardLabel(
+			container,
+			"BOUNTY",
+			MINIBOSS_DEFEAT_COLOR,
+			18,
+			Color3.fromRGB(62, 25, 5)
+		)
+		table.insert(fadeTargets, { label = label, stroke = stroke })
+	end
+
+	local coinLabel, coinStroke = addRewardLabel(
+		container,
+		string.format("+%d coins", math.floor(coins + 0.5)),
+		COIN_REWARD_COLOR,
+		isMiniboss and 22 or 18,
+		Color3.fromRGB(72, 43, 5)
+	)
+	table.insert(fadeTargets, { label = coinLabel, stroke = coinStroke })
+
+	local fragmentLabel, fragmentStroke = addRewardLabel(
+		container,
+		string.format("+%d fragments", math.floor(fragments + 0.5)),
+		FRAGMENT_REWARD_COLOR,
+		isMiniboss and 19 or 16,
+		Color3.fromRGB(8, 45, 62)
+	)
+	table.insert(fadeTargets, { label = fragmentLabel, stroke = fragmentStroke })
+
+	if hasItem then
+		local itemColor = item.color
+		if typeof(itemColor) ~= "Color3" then
+			itemColor = MINIBOSS_DEFEAT_COLOR
+		end
+
+		local itemLabel, itemStroke = addRewardLabel(
+			container,
+			tostring(item.name),
+			itemColor,
+			isMiniboss and 18 or 15,
+			Color3.fromRGB(18, 12, 28)
+		)
+		table.insert(fadeTargets, { label = itemLabel, stroke = itemStroke })
+	end
+
+	local moveTween = TweenService:Create(billboard, TweenInfo.new(
+		duration,
+		Enum.EasingStyle.Quad,
+		Enum.EasingDirection.Out
+	), {
+		Size = UDim2.fromOffset(width + (isMiniboss and 34 or 18), height + (isMiniboss and 16 or 8)),
+		StudsOffset = startOffset + Vector3.new(0, isMiniboss and 1.25 or 0.9, 0),
+	})
+
+	moveTween:Play()
+	for _, target in ipairs(fadeTargets) do
+		local label = target.label
+		local stroke = target.stroke
+		local fadeTween = TweenService:Create(label, TweenInfo.new(
+			duration,
+			Enum.EasingStyle.Quad,
+			Enum.EasingDirection.Out
+		), {
+			TextTransparency = 1,
+			TextStrokeTransparency = 1,
+		})
+		local strokeTween = TweenService:Create(stroke, TweenInfo.new(
+			duration,
+			Enum.EasingStyle.Quad,
+			Enum.EasingDirection.Out
+		), {
+			Transparency = 1,
+		})
+
+		fadeTween:Play()
+		strokeTween:Play()
+	end
+
+	task.delay(duration + 0.08, function()
 		if billboard.Parent then
 			billboard:Destroy()
 		end
@@ -1629,6 +1809,11 @@ EnemyCombatFeedback.OnClientEvent:Connect(function(payload)
 
 	if feedbackType == "hit" then
 		showDamageNumber(payload.model, payload.damage)
+	elseif feedbackType == "defeated" then
+		showRewardBurst(payload.model, payload.reward)
+		if payload.reward and LocalPlaySound and LocalPlaySound:IsA("BindableEvent") then
+			LocalPlaySound:Fire("enemy_reward")
+		end
 	end
 
 	if feedbackType == "aggro" then

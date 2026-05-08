@@ -91,6 +91,12 @@ local SOUNDS = {
 		volume = 0.85,
 		playbackSpeed = 0.88,
 	},
+	enemy_reward = {
+		id = "rbxassetid://6837730320", -- compact coin sparkle for enemy payouts
+		volume = 0.58,
+		playbackSpeed = 1.18,
+		pitchRange = { 1.0, 1.08 },
+	},
 	enemy_miniboss_defeated = {
 		id = "rbxassetid://5852285683", -- reused defeated cue, pitched down for boss clear
 		volume = 1.0,
