@@ -12,6 +12,7 @@
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local SoundService = game:GetService("SoundService")
 local TweenService = game:GetService("TweenService")
 
 local player = Players.LocalPlayer
@@ -41,6 +42,15 @@ end
 -- FeedPet is optional — if PetFeed.server.lua hasn't loaded, the Feed
 -- Mode toggle button is hidden so the rest of the UI stays usable.
 local FeedPetEvent = Remotes:WaitForChild("FeedPet", 5)
+local PetFeedResultEvent = Remotes:WaitForChild("PetFeedResult", 5)
+
+local LOCAL_PLAY_SOUND_NAME = "DeepDigLocalPlaySound"
+local LocalPlaySound = SoundService:FindFirstChild(LOCAL_PLAY_SOUND_NAME)
+if not LocalPlaySound then
+	LocalPlaySound = Instance.new("BindableEvent")
+	LocalPlaySound.Name = LOCAL_PLAY_SOUND_NAME
+	LocalPlaySound.Parent = SoundService
+end
 
 -- PetDatabase lives in ReplicatedStorage and is safe to require from the
 -- client. We use it for rarity colors, multiplier lookups, and egg metadata.
@@ -78,6 +88,8 @@ local FEED_TARGET_COLOR = Color3.fromRGB(60, 220, 90)
 local FEED_SACRIFICE_COLOR = Color3.fromRGB(240, 70, 70)
 local FEED_CANDIDATE_COLOR = Color3.fromRGB(255, 215, 80)
 local FEED_HEADER_COLOR = Color3.fromRGB(255, 130, 80)
+local FEED_XP_COLOR = Color3.fromRGB(120, 235, 255)
+local FEED_LEVEL_COLOR = Color3.fromRGB(255, 215, 80)
 
 -- Server caps level at 20 (PetFeed MAX_LEVEL). Mirrored here so we can
 -- mark MAX cards in the grid without burning a server round-trip per click.
@@ -385,6 +397,35 @@ emptyPlaceholder.TextWrapped = true
 emptyPlaceholder.Visible = false
 emptyPlaceholder.Parent = inventorySection
 
+local feedResultOverlay = Instance.new("TextLabel")
+feedResultOverlay.Name = "FeedResultOverlay"
+feedResultOverlay.Size = UDim2.new(0, 170, 0, 28)
+feedResultOverlay.AnchorPoint = Vector2.new(1, 0)
+feedResultOverlay.Position = UDim2.new(1, -10, 0, 4)
+feedResultOverlay.BackgroundColor3 = Color3.fromRGB(18, 20, 24)
+feedResultOverlay.BackgroundTransparency = 1
+feedResultOverlay.BorderSizePixel = 0
+feedResultOverlay.Text = ""
+feedResultOverlay.TextColor3 = FEED_XP_COLOR
+feedResultOverlay.TextTransparency = 1
+feedResultOverlay.TextSize = 13
+feedResultOverlay.Font = Enum.Font.GothamBlack
+feedResultOverlay.TextXAlignment = Enum.TextXAlignment.Center
+feedResultOverlay.TextTruncate = Enum.TextTruncate.AtEnd
+feedResultOverlay.Visible = false
+feedResultOverlay.ZIndex = 20
+feedResultOverlay.Parent = inventorySection
+
+local feedResultOverlayCorner = Instance.new("UICorner")
+feedResultOverlayCorner.CornerRadius = UDim.new(0, 6)
+feedResultOverlayCorner.Parent = feedResultOverlay
+
+local feedResultOverlayStroke = Instance.new("UIStroke")
+feedResultOverlayStroke.Color = FEED_XP_COLOR
+feedResultOverlayStroke.Transparency = 1
+feedResultOverlayStroke.Thickness = 1
+feedResultOverlayStroke.Parent = feedResultOverlay
+
 -- ─── Hatchery section ────────────────────────────────────────────────────────
 
 local hatcherySection = Instance.new("Frame")
@@ -542,6 +583,101 @@ local feedMode = false
 local feedTargetId = nil
 local feedSacrificeId = nil
 local feedConfirmActive = false
+local pendingFeedResult = nil
+local feedResultOverlaySequence = 0
+
+local function playLocalPetSound(key)
+	if LocalPlaySound and LocalPlaySound:IsA("BindableEvent") then
+		LocalPlaySound:Fire(key)
+	end
+end
+
+local function showFeedResultOverlay(result)
+	if type(result) ~= "table" then
+		return
+	end
+
+	local leveledUp = result.leveledUp == true
+	local color = leveledUp and FEED_LEVEL_COLOR or FEED_XP_COLOR
+	if leveledUp then
+		feedResultOverlay.Text = string.format("LEVEL UP  Lv %d", result.newLevel or 1)
+	else
+		feedResultOverlay.Text = string.format("+%d XP", result.xpGain or 0)
+	end
+
+	feedResultOverlaySequence = feedResultOverlaySequence + 1
+	local sequence = feedResultOverlaySequence
+	feedResultOverlay.TextColor3 = color
+	feedResultOverlayStroke.Color = color
+	feedResultOverlay.BackgroundTransparency = 0.12
+	feedResultOverlay.TextTransparency = 0
+	feedResultOverlayStroke.Transparency = 0.12
+	feedResultOverlay.Visible = true
+
+	task.delay(1.25, function()
+		if sequence ~= feedResultOverlaySequence then
+			return
+		end
+
+		local fadeTween = TweenService:Create(
+			feedResultOverlay,
+			TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.In),
+			{ BackgroundTransparency = 1, TextTransparency = 1 }
+		)
+		local strokeTween = TweenService:Create(
+			feedResultOverlayStroke,
+			TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.In),
+			{ Transparency = 1 }
+		)
+		fadeTween:Play()
+		strokeTween:Play()
+		fadeTween.Completed:Connect(function()
+			if sequence == feedResultOverlaySequence then
+				feedResultOverlay.Visible = false
+			end
+		end)
+	end)
+end
+
+local function pulsePetCard(card, stroke, leveledUp)
+	local color = leveledUp and FEED_LEVEL_COLOR or FEED_XP_COLOR
+	local originalColor = stroke.Color
+	local originalThickness = stroke.Thickness
+	local scale = Instance.new("UIScale")
+	scale.Scale = 1
+	scale.Parent = card
+
+	local growTween = TweenService:Create(
+		scale,
+		TweenInfo.new(0.12, Enum.EasingStyle.Back, Enum.EasingDirection.Out),
+		{ Scale = leveledUp and 1.08 or 1.05 }
+	)
+	local strokeInTween = TweenService:Create(
+		stroke,
+		TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+		{ Color = color, Thickness = leveledUp and 4 or 3 }
+	)
+
+	growTween:Play()
+	strokeInTween:Play()
+	growTween.Completed:Connect(function()
+		local shrinkTween = TweenService:Create(
+			scale,
+			TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+			{ Scale = 1 }
+		)
+		local strokeOutTween = TweenService:Create(
+			stroke,
+			TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+			{ Color = originalColor, Thickness = originalThickness }
+		)
+		shrinkTween:Play()
+		strokeOutTween:Play()
+		shrinkTween.Completed:Connect(function()
+			scale:Destroy()
+		end)
+	end)
+end
 
 local function findPetById(petId)
 	if petId == nil then return nil end
@@ -864,6 +1000,11 @@ local function buildPetCard(entry)
 		end)
 	end
 
+	if pendingFeedResult and pendingFeedResult.targetPetId == entry.id then
+		pulsePetCard(card, cardStroke, pendingFeedResult.leveledUp == true)
+		pendingFeedResult = nil
+	end
+
 	return card
 end
 
@@ -1103,6 +1244,37 @@ refreshInventory = function()
 	end
 
 	return true
+end
+
+if PetFeedResultEvent then
+	PetFeedResultEvent.OnClientEvent:Connect(function(result)
+		if type(result) ~= "table" or type(result.targetPetId) ~= "string" then
+			return
+		end
+
+		local normalizedResult = {
+			targetPetId = result.targetPetId,
+			targetName = result.targetName,
+			rarity = result.rarity or "Common",
+			xpGain = tonumber(result.xpGain) or 0,
+			oldLevel = tonumber(result.oldLevel) or 1,
+			newLevel = tonumber(result.newLevel) or 1,
+			leveledUp = result.leveledUp == true,
+		}
+
+		pendingFeedResult = normalizedResult
+		clearFeedSelection()
+		hideFeedConfirm()
+		showFeedResultOverlay(normalizedResult)
+		playLocalPetSound(normalizedResult.leveledUp and "pet_level_up" or "pet_feed")
+		refreshInventory()
+
+		task.delay(2, function()
+			if pendingFeedResult == normalizedResult then
+				pendingFeedResult = nil
+			end
+		end)
+	end)
 end
 
 NotifyEvent.OnClientEvent:Connect(function(text, rarity)

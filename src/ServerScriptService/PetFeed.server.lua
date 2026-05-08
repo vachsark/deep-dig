@@ -23,6 +23,13 @@ if not FeedPetEvent then
 	FeedPetEvent.Parent = Remotes
 end
 
+local PetFeedResultEvent = Remotes:FindFirstChild("PetFeedResult")
+if not PetFeedResultEvent then
+	PetFeedResultEvent = Instance.new("RemoteEvent")
+	PetFeedResultEvent.Name = "PetFeedResult"
+	PetFeedResultEvent.Parent = Remotes
+end
+
 local NotifyEvent = Remotes:WaitForChild("Notify")
 
 -- ═══════════════════════════════════════════════════════════════════
@@ -169,6 +176,7 @@ FeedPetEvent.OnServerEvent:Connect(function(player, targetPetId, sacrificePetId)
 	target.level = target.level or 1
 	target.xp = target.xp or 0
 	ensurePetMultipliers(target)
+	local oldLevel = target.level
 
 	-- Already capped — refuse the consume so players don't accidentally
 	-- delete a duplicate they could trade or save for a fragment system.
@@ -205,9 +213,19 @@ FeedPetEvent.OnServerEvent:Connect(function(player, targetPetId, sacrificePetId)
 		data.equippedPet = false
 	end
 
+	local targetName = tostring(target.name)
+	PetFeedResultEvent:FireClient(player, {
+		targetPetId = targetPetId,
+		targetName = targetName,
+		rarity = target.rarity or "Common",
+		xpGain = xpGain,
+		oldLevel = oldLevel,
+		newLevel = target.level,
+		leveledUp = target.level > oldLevel,
+	})
+
 	-- Notify the player.
 	local sacName = tostring(sacrifice.name)
-	local targetName = tostring(target.name)
 	NotifyEvent:FireClient(player,
 		string.format("🍖 Fed %s to %s! Now level %d.",
 			sacName, targetName, target.level),

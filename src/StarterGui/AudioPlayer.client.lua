@@ -112,6 +112,17 @@ local SOUNDS = {
 		volume = 0.82,
 		playbackSpeed = 1.08,
 	},
+	pet_feed = {
+		id = "rbxassetid://6837730320", -- compact positive chime for duplicate feed
+		volume = 0.48,
+		playbackSpeed = 1.24,
+		pitchRange = { 1.0, 1.08 },
+	},
+	pet_level_up = {
+		id = "rbxassetid://5852285683", -- bright level-up shimmer
+		volume = 0.8,
+		playbackSpeed = 1.05,
+	},
 	resurface_fanfare = {
 		id = "rbxassetid://6079316752", -- triumphant fanfare
 		volume = 1.0,
