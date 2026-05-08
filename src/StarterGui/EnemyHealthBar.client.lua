@@ -20,12 +20,15 @@ local ATTACK_WARNING_NAME = "DeepDigEnemyAttackWarning"
 local MINIBOSS_WARNING_NAME = "DeepDigEnemyMinibossWarning"
 local MINIBOSS_ENRAGE_WARNING_NAME = "DeepDigEnemyMinibossEnrageWarning"
 local BOSS_BAR_GUI_NAME = "DeepDigMinibossBossBar"
+local MINIBOSS_DEFEAT_GUI_NAME = "DeepDigMinibossDefeatClear"
 local MAX_DISTANCE = 80
 local BAR_WIDTH = 120
 local BAR_HEIGHT = 36
 local HIT_COLOR = Color3.fromRGB(255, 245, 160)
 local ENEMY_SPAWN_COLOR = Color3.fromRGB(198, 132, 62)
 local DEFEAT_COLOR = Color3.fromRGB(255, 95, 70)
+local MINIBOSS_DEFEAT_COLOR = Color3.fromRGB(255, 214, 92)
+local MINIBOSS_VOID_COLOR = Color3.fromRGB(98, 38, 145)
 local AGGRO_COLOR = Color3.fromRGB(255, 175, 45)
 local ATTACK_WARNING_COLOR = Color3.fromRGB(255, 70, 45)
 local MINIBOSS_COLOR = Color3.fromRGB(210, 85, 255)
@@ -44,6 +47,8 @@ local ATTACK_WARNING_DURATION = 0.38
 local MINIBOSS_WARNING_DURATION = 1.05
 local MINIBOSS_ENRAGE_WARNING_DURATION = 0.82
 local BOSS_BAR_ENRAGE_PULSE_DURATION = 0.42
+local BOSS_BAR_DEFEAT_PULSE_DURATION = 0.68
+local MINIBOSS_DEFEAT_DURATION = 1.35
 local PLAYER_HIT_DISPLAY_ORDER = 80
 local PLAYER_HIT_FLASH_TRANSPARENCY = 0.48
 local PLAYER_HIT_FLASH_FADE = 0.2
@@ -54,6 +59,7 @@ local PLAYER_HIT_JOLT_DURATION = 0.14
 local PLAYER_HIT_JOLT_POSITION = 0.32
 local PLAYER_HIT_JOLT_ROTATION = 0.75
 local BOSS_BAR_DISPLAY_ORDER = 70
+local MINIBOSS_DEFEAT_DISPLAY_ORDER = 95
 local BOSS_BAR_WIDTH = 380
 local BOSS_BAR_HEIGHT = 52
 
@@ -68,6 +74,8 @@ local bossBarNameLabel = nil
 local bossBarPercentLabel = nil
 local activeBossModel = nil
 local bossBarPulseSequence = 0
+local minibossDefeatGui = nil
+local minibossDefeatSequence = 0
 local playerHitGui = nil
 local playerHitOverlay = nil
 local playerHitFlashTween = nil
@@ -1235,6 +1243,267 @@ local function pulseBossBarEnrage(model)
 	end)
 end
 
+local function ensureMinibossDefeatGui()
+	if minibossDefeatGui and minibossDefeatGui.Parent then
+		return minibossDefeatGui
+	end
+
+	local playerGui = player:FindFirstChildOfClass("PlayerGui") or player:WaitForChild("PlayerGui")
+
+	minibossDefeatGui = Instance.new("ScreenGui")
+	minibossDefeatGui.Name = MINIBOSS_DEFEAT_GUI_NAME
+	minibossDefeatGui.ResetOnSpawn = false
+	minibossDefeatGui.IgnoreGuiInset = true
+	minibossDefeatGui.DisplayOrder = MINIBOSS_DEFEAT_DISPLAY_ORDER
+	minibossDefeatGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+	minibossDefeatGui.Parent = playerGui
+
+	return minibossDefeatGui
+end
+
+local function pulseBossBarDefeated(model)
+	if not model or not model:IsA("Model") or model:GetAttribute("IsMiniboss") ~= true then
+		return
+	end
+
+	ensureBossBar()
+	if not bossBarFrame or not bossBarFill or not bossBarStroke then
+		return
+	end
+
+	bossBarPulseSequence = bossBarPulseSequence + 1
+	local sequence = bossBarPulseSequence
+	local originalPosition = bossBarFrame.Position
+	local originalSize = bossBarFrame.Size
+	local originalBackgroundColor = bossBarFrame.BackgroundColor3
+	local originalBackgroundTransparency = bossBarFrame.BackgroundTransparency
+
+	activeBossModel = model
+	bossBarNameLabel.Text = model:GetAttribute("EnemyName") or model.Name
+	bossBarPercentLabel.Text = "CLEAR"
+	bossBarFill.Size = UDim2.fromScale(0, 1)
+	bossBarFill.BackgroundColor3 = MINIBOSS_DEFEAT_COLOR
+	bossBarFrame.BackgroundColor3 = Color3.fromRGB(35, 23, 12)
+	bossBarFrame.BackgroundTransparency = 0
+	bossBarFrame.Visible = true
+	bossBarStroke.Color = MINIBOSS_DEFEAT_COLOR
+	bossBarStroke.Transparency = 0
+	bossBarStroke.Thickness = 3
+
+	local frameTween = TweenService:Create(bossBarFrame, TweenInfo.new(
+		BOSS_BAR_DEFEAT_PULSE_DURATION,
+		Enum.EasingStyle.Quad,
+		Enum.EasingDirection.Out
+	), {
+		Position = UDim2.new(
+			originalPosition.X.Scale,
+			originalPosition.X.Offset,
+			originalPosition.Y.Scale,
+			originalPosition.Y.Offset - 10
+		),
+		Size = UDim2.fromOffset(BOSS_BAR_WIDTH + 54, BOSS_BAR_HEIGHT + 10),
+		BackgroundTransparency = 1,
+	})
+	local fillTween = TweenService:Create(bossBarFill, TweenInfo.new(
+		BOSS_BAR_DEFEAT_PULSE_DURATION,
+		Enum.EasingStyle.Quad,
+		Enum.EasingDirection.Out
+	), {
+		BackgroundColor3 = MINIBOSS_VOID_COLOR,
+	})
+	local strokeTween = TweenService:Create(bossBarStroke, TweenInfo.new(
+		BOSS_BAR_DEFEAT_PULSE_DURATION,
+		Enum.EasingStyle.Quad,
+		Enum.EasingDirection.Out
+	), {
+		Transparency = 1,
+		Thickness = 1,
+	})
+
+	frameTween:Play()
+	fillTween:Play()
+	strokeTween:Play()
+
+	task.delay(BOSS_BAR_DEFEAT_PULSE_DURATION + 0.04, function()
+		if sequence ~= bossBarPulseSequence then
+			return
+		end
+
+		bossBarFrame.Position = originalPosition
+		bossBarFrame.Size = originalSize
+		bossBarFrame.BackgroundColor3 = originalBackgroundColor
+		bossBarFrame.BackgroundTransparency = originalBackgroundTransparency
+		bossBarStroke.Color = MINIBOSS_COLOR
+		bossBarStroke.Transparency = 0.28
+		bossBarStroke.Thickness = 1
+		if activeBossModel == model then
+			activeBossModel = nil
+		end
+		updateBossBar()
+	end)
+end
+
+local function showMinibossDefeatCelebration(model)
+	if not model or not model:IsA("Model") or model:GetAttribute("IsMiniboss") ~= true then
+		return
+	end
+
+	local gui = ensureMinibossDefeatGui()
+	minibossDefeatSequence = minibossDefeatSequence + 1
+	local sequence = minibossDefeatSequence
+	gui:ClearAllChildren()
+
+	local goldFlash = Instance.new("Frame")
+	goldFlash.Name = "GoldFlash"
+	goldFlash.Size = UDim2.fromScale(1, 1)
+	goldFlash.BackgroundColor3 = MINIBOSS_DEFEAT_COLOR
+	goldFlash.BackgroundTransparency = 0.34
+	goldFlash.BorderSizePixel = 0
+	goldFlash.ZIndex = 1
+	goldFlash.Parent = gui
+
+	local voidFlash = Instance.new("Frame")
+	voidFlash.Name = "VoidFlash"
+	voidFlash.Size = UDim2.fromScale(1, 1)
+	voidFlash.BackgroundColor3 = MINIBOSS_VOID_COLOR
+	voidFlash.BackgroundTransparency = 0.72
+	voidFlash.BorderSizePixel = 0
+	voidFlash.ZIndex = 2
+	voidFlash.Parent = gui
+
+	local banner = Instance.new("Frame")
+	banner.Name = "BossClearBanner"
+	banner.AnchorPoint = Vector2.new(0.5, 0.5)
+	banner.Position = UDim2.fromScale(0.5, 0.34)
+	banner.Size = UDim2.new(0.86, 0, 0, 92)
+	banner.BackgroundColor3 = Color3.fromRGB(21, 12, 28)
+	banner.BackgroundTransparency = 0.06
+	banner.BorderSizePixel = 0
+	banner.ZIndex = 3
+	banner.Parent = gui
+
+	local sizeConstraint = Instance.new("UISizeConstraint")
+	sizeConstraint.MinSize = Vector2.new(280, 82)
+	sizeConstraint.MaxSize = Vector2.new(430, 92)
+	sizeConstraint.Parent = banner
+
+	local bannerCorner = Instance.new("UICorner")
+	bannerCorner.CornerRadius = UDim.new(0, 8)
+	bannerCorner.Parent = banner
+
+	local bannerStroke = Instance.new("UIStroke")
+	bannerStroke.Color = MINIBOSS_DEFEAT_COLOR
+	bannerStroke.Transparency = 0.06
+	bannerStroke.Thickness = 2
+	bannerStroke.Parent = banner
+
+	local title = Instance.new("TextLabel")
+	title.Name = "Title"
+	title.Position = UDim2.fromOffset(18, 12)
+	title.Size = UDim2.new(1, -36, 0, 34)
+	title.BackgroundTransparency = 1
+	title.Text = "BOSS CLEAR"
+	title.TextColor3 = MINIBOSS_DEFEAT_COLOR
+	title.TextStrokeTransparency = 0.12
+	title.TextSize = 32
+	title.Font = Enum.Font.GothamBlack
+	title.ZIndex = 4
+	title.Parent = banner
+
+	local nameLabel = Instance.new("TextLabel")
+	nameLabel.Name = "BossName"
+	nameLabel.Position = UDim2.fromOffset(18, 49)
+	nameLabel.Size = UDim2.new(1, -36, 0, 24)
+	nameLabel.BackgroundTransparency = 1
+	nameLabel.Text = model:GetAttribute("EnemyName") or model.Name
+	nameLabel.TextColor3 = Color3.fromRGB(244, 223, 255)
+	nameLabel.TextStrokeTransparency = 0.35
+	nameLabel.TextSize = 18
+	nameLabel.Font = Enum.Font.GothamBold
+	nameLabel.TextTruncate = Enum.TextTruncate.AtEnd
+	nameLabel.ZIndex = 4
+	nameLabel.Parent = banner
+
+	local startSize = UDim2.new(0.76, 0, 0, 82)
+	banner.Size = startSize
+
+	local flashTween = TweenService:Create(goldFlash, TweenInfo.new(
+		0.55,
+		Enum.EasingStyle.Quad,
+		Enum.EasingDirection.Out
+	), {
+		BackgroundTransparency = 1,
+	})
+	local voidTween = TweenService:Create(voidFlash, TweenInfo.new(
+		MINIBOSS_DEFEAT_DURATION,
+		Enum.EasingStyle.Quad,
+		Enum.EasingDirection.Out
+	), {
+		BackgroundTransparency = 1,
+	})
+	local bannerTween = TweenService:Create(banner, TweenInfo.new(
+		0.24,
+		Enum.EasingStyle.Back,
+		Enum.EasingDirection.Out
+	), {
+		Size = UDim2.new(0.86, 0, 0, 92),
+	})
+	local bannerFadeTween = TweenService:Create(banner, TweenInfo.new(
+		0.38,
+		Enum.EasingStyle.Quad,
+		Enum.EasingDirection.In
+	), {
+		Position = UDim2.fromScale(0.5, 0.31),
+		BackgroundTransparency = 1,
+	})
+	local strokeFadeTween = TweenService:Create(bannerStroke, TweenInfo.new(
+		0.38,
+		Enum.EasingStyle.Quad,
+		Enum.EasingDirection.In
+	), {
+		Transparency = 1,
+	})
+	local titleFadeTween = TweenService:Create(title, TweenInfo.new(
+		0.38,
+		Enum.EasingStyle.Quad,
+		Enum.EasingDirection.In
+	), {
+		TextTransparency = 1,
+		TextStrokeTransparency = 1,
+	})
+	local nameFadeTween = TweenService:Create(nameLabel, TweenInfo.new(
+		0.38,
+		Enum.EasingStyle.Quad,
+		Enum.EasingDirection.In
+	), {
+		TextTransparency = 1,
+		TextStrokeTransparency = 1,
+	})
+
+	flashTween:Play()
+	voidTween:Play()
+	bannerTween:Play()
+	task.delay(0.86, function()
+		if sequence ~= minibossDefeatSequence or not banner.Parent then
+			return
+		end
+
+		bannerFadeTween:Play()
+		strokeFadeTween:Play()
+		titleFadeTween:Play()
+		nameFadeTween:Play()
+	end)
+
+	task.delay(MINIBOSS_DEFEAT_DURATION + 0.06, function()
+		if sequence == minibossDefeatSequence and gui.Parent then
+			gui:ClearAllChildren()
+		end
+	end)
+
+	pulseBossBarDefeated(model)
+	playPlayerHitJolt()
+end
+
 local function pulseEnemy(model, feedbackType)
 	if not model or not model:IsA("Model") or not model:IsDescendantOf(workspace) then
 		return
@@ -1336,7 +1605,7 @@ EnemyCombatFeedback.OnClientEvent:Connect(function(payload)
 		return
 	end
 
-	if feedbackType ~= "hit" and feedbackType ~= "defeated" and feedbackType ~= "aggro" and feedbackType ~= "enemy_attack_warning" and feedbackType ~= "enemy_spawn" and feedbackType ~= "miniboss_spawn" and feedbackType ~= "miniboss_enrage" then
+	if feedbackType ~= "hit" and feedbackType ~= "defeated" and feedbackType ~= "aggro" and feedbackType ~= "enemy_attack_warning" and feedbackType ~= "enemy_spawn" and feedbackType ~= "miniboss_spawn" and feedbackType ~= "miniboss_enrage" and feedbackType ~= "miniboss_defeated" then
 		return
 	end
 
@@ -1351,6 +1620,8 @@ EnemyCombatFeedback.OnClientEvent:Connect(function(payload)
 			LocalPlaySound:Fire("enemy_miniboss_spawn")
 		elseif feedbackType == "miniboss_enrage" then
 			LocalPlaySound:Fire("enemy_miniboss_enrage")
+		elseif feedbackType == "miniboss_defeated" then
+			LocalPlaySound:Fire("enemy_miniboss_defeated")
 		else
 			LocalPlaySound:Fire(feedbackType == "defeated" and "enemy_defeated" or "enemy_hit")
 		end
@@ -1371,6 +1642,9 @@ EnemyCombatFeedback.OnClientEvent:Connect(function(payload)
 	elseif feedbackType == "miniboss_enrage" then
 		pulseBossBarEnrage(payload.model)
 		showMinibossEnrageWarning(payload.model)
+	elseif feedbackType == "miniboss_defeated" then
+		showMinibossDefeatCelebration(payload.model)
+		return
 	end
 
 	pulseEnemy(payload.model, feedbackType)

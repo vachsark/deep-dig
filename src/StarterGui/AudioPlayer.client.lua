@@ -91,6 +91,11 @@ local SOUNDS = {
 		volume = 0.85,
 		playbackSpeed = 0.88,
 	},
+	enemy_miniboss_defeated = {
+		id = "rbxassetid://5852285683", -- reused defeated cue, pitched down for boss clear
+		volume = 1.0,
+		playbackSpeed = 0.68,
+	},
 	enemy_miniboss_spawn = {
 		id = "rbxassetid://5982968246", -- deep warning horn
 		volume = 0.9,

@@ -296,6 +296,9 @@ local function onEnemyDied(record)
 	record.dead = true
 	fireEnemyCombatFeedback(record.lastAttacker or record.owner, "defeated", record.model)
 	payEnemyReward(record)
+	if record.enemy.isMiniboss then
+		fireEnemyCombatFeedback(record.lastAttacker or record.owner, "miniboss_defeated", record.model)
+	end
 	task.delay(2, function()
 		destroyEnemy(record)
 	end)
