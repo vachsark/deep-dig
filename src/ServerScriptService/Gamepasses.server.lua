@@ -10,6 +10,7 @@
 --   6 — INFINITE_BACKPACK : inventory has no item cap
 --   7 — ARTIFACT_DETECTOR : weak finds sometimes become Rare+ artifacts
 --   8 — REBIRTH_BOOST : resurfaces give a stronger coin multiplier
+--   9 — LUCKY_EGG : Legendary/Mythic pet hatch weights are doubled
 --
 -- On player join:
 --   1. Check MarketplaceService:UserOwnsGamePassAsync for each pass
@@ -36,7 +37,7 @@ local AUTO_PROMPT_DELAY = 240
 local autoPromptSessions = {}
 
 -- ─── Gamepass definitions ─────────────────────────────────────────────────────
--- Replace placeholder IDs (1, 2, 3, 4, 5, 6, 7, 8) with your real Roblox gamepass IDs.
+-- Replace placeholder IDs (1, 2, 3, 4, 5, 6, 7, 8, 9) with your real Roblox gamepass IDs.
 
 local GAMEPASSES = {
 	{
@@ -71,6 +72,15 @@ local GAMEPASSES = {
 		icon = "rbxassetid://0",
 		price = 499,
 		tag = "FOREMAN",
+	},
+	{
+		id = Config.GAMEPASS_LUCKY_EGG_ID, -- placeholder; replace with the real Creator Hub pass id
+		key = Config.GAMEPASS_LUCKY_EGG,
+		name = "Lucky Egg",
+		description = "Legendary and Mythic pet hatch weights are doubled.",
+		icon = "rbxassetid://0",
+		price = 699,
+		tag = "LUCKY_EGG",
 	},
 	{
 		id = Config.GAMEPASS_AUTO_COLLECTOR_ID, -- placeholder; replace with the real Creator Hub pass id

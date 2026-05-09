@@ -45,6 +45,7 @@ Config.FRIEND_REFERRAL_REWARD_COINS = 2000
 Config.FRIEND_REFERRAL_REWARD_EGG = "Stone"
 Config.GAMEPASS_FOREMAN_ID = 4
 Config.GAMEPASS_FOREMAN = "foreman"
+Config.GAMEPASS_LUCKY_EGG_ID = 9
 Config.GAMEPASS_LUCKY_EGG = "lucky_egg"
 Config.GAMEPASS_AUTO_COLLECTOR_ID = 5
 Config.GAMEPASS_AUTO_COLLECTOR = "auto_collector"
@@ -63,6 +64,7 @@ Config.UNAVAILABLE_GAMEPASS_IDS = {
 	[6] = true,
 	[7] = true,
 	[8] = true,
+	[9] = true,
 }
 Config.UNAVAILABLE_GAMEPASS_LABEL = "Coming Soon"
 Config.STREAK_REVIVE_PRODUCT_ID = 1234567890 -- Placeholder; not launch-ready. Replace with a real Developer Product ID.

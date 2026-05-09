@@ -396,6 +396,7 @@ local PASS_UI_STYLES = {
 	[2] = { color = Color3.fromRGB(255, 200, 0), label = "★ VIP" },
 	[3] = { color = Color3.fromRGB(80, 220, 80), label = "🍀 LUCKY" },
 	[4] = { color = Color3.fromRGB(90, 170, 255), label = "⛏ FOREMAN" },
+	[Config.GAMEPASS_LUCKY_EGG_ID] = { color = Color3.fromRGB(175, 245, 95), label = "🍀 EGG" },
 	[Config.GAMEPASS_AUTO_COLLECTOR_ID] = { color = Color3.fromRGB(80, 230, 210), label = "⚙ AUTO" },
 	[Config.GAMEPASS_INFINITE_BACKPACK_ID] = { color = Color3.fromRGB(190, 120, 255), label = "∞ BAG" },
 	[Config.GAMEPASS_ARTIFACT_DETECTOR_ID] = { color = Color3.fromRGB(60, 210, 255), label = "⌁ SCAN" },
@@ -407,6 +408,7 @@ local PASS_UI_ORDER = {
 	2,
 	3,
 	4,
+	Config.GAMEPASS_LUCKY_EGG_ID,
 	Config.GAMEPASS_AUTO_COLLECTOR_ID,
 	Config.GAMEPASS_INFINITE_BACKPACK_ID,
 	Config.GAMEPASS_ARTIFACT_DETECTOR_ID,
@@ -414,6 +416,7 @@ local PASS_UI_ORDER = {
 }
 
 local PASS_UI_KEYS = {
+	[Config.GAMEPASS_LUCKY_EGG_ID] = Config.GAMEPASS_LUCKY_EGG,
 	[Config.GAMEPASS_AUTO_COLLECTOR_ID] = Config.GAMEPASS_AUTO_COLLECTOR,
 	[Config.GAMEPASS_INFINITE_BACKPACK_ID] = Config.GAMEPASS_INFINITE_BACKPACK,
 	[Config.GAMEPASS_ARTIFACT_DETECTOR_ID] = Config.GAMEPASS_ARTIFACT_DETECTOR,

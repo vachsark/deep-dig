@@ -238,9 +238,9 @@ local function rollFromEgg(eggType, player)
 
 	local data = _G.DeepDig_playerData and player and _G.DeepDig_playerData[player.UserId]
 	local hasLuckyEgg = data and data.ownedGamepasses and (
-		data.ownedGamepasses[Config.GAMEPASS_LUCKY_EGG]
-		or data.ownedGamepasses["Lucky Egg"]
-		or data.ownedGamepasses[0]
+		data.ownedGamepasses[Config.GAMEPASS_LUCKY_EGG_ID] == true
+		or data.ownedGamepasses[Config.GAMEPASS_LUCKY_EGG] == true
+		or data.ownedGamepasses["Lucky Egg"] == true
 	)
 
 	if hasLuckyEgg then
