@@ -26,6 +26,13 @@ local NotifyEvent = Remotes:WaitForChild("Notify")
 local UpdateHUDEvent = Remotes:WaitForChild("UpdateHUD")
 local GetPlayerDataFunc = Remotes:WaitForChild("GetPlayerData")
 
+local StreakRewardResultEvent = Remotes:FindFirstChild("StreakRewardResult")
+if not StreakRewardResultEvent then
+	StreakRewardResultEvent = Instance.new("RemoteEvent")
+	StreakRewardResultEvent.Name = "StreakRewardResult"
+	StreakRewardResultEvent.Parent = Remotes
+end
+
 local RequestStreakReviveEvent = Remotes:FindFirstChild("RequestStreakRevive")
 if not RequestStreakReviveEvent then
 	RequestStreakReviveEvent = Instance.new("RemoteEvent")
@@ -226,7 +233,7 @@ end
 
 local function applyReward(player, reward)
 	local data = getSharedData(player)
-	if not data then return end
+	if not data then return false end
 
 	if reward.type == "coins" then
 		-- VIP gamepass gives +50% coins
@@ -246,21 +253,23 @@ local function applyReward(player, reward)
 		if tryAddInventoryItem then
 			if not tryAddInventoryItem(player, reward.item) then
 				reward.label = reward.label .. " (backpack full)"
-				return
+				return false
 			end
 		else
 			table.insert(data.inventory, reward.item)
 		end
 		data.collections[reward.item.name] = true
 	end
+
+	return true
 end
 
 local function grantDailyStreakReward(player, data, rewardSource)
 	local streak = data.loginStreak or 0
 	local day = cycleDay(streak)
 	local reward = buildReward(streak, data.deepestBlock)
+	local rewardGranted = applyReward(player, reward)
 
-	applyReward(player, reward)
 	applyStreakHudUpdate(player, data)
 
 	local streakEmoji = day == 7 and "🏆" or "🔥"
@@ -273,6 +282,17 @@ local function grantDailyStreakReward(player, data, rewardSource)
 		rewardPrefix .. streakEmoji .. " Day " .. day .. " Streak!" .. cycleLabel .. "  Reward: " .. reward.label,
 		day >= 7 and "Legendary" or (day >= 5 and "Epic" or (day >= 3 and "Rare" or "Uncommon"))
 	)
+
+	if rewardGranted then
+		StreakRewardResultEvent:FireClient(player, {
+			streak = streak,
+			day = day,
+			cycle = cycleNum,
+			rewardLabel = reward.label,
+			revived = rewardSource == "revive",
+			milestone = day == 7 or cycleNum > 1,
+		})
+	end
 
 	if day == 7 then
 		NotifyEvent:FireAllClients(

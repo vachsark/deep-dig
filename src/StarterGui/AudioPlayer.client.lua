@@ -123,6 +123,17 @@ local SOUNDS = {
 		volume = 0.8,
 		playbackSpeed = 1.05,
 	},
+	streak_reward = {
+		id = "rbxassetid://6837730320", -- compact daily claim chime
+		volume = 0.62,
+		playbackSpeed = 1.18,
+		pitchRange = { 1.0, 1.06 },
+	},
+	streak_milestone = {
+		id = "rbxassetid://5852285683", -- stronger milestone shimmer
+		volume = 0.9,
+		playbackSpeed = 0.92,
+	},
 	resurface_fanfare = {
 		id = "rbxassetid://6079316752", -- triumphant fanfare
 		volume = 1.0,

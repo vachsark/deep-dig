@@ -14,10 +14,19 @@ local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
 local MarketplaceService = game:GetService("MarketplaceService")
 local Lighting = game:GetService("Lighting")
+local SoundService = game:GetService("SoundService")
 
 local player = Players.LocalPlayer
 local Remotes = ReplicatedStorage:WaitForChild("Remotes")
 local Config = require(ReplicatedStorage:WaitForChild("Config"))
+local LOCAL_PLAY_SOUND_NAME = "DeepDigLocalPlaySound"
+
+local LocalPlaySound = SoundService:FindFirstChild(LOCAL_PLAY_SOUND_NAME)
+if not LocalPlaySound then
+	LocalPlaySound = Instance.new("BindableEvent")
+	LocalPlaySound.Name = LOCAL_PLAY_SOUND_NAME
+	LocalPlaySound.Parent = SoundService
+end
 
 -- ═══════════════════════════════════════════════════════════════════
 -- Create HUD
@@ -222,6 +231,33 @@ local currentStreakRevivePending = false
 local currentStreakReviveBaseStreak = 0
 local currentStreakRevivePrice = 50
 local currentStreakReviveProductAvailable = Config.isStreakReviveProductIdValid(Config.STREAK_REVIVE_PRODUCT_ID)
+
+local pulseStreakLabel
+do
+	local STREAK_TEXT_BASE_SIZE = streakLabel.TextSize
+	local STREAK_TEXT_REST_COLOR = Color3.fromRGB(255, 140, 40)
+	local streakPulseSequence = 0
+
+	function pulseStreakLabel(milestone)
+		streakPulseSequence = streakPulseSequence + 1
+		local sequence = streakPulseSequence
+
+		streakLabel.TextColor3 = milestone and Color3.fromRGB(255, 230, 110) or Color3.fromRGB(255, 185, 80)
+		streakLabel.TextSize = STREAK_TEXT_BASE_SIZE + (milestone and 7 or 5)
+
+		local settle = TweenService:Create(
+			streakLabel,
+			TweenInfo.new(0.18, Enum.EasingStyle.Back, Enum.EasingDirection.Out),
+			{ TextSize = STREAK_TEXT_BASE_SIZE, TextColor3 = STREAK_TEXT_REST_COLOR }
+		)
+		settle:Play()
+		settle.Completed:Connect(function()
+			if sequence ~= streakPulseSequence then return end
+			streakLabel.TextSize = STREAK_TEXT_BASE_SIZE
+			streakLabel.TextColor3 = STREAK_TEXT_REST_COLOR
+		end)
+	end
+end
 
 -- ─── Gamepass badge row ──────────────────────────────────────────────────────
 -- Small pills shown when a gamepass is active.
@@ -915,6 +951,173 @@ streakReviveDeclineButton.Parent = streakRevivePanel
 local streakReviveDeclineCorner = Instance.new("UICorner")
 streakReviveDeclineCorner.CornerRadius = UDim.new(0, 8)
 streakReviveDeclineCorner.Parent = streakReviveDeclineButton
+
+local showStreakRewardBurst
+do
+local streakRewardUi = {}
+streakRewardUi.panel = Instance.new("Frame")
+streakRewardUi.panel.Name = "StreakRewardBurst"
+streakRewardUi.panel.AnchorPoint = Vector2.new(0.5, 0.5)
+streakRewardUi.panel.Size = UDim2.fromOffset(360, 144)
+streakRewardUi.panel.Position = UDim2.fromScale(0.5, 0.38)
+streakRewardUi.panel.BackgroundColor3 = Color3.fromRGB(24, 20, 18)
+streakRewardUi.panel.BackgroundTransparency = 1
+streakRewardUi.panel.BorderSizePixel = 0
+streakRewardUi.panel.Visible = false
+streakRewardUi.panel.ZIndex = 74
+streakRewardUi.panel.Parent = screenGui
+
+streakRewardUi.corner = Instance.new("UICorner")
+streakRewardUi.corner.CornerRadius = UDim.new(0, 12)
+streakRewardUi.corner.Parent = streakRewardUi.panel
+
+streakRewardUi.stroke = Instance.new("UIStroke")
+streakRewardUi.stroke.Color = Color3.fromRGB(255, 180, 70)
+streakRewardUi.stroke.Thickness = 2
+streakRewardUi.stroke.Transparency = 1
+streakRewardUi.stroke.Parent = streakRewardUi.panel
+
+streakRewardUi.title = Instance.new("TextLabel")
+streakRewardUi.title.Name = "Title"
+streakRewardUi.title.Size = UDim2.new(1, -28, 0, 34)
+streakRewardUi.title.Position = UDim2.fromOffset(14, 12)
+streakRewardUi.title.BackgroundTransparency = 1
+streakRewardUi.title.Text = "🔥 Streak Claimed"
+streakRewardUi.title.TextColor3 = Color3.fromRGB(255, 200, 80)
+streakRewardUi.title.TextTransparency = 1
+streakRewardUi.title.TextSize = 22
+streakRewardUi.title.Font = Enum.Font.GothamBlack
+streakRewardUi.title.TextXAlignment = Enum.TextXAlignment.Center
+streakRewardUi.title.ZIndex = 75
+streakRewardUi.title.Parent = streakRewardUi.panel
+
+streakRewardUi.amount = Instance.new("TextLabel")
+streakRewardUi.amount.Name = "Reward"
+streakRewardUi.amount.Size = UDim2.new(1, -28, 0, 36)
+streakRewardUi.amount.Position = UDim2.fromOffset(14, 48)
+streakRewardUi.amount.BackgroundTransparency = 1
+streakRewardUi.amount.Text = "+200 coins"
+streakRewardUi.amount.TextColor3 = Color3.fromRGB(255, 235, 130)
+streakRewardUi.amount.TextTransparency = 1
+streakRewardUi.amount.TextSize = 25
+streakRewardUi.amount.Font = Enum.Font.GothamBlack
+streakRewardUi.amount.TextWrapped = true
+streakRewardUi.amount.TextXAlignment = Enum.TextXAlignment.Center
+streakRewardUi.amount.ZIndex = 75
+streakRewardUi.amount.Parent = streakRewardUi.panel
+
+streakRewardUi.detail = Instance.new("TextLabel")
+streakRewardUi.detail.Name = "Detail"
+streakRewardUi.detail.Size = UDim2.new(1, -28, 0, 30)
+streakRewardUi.detail.Position = UDim2.fromOffset(14, 88)
+streakRewardUi.detail.BackgroundTransparency = 1
+streakRewardUi.detail.Text = "Day 1 • Cycle 1 • Streak ×1"
+streakRewardUi.detail.TextColor3 = Color3.fromRGB(220, 210, 190)
+streakRewardUi.detail.TextTransparency = 1
+streakRewardUi.detail.TextSize = 14
+streakRewardUi.detail.Font = Enum.Font.GothamBold
+streakRewardUi.detail.TextWrapped = true
+streakRewardUi.detail.TextXAlignment = Enum.TextXAlignment.Center
+streakRewardUi.detail.ZIndex = 75
+streakRewardUi.detail.Parent = streakRewardUi.panel
+
+local streakRewardSequence = 0
+local streakRewardTweens = {}
+
+local function clearStreakRewardTweens()
+	for _, tween in ipairs(streakRewardTweens) do
+		tween:Cancel()
+	end
+	streakRewardTweens = {}
+end
+
+local function playStreakRewardSound(milestone)
+	if LocalPlaySound and LocalPlaySound:IsA("BindableEvent") then
+		LocalPlaySound:Fire(milestone and "streak_milestone" or "streak_reward")
+	end
+end
+
+local function tweenStreakReward(instance, duration, goal, easingStyle, easingDirection)
+	local tween = TweenService:Create(
+		instance,
+		TweenInfo.new(duration, easingStyle or Enum.EasingStyle.Quad, easingDirection or Enum.EasingDirection.Out),
+		goal
+	)
+	table.insert(streakRewardTweens, tween)
+	tween:Play()
+	return tween
+end
+
+function showStreakRewardBurst(payload)
+	if type(payload) ~= "table" then
+		return
+	end
+
+	local day = tonumber(payload.day) or 1
+	local cycle = tonumber(payload.cycle) or 1
+	local streak = tonumber(payload.streak) or day
+	local rewardLabel = tostring(payload.rewardLabel or "Daily reward")
+	local milestone = payload.milestone == true or day == 7 or cycle > 1
+
+	streakRewardSequence = streakRewardSequence + 1
+	local sequence = streakRewardSequence
+	clearStreakRewardTweens()
+
+	streakRewardUi.panel.Visible = true
+	streakRewardUi.panel.Size = milestone and UDim2.fromOffset(390, 156) or UDim2.fromOffset(360, 144)
+	streakRewardUi.panel.Position = UDim2.fromScale(0.5, 0.40)
+	streakRewardUi.panel.BackgroundTransparency = 0.12
+	streakRewardUi.stroke.Transparency = 0
+	streakRewardUi.stroke.Thickness = milestone and 3 or 2
+	streakRewardUi.stroke.Color = milestone and Color3.fromRGB(255, 220, 90) or Color3.fromRGB(255, 180, 70)
+	streakRewardUi.title.TextTransparency = 0
+	streakRewardUi.amount.TextTransparency = 0
+	streakRewardUi.detail.TextTransparency = 0
+
+	if milestone then
+		streakRewardUi.panel.BackgroundColor3 = Color3.fromRGB(42, 31, 16)
+		streakRewardUi.title.Text = (payload.revived and "🏆 Streak Revived" or "🏆 Milestone Streak")
+		streakRewardUi.title.TextColor3 = Color3.fromRGB(255, 230, 110)
+		streakRewardUi.amount.TextColor3 = Color3.fromRGB(255, 245, 150)
+	else
+		streakRewardUi.panel.BackgroundColor3 = Color3.fromRGB(24, 20, 18)
+		streakRewardUi.title.Text = (payload.revived and "🔥 Streak Revived" or "🔥 Streak Claimed")
+		streakRewardUi.title.TextColor3 = Color3.fromRGB(255, 190, 80)
+		streakRewardUi.amount.TextColor3 = Color3.fromRGB(255, 235, 130)
+	end
+
+	streakRewardUi.amount.Text = rewardLabel
+	streakRewardUi.detail.Text = "Day " .. day .. " • Cycle " .. cycle .. " • Streak ×" .. streak
+
+	pulseStreakLabel(milestone)
+	playStreakRewardSound(milestone)
+
+	tweenStreakReward(streakRewardUi.panel, 0.12, {
+		Position = UDim2.fromScale(0.5, 0.38),
+	}, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
+
+	task.delay(milestone and 2.8 or 2.2, function()
+		if sequence ~= streakRewardSequence then
+			return
+		end
+
+		tweenStreakReward(streakRewardUi.panel, 0.22, {
+			Position = UDim2.fromScale(0.5, 0.36),
+			BackgroundTransparency = 1,
+		}, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+		tweenStreakReward(streakRewardUi.stroke, 0.22, { Transparency = 1 }, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+		tweenStreakReward(streakRewardUi.title, 0.18, { TextTransparency = 1 }, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+		tweenStreakReward(streakRewardUi.amount, 0.18, { TextTransparency = 1 }, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+		local detailFade = tweenStreakReward(streakRewardUi.detail, 0.18, { TextTransparency = 1 }, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+		detailFade.Completed:Connect(function()
+			if sequence ~= streakRewardSequence then
+				return
+			end
+			streakRewardUi.panel.Visible = false
+		end)
+	end)
+end
+end
 
 local offlineIncomePanel = Instance.new("Frame")
 offlineIncomePanel.Name = "OfflineIncomeReward"
@@ -1887,6 +2090,10 @@ end)
 
 Remotes.Notify.OnClientEvent:Connect(function(message, rarity)
 	showNotification(message, rarity)
+end)
+
+Remotes:WaitForChild("StreakRewardResult").OnClientEvent:Connect(function(payload)
+	showStreakRewardBurst(payload)
 end)
 
 -- ═══════════════════════════════════════════════════════════════════
