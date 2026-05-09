@@ -129,6 +129,12 @@ local SOUNDS = {
 		playbackSpeed = 1.18,
 		pitchRange = { 1.0, 1.06 },
 	},
+	quest_claim = {
+		id = "rbxassetid://6837730320", -- compact quest payout chime
+		volume = 0.58,
+		playbackSpeed = 1.26,
+		pitchRange = { 1.02, 1.08 },
+	},
 	streak_milestone = {
 		id = "rbxassetid://5852285683", -- stronger milestone shimmer
 		volume = 0.9,

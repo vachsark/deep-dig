@@ -1,11 +1,14 @@
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local SoundService = game:GetService("SoundService")
+local TweenService = game:GetService("TweenService")
 
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
 
 local REMOTE_WAIT_SECONDS = 5
 local REFRESH_INTERVAL_SECONDS = 5
+local LOCAL_PLAY_SOUND_NAME = "DeepDigLocalPlaySound"
 
 local remotesFolder = ReplicatedStorage:WaitForChild("Remotes", REMOTE_WAIT_SECONDS)
 if not remotesFolder then
@@ -25,6 +28,12 @@ if not claimQuest or not claimQuest:IsA("RemoteEvent") then
 	return
 end
 
+local questClaimResult = remotesFolder:WaitForChild("QuestClaimResult", REMOTE_WAIT_SECONDS)
+if not questClaimResult or not questClaimResult:IsA("RemoteEvent") then
+	warn("[QuestGui] QuestClaimResult remote not found; quest reward FX disabled.")
+	questClaimResult = nil
+end
+
 local screenGui = Instance.new("ScreenGui")
 screenGui.Name = "QuestGui"
 screenGui.ResetOnSpawn = false
@@ -38,6 +47,8 @@ local currentQuestWeekKey = ""
 local claimedQuestIds = {}
 local weeklyQuestClaimed = false
 local activeCards = {}
+local activeCardByQuestId = {}
+local activeWeeklyCard = nil
 local refreshInFlight = false
 
 local COLOR_PANEL = Color3.fromRGB(19, 18, 28)
@@ -60,6 +71,8 @@ local function destroyQuestCards()
 		end
 	end
 	activeCards = {}
+	activeCardByQuestId = {}
+	activeWeeklyCard = nil
 end
 
 local function safeNumber(value)
@@ -232,6 +245,83 @@ toggleStroke.Thickness = 1
 toggleStroke.Transparency = 0.2
 toggleStroke.Parent = toggleButton
 
+local localPlaySound = SoundService:FindFirstChild(LOCAL_PLAY_SOUND_NAME)
+if not localPlaySound then
+	localPlaySound = Instance.new("BindableEvent")
+	localPlaySound.Name = LOCAL_PLAY_SOUND_NAME
+	localPlaySound.Parent = SoundService
+end
+
+local rewardBurst = Instance.new("Frame")
+rewardBurst.Name = "QuestRewardBurst"
+rewardBurst.AnchorPoint = Vector2.new(0.5, 0.5)
+rewardBurst.Size = UDim2.fromOffset(320, 126)
+rewardBurst.Position = UDim2.fromScale(0.5, 0.38)
+rewardBurst.BackgroundColor3 = Color3.fromRGB(26, 24, 36)
+rewardBurst.BackgroundTransparency = 0.1
+rewardBurst.BorderSizePixel = 0
+rewardBurst.Visible = false
+rewardBurst.ZIndex = 80
+rewardBurst.Parent = screenGui
+
+local rewardBurstCorner = Instance.new("UICorner")
+rewardBurstCorner.CornerRadius = UDim.new(0, 12)
+rewardBurstCorner.Parent = rewardBurst
+
+local rewardBurstStroke = Instance.new("UIStroke")
+rewardBurstStroke.Color = COLOR_ACCENT
+rewardBurstStroke.Thickness = 2
+rewardBurstStroke.Transparency = 0.1
+rewardBurstStroke.Parent = rewardBurst
+
+local rewardBurstTitle = Instance.new("TextLabel")
+rewardBurstTitle.Name = "Title"
+rewardBurstTitle.Size = UDim2.new(1, -28, 0, 24)
+rewardBurstTitle.Position = UDim2.fromOffset(14, 14)
+rewardBurstTitle.BackgroundTransparency = 1
+rewardBurstTitle.Text = "Quest Claimed"
+rewardBurstTitle.TextColor3 = COLOR_ACCENT
+rewardBurstTitle.TextTransparency = 1
+rewardBurstTitle.TextSize = 19
+rewardBurstTitle.Font = Enum.Font.GothamBlack
+rewardBurstTitle.TextXAlignment = Enum.TextXAlignment.Center
+rewardBurstTitle.ZIndex = 81
+rewardBurstTitle.Parent = rewardBurst
+
+local rewardBurstDescription = Instance.new("TextLabel")
+rewardBurstDescription.Name = "Description"
+rewardBurstDescription.Size = UDim2.new(1, -32, 0, 38)
+rewardBurstDescription.Position = UDim2.fromOffset(16, 42)
+rewardBurstDescription.BackgroundTransparency = 1
+rewardBurstDescription.Text = "Completed quest"
+rewardBurstDescription.TextColor3 = COLOR_TEXT_MAIN
+rewardBurstDescription.TextTransparency = 1
+rewardBurstDescription.TextSize = 14
+rewardBurstDescription.Font = Enum.Font.GothamBold
+rewardBurstDescription.TextWrapped = true
+rewardBurstDescription.TextXAlignment = Enum.TextXAlignment.Center
+rewardBurstDescription.TextYAlignment = Enum.TextYAlignment.Center
+rewardBurstDescription.ZIndex = 81
+rewardBurstDescription.Parent = rewardBurst
+
+local rewardBurstAmount = Instance.new("TextLabel")
+rewardBurstAmount.Name = "Reward"
+rewardBurstAmount.Size = UDim2.new(1, -32, 0, 26)
+rewardBurstAmount.Position = UDim2.fromOffset(16, 86)
+rewardBurstAmount.BackgroundTransparency = 1
+rewardBurstAmount.Text = "+0 coins"
+rewardBurstAmount.TextColor3 = Color3.fromRGB(255, 235, 130)
+rewardBurstAmount.TextTransparency = 1
+rewardBurstAmount.TextSize = 18
+rewardBurstAmount.Font = Enum.Font.GothamBlack
+rewardBurstAmount.TextWrapped = true
+rewardBurstAmount.TextXAlignment = Enum.TextXAlignment.Center
+rewardBurstAmount.ZIndex = 81
+rewardBurstAmount.Parent = rewardBurst
+
+local rewardBurstTweens = {}
+local rewardBurstSequence = 0
+
 local function updateToggleAppearance()
 	if panelOpen then
 		toggleButton.Text = "Quests"
@@ -263,6 +353,172 @@ local function setLoadingVisible(isLoading, dayText)
 		local fallbackDay = currentQuestDay ~= "" and currentQuestDay or "Loading..."
 		dayLabel.Text = "Daily Quests · " .. fallbackDay
 	end
+end
+
+local function clearRewardBurstTweens()
+	for _, tween in ipairs(rewardBurstTweens) do
+		tween:Cancel()
+	end
+	rewardBurstTweens = {}
+end
+
+local function tweenRewardBurst(instance, duration, goal, easingStyle, easingDirection)
+	local tween = TweenService:Create(
+		instance,
+		TweenInfo.new(duration, easingStyle or Enum.EasingStyle.Quad, easingDirection or Enum.EasingDirection.Out),
+		goal
+	)
+	table.insert(rewardBurstTweens, tween)
+	tween:Play()
+	return tween
+end
+
+local function playQuestClaimSound()
+	if localPlaySound and localPlaySound:IsA("BindableEvent") then
+		localPlaySound:Fire("quest_claim")
+	end
+end
+
+local function formatReward(reward)
+	if type(reward) ~= "table" then
+		return "Quest reward"
+	end
+
+	local parts = {}
+	local coins = safeNumber(reward.coins)
+	local fragments = safeNumber(reward.fragments)
+
+	if coins > 0 then
+		parts[#parts + 1] = "+" .. math.floor(coins) .. " coins"
+	end
+	if fragments > 0 then
+		parts[#parts + 1] = "+" .. math.floor(fragments) .. " fragments"
+	end
+
+	if #parts == 0 then
+		return "Quest reward"
+	end
+
+	return table.concat(parts, "  ")
+end
+
+local function pulseToggle()
+	toggleStroke.Color = COLOR_ACCENT
+	toggleStroke.Thickness = 3
+	toggleStroke.Transparency = 0
+	toggleButton.BackgroundColor3 = Color3.fromRGB(72, 58, 38)
+
+	tweenRewardBurst(toggleStroke, 0.42, {
+		Color = Color3.fromRGB(68, 65, 82),
+		Thickness = 1,
+		Transparency = 0.2,
+	})
+	tweenRewardBurst(toggleButton, 0.42, {
+		BackgroundColor3 = panelOpen and Color3.fromRGB(60, 54, 76) or Color3.fromRGB(44, 42, 58),
+	})
+end
+
+local function pulseClaimedCard(entry)
+	if type(entry) ~= "table" or not entry.card or not entry.card.Parent then
+		pulseToggle()
+		return
+	end
+
+	if type(entry.applyButtonState) == "function" then
+		entry.applyButtonState()
+	end
+
+	entry.card.BackgroundColor3 = Color3.fromRGB(43, 37, 47)
+	if entry.stroke and entry.stroke.Parent then
+		entry.stroke.Color = COLOR_ACCENT
+		entry.stroke.Thickness = 3
+		entry.stroke.Transparency = 0
+	end
+	if entry.accent and entry.accent.Parent then
+		entry.accent.BackgroundColor3 = COLOR_ACCENT
+	end
+
+	tweenRewardBurst(entry.card, 0.46, {
+		BackgroundColor3 = Color3.fromRGB(28, 25, 39),
+	})
+	if entry.stroke and entry.stroke.Parent then
+		tweenRewardBurst(entry.stroke, 0.46, {
+			Color = COLOR_READY,
+			Thickness = 1,
+			Transparency = 0.1,
+		})
+	end
+	if entry.accent and entry.accent.Parent then
+		tweenRewardBurst(entry.accent, 0.46, {
+			BackgroundColor3 = COLOR_READY,
+		})
+	end
+end
+
+local function showQuestClaimReward(payload)
+	if type(payload) ~= "table" then
+		return
+	end
+
+	local questId = type(payload.questId) == "string" and payload.questId or ""
+	local isWeekly = payload.weekly == true
+	local description = type(payload.description) == "string" and payload.description or "Completed quest"
+	local rewardText = formatReward(payload.reward)
+
+	if isWeekly then
+		markWeeklyQuestClaimed(true)
+	elseif questId ~= "" then
+		markQuestClaimed(questId)
+	end
+
+	local entry = isWeekly and activeWeeklyCard or activeCardByQuestId[questId]
+
+	rewardBurstSequence = rewardBurstSequence + 1
+	local sequence = rewardBurstSequence
+	clearRewardBurstTweens()
+	playQuestClaimSound()
+	pulseClaimedCard(entry)
+
+	rewardBurst.Visible = true
+	rewardBurst.Size = UDim2.fromOffset(292, 112)
+	rewardBurst.Position = UDim2.fromScale(0.5, 0.40)
+	rewardBurst.BackgroundTransparency = 0.22
+	rewardBurstStroke.Transparency = 0
+	rewardBurstTitle.Text = isWeekly and "Weekly Claimed" or "Quest Claimed"
+	rewardBurstTitle.TextTransparency = 1
+	rewardBurstDescription.Text = description
+	rewardBurstDescription.TextTransparency = 1
+	rewardBurstAmount.Text = rewardText
+	rewardBurstAmount.TextTransparency = 1
+
+	tweenRewardBurst(rewardBurst, 0.18, {
+		Size = UDim2.fromOffset(320, 126),
+		Position = UDim2.fromScale(0.5, 0.38),
+		BackgroundTransparency = 0.08,
+	}, Enum.EasingStyle.Back)
+	tweenRewardBurst(rewardBurstTitle, 0.16, { TextTransparency = 0 })
+	tweenRewardBurst(rewardBurstDescription, 0.2, { TextTransparency = 0.02 })
+	tweenRewardBurst(rewardBurstAmount, 0.22, { TextTransparency = 0 })
+
+	task.delay(1.55, function()
+		if sequence ~= rewardBurstSequence or not rewardBurst.Parent then
+			return
+		end
+
+		tweenRewardBurst(rewardBurst, 0.26, {
+			Position = UDim2.fromScale(0.5, 0.35),
+			BackgroundTransparency = 1,
+		}, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+		tweenRewardBurst(rewardBurstStroke, 0.22, { Transparency = 1 })
+		tweenRewardBurst(rewardBurstTitle, 0.18, { TextTransparency = 1 })
+		tweenRewardBurst(rewardBurstDescription, 0.18, { TextTransparency = 1 })
+		local amountTween = tweenRewardBurst(rewardBurstAmount, 0.18, { TextTransparency = 1 })
+		amountTween.Completed:Once(function()
+			if sequence == rewardBurstSequence then
+				rewardBurst.Visible = false
+			end
+		end)
+	end)
 end
 
 local function makeCard(quest, cardConfig)
@@ -463,6 +719,17 @@ local function makeCard(quest, cardConfig)
 	end)
 
 	applyButtonState()
+	local cardEntry = {
+		card = card,
+		stroke = cardStroke,
+		accent = accent,
+		applyButtonState = applyButtonState,
+	}
+	if isWeekly then
+		activeWeeklyCard = cardEntry
+	elseif questId ~= "" then
+		activeCardByQuestId[questId] = cardEntry
+	end
 	activeCards[#activeCards + 1] = card
 end
 
@@ -566,6 +833,10 @@ player:GetAttributeChangedSignal("QuestPanelOpen"):Connect(function()
 		end
 	end
 end)
+
+if questClaimResult then
+	questClaimResult.OnClientEvent:Connect(showQuestClaimReward)
+end
 
 setPanelOpen(panelOpen, false)
 if panelOpen then

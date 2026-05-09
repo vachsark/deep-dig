@@ -32,6 +32,7 @@ end
 
 local GetQuestStatusFunc = getOrCreate(Remotes, "RemoteFunction", "GetQuestStatus")
 local ClaimQuestEvent = getOrCreate(Remotes, "RemoteEvent", "ClaimQuest")
+local QuestClaimResultEvent = getOrCreate(Remotes, "RemoteEvent", "QuestClaimResult")
 local NotifyEvent = Remotes:WaitForChild("Notify")
 local UpdateHUDEvent = Remotes:WaitForChild("UpdateHUD")
 local BlockBrokenEvent = ServerEvents:WaitForChild("BlockBroken")
@@ -498,7 +499,7 @@ GetQuestStatusFunc.OnServerInvoke = function(player)
 	return buildQuestStatus(player)
 end
 
-local function grantQuestReward(player, data, quest)
+local function grantQuestReward(player, data, quest, isWeekly)
 	local reward = quest.reward or {}
 	data.coins = (data.coins or 0) + (reward.coins or 0)
 	data.fragments = (data.fragments or 0) + (reward.fragments or 0)
@@ -513,6 +514,16 @@ local function grantQuestReward(player, data, quest)
 		"Quest claimed: " .. quest.description .. "!",
 		"Rare"
 	)
+
+	QuestClaimResultEvent:FireClient(player, {
+		questId = quest.id,
+		description = quest.description,
+		reward = {
+			coins = reward.coins or 0,
+			fragments = reward.fragments or 0,
+		},
+		weekly = isWeekly == true,
+	})
 end
 
 local function claimQuest(player, questId)
@@ -540,7 +551,7 @@ local function claimQuest(player, questId)
 
 		data.weeklyQuestClaimed = true
 		data.weeklyQuestProgress = weeklyQuest.target
-		grantQuestReward(player, data, weeklyQuest)
+		grantQuestReward(player, data, weeklyQuest, true)
 		return
 	end
 
@@ -568,7 +579,7 @@ local function claimQuest(player, questId)
 
 	data.questClaimed[questId] = true
 	incrementWeeklyQuestProgress(data)
-	grantQuestReward(player, data, quest)
+	grantQuestReward(player, data, quest, false)
 end
 
 ClaimQuestEvent.OnServerEvent:Connect(function(player, questId)
