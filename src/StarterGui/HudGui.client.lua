@@ -391,6 +391,246 @@ seasonBadgeDetail.Font = Enum.Font.GothamBold
 seasonBadgeDetail.TextXAlignment = Enum.TextXAlignment.Left
 seasonBadgeDetail.Parent = seasonBadge
 
+local halloweenAmbienceLayer = Instance.new("Frame")
+halloweenAmbienceLayer.Name = "HalloweenAmbience"
+halloweenAmbienceLayer.Size = UDim2.new(1, 0, 1, 0)
+halloweenAmbienceLayer.Position = UDim2.new(0, 0, 0, 0)
+halloweenAmbienceLayer.BackgroundTransparency = 1
+halloweenAmbienceLayer.BorderSizePixel = 0
+halloweenAmbienceLayer.Active = false
+halloweenAmbienceLayer.Visible = false
+halloweenAmbienceLayer.ZIndex = 6
+halloweenAmbienceLayer.Parent = screenGui
+
+local halloweenAmbienceEdges = {}
+
+local function createHalloweenAmbienceEdge(name, position, size, color, gradientRotation, targetTransparency)
+	local edge = Instance.new("Frame")
+	edge.Name = name
+	edge.Size = size
+	edge.Position = position
+	edge.BackgroundColor3 = color
+	edge.BackgroundTransparency = 1
+	edge.BorderSizePixel = 0
+	edge.Active = false
+	edge.ZIndex = 6
+	edge.Parent = halloweenAmbienceLayer
+
+	local gradient = Instance.new("UIGradient")
+	gradient.Rotation = gradientRotation
+	gradient.Transparency = NumberSequence.new({
+		NumberSequenceKeypoint.new(0, 0),
+		NumberSequenceKeypoint.new(1, 1),
+	})
+	gradient.Parent = edge
+
+	table.insert(halloweenAmbienceEdges, {
+		frame = edge,
+		targetTransparency = targetTransparency,
+	})
+end
+
+createHalloweenAmbienceEdge(
+	"TopPurpleVignette",
+	UDim2.new(0, 0, 0, 0),
+	UDim2.new(1, 0, 0.18, 0),
+	Color3.fromRGB(105, 45, 170),
+	90,
+	0.78
+)
+createHalloweenAmbienceEdge(
+	"BottomOrangeVignette",
+	UDim2.new(0, 0, 0.82, 0),
+	UDim2.new(1, 0, 0.18, 0),
+	Color3.fromRGB(210, 92, 28),
+	-90,
+	0.80
+)
+createHalloweenAmbienceEdge(
+	"LeftPurpleVignette",
+	UDim2.new(0, 0, 0, 0),
+	UDim2.new(0.14, 0, 1, 0),
+	Color3.fromRGB(86, 36, 150),
+	0,
+	0.82
+)
+createHalloweenAmbienceEdge(
+	"RightOrangeVignette",
+	UDim2.new(0.86, 0, 0, 0),
+	UDim2.new(0.14, 0, 1, 0),
+	Color3.fromRGB(190, 74, 24),
+	180,
+	0.84
+)
+
+local setHalloweenAmbienceActive
+do
+	local effectName = "DeepDigHalloweenAmbience"
+	local halloweenAmbienceEffect = Lighting:FindFirstChild(effectName)
+	local halloweenAmbienceActive = false
+	local halloweenAmbienceSequence = 0
+	local halloweenAmbiencePulseWarm = false
+	local halloweenAmbienceTweens = {}
+
+	if halloweenAmbienceEffect and not halloweenAmbienceEffect:IsA("ColorCorrectionEffect") then
+		halloweenAmbienceEffect = nil
+	end
+
+	local function clearHalloweenAmbienceTweens()
+		for _, tween in ipairs(halloweenAmbienceTweens) do
+			tween:Cancel()
+		end
+		halloweenAmbienceTweens = {}
+	end
+
+	local function tweenHalloweenAmbience(instance, duration, goal)
+		local tween = TweenService:Create(
+			instance,
+			TweenInfo.new(duration, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut),
+			goal
+		)
+		table.insert(halloweenAmbienceTweens, tween)
+		tween:Play()
+		return tween
+	end
+
+	local function getHalloweenAmbienceEffect(createIfMissing)
+		if halloweenAmbienceEffect and halloweenAmbienceEffect.Parent == Lighting then
+			return halloweenAmbienceEffect
+		end
+
+		halloweenAmbienceEffect = Lighting:FindFirstChild(effectName)
+		if halloweenAmbienceEffect and not halloweenAmbienceEffect:IsA("ColorCorrectionEffect") then
+			halloweenAmbienceEffect = nil
+		end
+
+		if not halloweenAmbienceEffect and createIfMissing then
+			halloweenAmbienceEffect = Instance.new("ColorCorrectionEffect")
+			halloweenAmbienceEffect.Name = effectName
+			halloweenAmbienceEffect.TintColor = Color3.fromRGB(255, 255, 255)
+			halloweenAmbienceEffect.Brightness = 0
+			halloweenAmbienceEffect.Contrast = 0
+			halloweenAmbienceEffect.Saturation = 0
+			halloweenAmbienceEffect.Enabled = false
+			halloweenAmbienceEffect.Parent = Lighting
+		end
+
+		return halloweenAmbienceEffect
+	end
+
+	local function scheduleHalloweenAmbiencePulse(sequence)
+		task.delay(1.6, function()
+			if sequence ~= halloweenAmbienceSequence or not halloweenAmbienceActive then
+				return
+			end
+
+			clearHalloweenAmbienceTweens()
+			halloweenAmbiencePulseWarm = not halloweenAmbiencePulseWarm
+
+			for _, edge in ipairs(halloweenAmbienceEdges) do
+				local pulseTransparency = edge.targetTransparency + (halloweenAmbiencePulseWarm and -0.035 or 0.025)
+				tweenHalloweenAmbience(edge.frame, 2.2, {
+					BackgroundTransparency = math.clamp(pulseTransparency, 0.72, 0.9),
+				})
+			end
+
+			local effect = getHalloweenAmbienceEffect(true)
+			if effect then
+				effect.Enabled = true
+				local pulse = tweenHalloweenAmbience(effect, 2.2, {
+					TintColor = halloweenAmbiencePulseWarm and Color3.fromRGB(255, 230, 214) or Color3.fromRGB(238, 220, 255),
+					Brightness = halloweenAmbiencePulseWarm and -0.015 or -0.035,
+					Contrast = halloweenAmbiencePulseWarm and 0.035 or 0.02,
+					Saturation = halloweenAmbiencePulseWarm and -0.04 or -0.07,
+				})
+				pulse.Completed:Connect(function(playbackState)
+					if playbackState ~= Enum.PlaybackState.Completed or sequence ~= halloweenAmbienceSequence then
+						return
+					end
+					scheduleHalloweenAmbiencePulse(sequence)
+				end)
+			end
+		end)
+	end
+
+	function setHalloweenAmbienceActive(active)
+		if active == halloweenAmbienceActive and active == false then
+			return
+		end
+
+		halloweenAmbienceActive = active == true
+		halloweenAmbienceSequence = halloweenAmbienceSequence + 1
+		local sequence = halloweenAmbienceSequence
+
+		clearHalloweenAmbienceTweens()
+
+		if halloweenAmbienceActive then
+			halloweenAmbienceLayer.Visible = true
+
+			for _, edge in ipairs(halloweenAmbienceEdges) do
+				tweenHalloweenAmbience(edge.frame, 0.75, {
+					BackgroundTransparency = edge.targetTransparency,
+				})
+			end
+
+			local effect = getHalloweenAmbienceEffect(true)
+			if effect then
+				effect.Enabled = true
+				local fadeIn = tweenHalloweenAmbience(effect, 0.75, {
+					TintColor = Color3.fromRGB(246, 226, 255),
+					Brightness = -0.025,
+					Contrast = 0.025,
+					Saturation = -0.05,
+				})
+				fadeIn.Completed:Connect(function(playbackState)
+					if playbackState ~= Enum.PlaybackState.Completed or sequence ~= halloweenAmbienceSequence then
+						return
+					end
+					scheduleHalloweenAmbiencePulse(sequence)
+				end)
+			end
+
+			return
+		end
+
+		for _, edge in ipairs(halloweenAmbienceEdges) do
+			tweenHalloweenAmbience(edge.frame, 0.55, {
+				BackgroundTransparency = 1,
+			})
+		end
+
+		local effect = getHalloweenAmbienceEffect(false)
+		local fadeOut = nil
+		if effect then
+			fadeOut = tweenHalloweenAmbience(effect, 0.55, {
+				TintColor = Color3.fromRGB(255, 255, 255),
+				Brightness = 0,
+				Contrast = 0,
+				Saturation = 0,
+			})
+		end
+
+		local function finishFadeOut()
+			if sequence ~= halloweenAmbienceSequence then
+				return
+			end
+
+			halloweenAmbienceLayer.Visible = false
+			if effect then
+				effect.Enabled = false
+			end
+		end
+
+		if fadeOut then
+			fadeOut.Completed:Connect(function()
+				finishFadeOut()
+			end)
+		else
+			task.delay(0.55, finishFadeOut)
+		end
+	end
+end
+
 local PASS_UI_STYLES = {
 	[1] = { color = Color3.fromRGB(255, 80, 80), label = "2× LOOT" },
 	[2] = { color = Color3.fromRGB(255, 200, 0), label = "★ VIP" },
@@ -470,7 +710,10 @@ end
 
 local function updateSeasonBadge(effectId)
 	local seasonUi = SEASON_BADGE_STYLES[effectId]
+	setHalloweenAmbienceActive(effectId == "halloween_loot" and seasonUi ~= nil)
+
 	if not seasonUi then
+		seasonBadge.Visible = false
 		return false
 	end
 
