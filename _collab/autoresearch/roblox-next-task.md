@@ -1,24 +1,26 @@
-# Next Task — 2026-04-25T00:49:03-07:00
+# Next Task — 2026-05-19T09:33:00-07:00
 
 ## Goal
-Ship the Phase 2 offline passive income core so returning players receive coin earnings based on tool tier with an 8-hour cap and an immediate welcome-back reward message.
+Make deeper tiers feel more distinct by tinting the player's local view as the HUD receives depth/tier updates.
 
 ## Why now
-Phase 1 launch items are already landed, and offline earnings is the first unbuilt retention feature in Phase 2 that meaningfully rewards players for returning.
+Depth progression already drives item tiers, enemy pressure, and resurface decisions, but the HUD view still feels visually flat across tiers. A lightweight client-only tone shift adds game feel without changing server economy or dig rules.
 
 ## Files to touch
-- src/ServerScriptService/GameManager.server.lua: add persisted offline-income timestamps/fields to player data and keep them updated on join/leave save flow.
-- src/ServerScriptService/OfflineIncome.server.lua: new server script that computes capped offline duration, grants coins from a per-tool-tier rate, updates HUD, and fires a "Welcome back" notification.
+- src/StarterGui/HudGui.client.lua: create/reuse a local `ColorCorrectionEffect` and tween it when `UpdateHUD` depth or tier fields change
+- knowledge/vault-context.md: refresh generated project context
 
 ## Acceptance criteria
-- [ ] A returning player with prior save data gets a one-time coin payout on join based on their current tool tier and elapsed offline time, capped at 8 hours.
-- [ ] After payout, the HUD coin value updates immediately and the player sees a welcome-back notification that includes earned coins and offline duration.
+- [ ] Entering each configured tier can update the local `DeepDigDepthTone` color correction profile without adding remotes or server state.
+- [ ] Repeated HUD updates in the same tier do not restart the tween.
+- [ ] Initial data sync and later `UpdateHUD` payloads both apply the tone when depth or tier data is present.
+- [ ] `luac -p src/StarterGui/HudGui.client.lua` passes from the Roblox project root.
 
 ## Implementation notes
-- Do not award offline income on true first join (no prior timestamp); only start tracking from the first recorded session end.
-- Reuse the existing `_G.DeepDig_playerData` access pattern used by `DailyStreak.server.lua`, and wait briefly on join so GameManager data is loaded.
-- Keep payout deterministic and integer-safe: clamp elapsed seconds to `[0, 8h]`, compute with `math.floor`, and guard against negative/invalid clock deltas.
-- Persist the "last seen" timestamp immediately after processing so reconnect spam cannot claim duplicate payouts.
+- Keep the implementation local to `HudGui.client.lua`; existing `UpdateHUD` payloads already include `depth` and `tierName`.
+- Use a closure or small table for depth-tone state so the large HUD script stays under stock Lua's top-level local-variable limit.
+- Keep profiles subtle enough that rare-find lighting pulses and existing UI colors remain legible.
+- Treat the crew bonus sound brief as a later separate task; do not mix it into this visual pass.
 
 ## Cycle budget
 1

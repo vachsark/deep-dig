@@ -515,6 +515,129 @@ local LEGENDARY_FIND_FLASH_RARITIES = {
 	Mythic = true,
 }
 
+local updateDepthTone
+
+do
+	local effectName = "DeepDigDepthTone"
+	local profiles = {
+		Modern = {
+			tint = Color3.fromRGB(255, 255, 255),
+			contrast = 0,
+			saturation = 0,
+		},
+		Industrial = {
+			tint = Color3.fromRGB(255, 238, 215),
+			contrast = 0.03,
+			saturation = -0.03,
+		},
+		Medieval = {
+			tint = Color3.fromRGB(224, 236, 255),
+			contrast = 0.05,
+			saturation = -0.05,
+		},
+		Ancient = {
+			tint = Color3.fromRGB(246, 226, 184),
+			contrast = 0.08,
+			saturation = -0.09,
+		},
+		Prehistoric = {
+			tint = Color3.fromRGB(214, 236, 194),
+			contrast = 0.10,
+			saturation = -0.06,
+		},
+		Unknown = {
+			tint = Color3.fromRGB(218, 190, 255),
+			contrast = 0.14,
+			saturation = -0.14,
+		},
+	}
+	local currentTierName = nil
+	local activeTween = nil
+	local effect = Lighting:FindFirstChild(effectName)
+
+	if effect and not effect:IsA("ColorCorrectionEffect") then
+		effect = nil
+	end
+
+	local function getEffect()
+		if effect and effect.Parent == Lighting then
+			return effect
+		end
+
+		effect = Lighting:FindFirstChild(effectName)
+		if effect and not effect:IsA("ColorCorrectionEffect") then
+			effect = nil
+		end
+
+		if not effect then
+			effect = Instance.new("ColorCorrectionEffect")
+			effect.Name = effectName
+			effect.TintColor = profiles.Modern.tint
+			effect.Contrast = profiles.Modern.contrast
+			effect.Saturation = profiles.Modern.saturation
+			effect.Parent = Lighting
+		end
+
+		effect.Enabled = true
+		return effect
+	end
+
+	local function getTierNameFromDepth(depth)
+		if type(depth) ~= "number" then
+			return nil
+		end
+
+		for _, tier in ipairs(Config.TIERS or {}) do
+			if depth >= tier.minDepth and depth <= tier.maxDepth then
+				return tier.name
+			end
+		end
+
+		return "Modern"
+	end
+
+	local function getTierName(data)
+		if data and type(data.tierName) == "string" and data.tierName ~= "" then
+			return data.tierName
+		end
+
+		if data then
+			return getTierNameFromDepth(data.depth)
+		end
+
+		return nil
+	end
+
+	function updateDepthTone(data)
+		local tierName = getTierName(data)
+		if not tierName then
+			return
+		end
+
+		local profile = profiles[tierName] or profiles.Modern
+		if tierName == currentTierName then
+			return
+		end
+
+		currentTierName = tierName
+
+		if activeTween then
+			activeTween:Cancel()
+		end
+
+		activeTween = TweenService:Create(
+			getEffect(),
+			TweenInfo.new(1, Enum.EasingStyle.Sine, Enum.EasingDirection.Out),
+			{
+				TintColor = profile.tint,
+				Contrast = profile.contrast,
+				Saturation = profile.saturation,
+			}
+		)
+		activeTween:Play()
+	end
+end
+
 local findFlashLayer = Instance.new("Frame")
 findFlashLayer.Name = "LegendaryFindFlash"
 findFlashLayer.Size = UDim2.new(1, 0, 1, 0)
@@ -2022,6 +2145,9 @@ Remotes.UpdateHUD.OnClientEvent:Connect(function(data)
 		local tierText = data.tierName or "Surface"
 		depthLabel.Text = "⛏️ " .. tierText .. " (Depth: " .. data.depth .. ")"
 	end
+	if data.depth or data.tierName then
+		updateDepthTone(data)
+	end
 	if data.toolName then
 		toolLabel.Text = "🔧 " .. data.toolName
 	end
@@ -2303,6 +2429,7 @@ task.spawn(function()
 		refreshStreakRevivePrompt(data)
 		refreshFriendBoostIndicator(data)
 		refreshGroupBenefitIndicator(data)
+		updateDepthTone(data)
 
 		-- First-time tutorial: only on truly fresh profile (zero blocks dug, no inventory).
 		if (data.totalBlocksDug or 0) == 0 and #data.inventory == 0 then
