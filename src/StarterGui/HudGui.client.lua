@@ -2208,13 +2208,16 @@ Remotes.ItemFound.OnClientEvent:Connect(function(item)
 end)
 
 Remotes.EventTriggered.OnClientEvent:Connect(function(eventName, message, duration, effectId)
-	updateSeasonBadge(effectId)
+	local seasonBadgeUpdated = updateSeasonBadge(effectId)
+	if seasonBadgeUpdated and LocalPlaySound and LocalPlaySound:IsA("BindableEvent") then
+		LocalPlaySound:Fire("event_alarm")
+	end
 
 	if shouldPlayEventCameraShake(duration) and not isEarthquakeEvent(eventName, message, effectId) then
 		playEventCameraShake(eventName, effectId)
 	end
 
-	showNotification("⚡ " .. message, "Legendary")
+	showNotification("⚡ " .. tostring(message or ""), "Legendary")
 end)
 
 Remotes.Notify.OnClientEvent:Connect(function(message, rarity)
