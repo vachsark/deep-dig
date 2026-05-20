@@ -1113,6 +1113,245 @@ local setSummerAmbienceActive = (function()
 	end
 end)()
 
+local setWinterAmbienceActive = (function()
+	local winterAmbienceLayer = Instance.new("Frame")
+	winterAmbienceLayer.Name = "WinterAmbience"
+	winterAmbienceLayer.Size = UDim2.new(1, 0, 1, 0)
+	winterAmbienceLayer.Position = UDim2.new(0, 0, 0, 0)
+	winterAmbienceLayer.BackgroundTransparency = 1
+	winterAmbienceLayer.BorderSizePixel = 0
+	winterAmbienceLayer.Active = false
+	winterAmbienceLayer.Visible = false
+	winterAmbienceLayer.ZIndex = 5
+	winterAmbienceLayer.Parent = screenGui
+
+	local winterAmbienceEdges = {}
+
+	local function createWinterAmbienceEdge(name, position, size, color, gradientRotation, targetTransparency)
+		local edge = Instance.new("Frame")
+		edge.Name = name
+		edge.Size = size
+		edge.Position = position
+		edge.BackgroundColor3 = color
+		edge.BackgroundTransparency = 1
+		edge.BorderSizePixel = 0
+		edge.Active = false
+		edge.ZIndex = 5
+		edge.Parent = winterAmbienceLayer
+
+		local gradient = Instance.new("UIGradient")
+		gradient.Rotation = gradientRotation
+		gradient.Transparency = NumberSequence.new({
+			NumberSequenceKeypoint.new(0, 0),
+			NumberSequenceKeypoint.new(1, 1),
+		})
+		gradient.Parent = edge
+
+		table.insert(winterAmbienceEdges, {
+			frame = edge,
+			targetTransparency = targetTransparency,
+		})
+	end
+
+	createWinterAmbienceEdge(
+		"TopFrostVignette",
+		UDim2.new(0, 0, 0, 0),
+		UDim2.new(1, 0, 0.2, 0),
+		Color3.fromRGB(205, 240, 255),
+		90,
+		0.82
+	)
+	createWinterAmbienceEdge(
+		"BottomIceVignette",
+		UDim2.new(0, 0, 0.8, 0),
+		UDim2.new(1, 0, 0.2, 0),
+		Color3.fromRGB(160, 218, 255),
+		-90,
+		0.84
+	)
+	createWinterAmbienceEdge(
+		"LeftFrostVignette",
+		UDim2.new(0, 0, 0, 0),
+		UDim2.new(0.14, 0, 1, 0),
+		Color3.fromRGB(180, 230, 255),
+		0,
+		0.86
+	)
+	createWinterAmbienceEdge(
+		"RightSnowVignette",
+		UDim2.new(0.86, 0, 0, 0),
+		UDim2.new(0.14, 0, 1, 0),
+		Color3.fromRGB(225, 248, 255),
+		180,
+		0.87
+	)
+
+	local effectName = "DeepDigWinterAmbience"
+	local winterAmbienceEffect = Lighting:FindFirstChild(effectName)
+	local winterAmbienceActive = false
+	local winterAmbienceSequence = 0
+	local winterAmbiencePulseBright = false
+	local winterAmbienceTweens = {}
+
+	if winterAmbienceEffect and not winterAmbienceEffect:IsA("ColorCorrectionEffect") then
+		winterAmbienceEffect = nil
+	end
+
+	local function clearWinterAmbienceTweens()
+		for _, tween in ipairs(winterAmbienceTweens) do
+			tween:Cancel()
+		end
+		winterAmbienceTweens = {}
+	end
+
+	local function tweenWinterAmbience(instance, duration, goal)
+		local tween = TweenService:Create(
+			instance,
+			TweenInfo.new(duration, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut),
+			goal
+		)
+		table.insert(winterAmbienceTweens, tween)
+		tween:Play()
+		return tween
+	end
+
+	local function getWinterAmbienceEffect(createIfMissing)
+		if winterAmbienceEffect and winterAmbienceEffect.Parent == Lighting then
+			return winterAmbienceEffect
+		end
+
+		winterAmbienceEffect = Lighting:FindFirstChild(effectName)
+		if winterAmbienceEffect and not winterAmbienceEffect:IsA("ColorCorrectionEffect") then
+			winterAmbienceEffect = nil
+		end
+
+		if not winterAmbienceEffect and createIfMissing then
+			winterAmbienceEffect = Instance.new("ColorCorrectionEffect")
+			winterAmbienceEffect.Name = effectName
+			winterAmbienceEffect.TintColor = Color3.fromRGB(255, 255, 255)
+			winterAmbienceEffect.Brightness = 0
+			winterAmbienceEffect.Contrast = 0
+			winterAmbienceEffect.Saturation = 0
+			winterAmbienceEffect.Enabled = false
+			winterAmbienceEffect.Parent = Lighting
+		end
+
+		return winterAmbienceEffect
+	end
+
+	local function scheduleWinterAmbiencePulse(sequence)
+		task.delay(1.7, function()
+			if sequence ~= winterAmbienceSequence or not winterAmbienceActive then
+				return
+			end
+
+			clearWinterAmbienceTweens()
+			winterAmbiencePulseBright = not winterAmbiencePulseBright
+
+			for _, edge in ipairs(winterAmbienceEdges) do
+				local pulseTransparency = edge.targetTransparency + (winterAmbiencePulseBright and -0.025 or 0.018)
+				tweenWinterAmbience(edge.frame, 2.1, {
+					BackgroundTransparency = math.clamp(pulseTransparency, 0.78, 0.92),
+				})
+			end
+
+			local effect = getWinterAmbienceEffect(true)
+			if effect then
+				effect.Enabled = true
+				local pulse = tweenWinterAmbience(effect, 2.1, {
+					TintColor = winterAmbiencePulseBright and Color3.fromRGB(235, 250, 255) or Color3.fromRGB(210, 238, 255),
+					Brightness = winterAmbiencePulseBright and -0.012 or -0.03,
+					Contrast = winterAmbiencePulseBright and 0.012 or 0.026,
+					Saturation = winterAmbiencePulseBright and -0.1 or -0.16,
+				})
+				pulse.Completed:Connect(function(playbackState)
+					if playbackState ~= Enum.PlaybackState.Completed or sequence ~= winterAmbienceSequence then
+						return
+					end
+					scheduleWinterAmbiencePulse(sequence)
+				end)
+			end
+		end)
+	end
+
+	return function(active)
+		if active == winterAmbienceActive and active == false then
+			return
+		end
+
+		winterAmbienceActive = active == true
+		winterAmbienceSequence = winterAmbienceSequence + 1
+		local sequence = winterAmbienceSequence
+
+		clearWinterAmbienceTweens()
+
+		if winterAmbienceActive then
+			winterAmbienceLayer.Visible = true
+
+			for _, edge in ipairs(winterAmbienceEdges) do
+				tweenWinterAmbience(edge.frame, 0.7, {
+					BackgroundTransparency = edge.targetTransparency,
+				})
+			end
+
+			local effect = getWinterAmbienceEffect(true)
+			if effect then
+				effect.Enabled = true
+				local fadeIn = tweenWinterAmbience(effect, 0.7, {
+					TintColor = Color3.fromRGB(220, 244, 255),
+					Brightness = -0.018,
+					Contrast = 0.018,
+					Saturation = -0.12,
+				})
+				fadeIn.Completed:Connect(function(playbackState)
+					if playbackState ~= Enum.PlaybackState.Completed or sequence ~= winterAmbienceSequence then
+						return
+					end
+					scheduleWinterAmbiencePulse(sequence)
+				end)
+			end
+
+			return
+		end
+
+		for _, edge in ipairs(winterAmbienceEdges) do
+			tweenWinterAmbience(edge.frame, 0.55, {
+				BackgroundTransparency = 1,
+			})
+		end
+
+		local effect = getWinterAmbienceEffect(false)
+		local fadeOut = nil
+		if effect then
+			fadeOut = tweenWinterAmbience(effect, 0.55, {
+				TintColor = Color3.fromRGB(255, 255, 255),
+				Brightness = 0,
+				Contrast = 0,
+				Saturation = 0,
+			})
+		end
+
+		local function finishFadeOut()
+			if sequence ~= winterAmbienceSequence then
+				return
+			end
+
+			winterAmbienceLayer.Visible = false
+			if effect then
+				effect.Enabled = false
+			end
+		end
+
+		if fadeOut then
+			fadeOut.Completed:Connect(function()
+				finishFadeOut()
+			end)
+		else
+			task.delay(0.55, finishFadeOut)
+		end
+	end
+end)()
+
 local PASS_UI_STYLES = {
 	[1] = { color = Color3.fromRGB(255, 80, 80), label = "2× LOOT" },
 	[2] = { color = Color3.fromRGB(255, 200, 0), label = "★ VIP" },
@@ -1190,6 +1429,7 @@ local function updateSeasonBadge(effectId)
 	setHalloweenAmbienceActive(effectId == "halloween_loot" and seasonUi ~= nil)
 	setSpringAmbienceActive(effectId == "spring_loot" and seasonUi ~= nil)
 	setSummerAmbienceActive(effectId == "summer_loot" and seasonUi ~= nil)
+	setWinterAmbienceActive(effectId == "winter_loot" and seasonUi ~= nil)
 
 	if not seasonUi then
 		seasonBadge.Visible = false
