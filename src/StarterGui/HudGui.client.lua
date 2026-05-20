@@ -874,6 +874,245 @@ end
 
 local setSpringAmbienceActive = createSpringAmbienceController()
 
+local setSummerAmbienceActive = (function()
+	local summerAmbienceLayer = Instance.new("Frame")
+	summerAmbienceLayer.Name = "SummerAmbience"
+	summerAmbienceLayer.Size = UDim2.new(1, 0, 1, 0)
+	summerAmbienceLayer.Position = UDim2.new(0, 0, 0, 0)
+	summerAmbienceLayer.BackgroundTransparency = 1
+	summerAmbienceLayer.BorderSizePixel = 0
+	summerAmbienceLayer.Active = false
+	summerAmbienceLayer.Visible = false
+	summerAmbienceLayer.ZIndex = 5
+	summerAmbienceLayer.Parent = screenGui
+
+	local summerAmbienceEdges = {}
+
+	local function createSummerAmbienceEdge(name, position, size, color, gradientRotation, targetTransparency)
+		local edge = Instance.new("Frame")
+		edge.Name = name
+		edge.Size = size
+		edge.Position = position
+		edge.BackgroundColor3 = color
+		edge.BackgroundTransparency = 1
+		edge.BorderSizePixel = 0
+		edge.Active = false
+		edge.ZIndex = 5
+		edge.Parent = summerAmbienceLayer
+
+		local gradient = Instance.new("UIGradient")
+		gradient.Rotation = gradientRotation
+		gradient.Transparency = NumberSequence.new({
+			NumberSequenceKeypoint.new(0, 0),
+			NumberSequenceKeypoint.new(1, 1),
+		})
+		gradient.Parent = edge
+
+		table.insert(summerAmbienceEdges, {
+			frame = edge,
+			targetTransparency = targetTransparency,
+		})
+	end
+
+	createSummerAmbienceEdge(
+		"TopAmberHaze",
+		UDim2.new(0, 0, 0, 0),
+		UDim2.new(1, 0, 0.18, 0),
+		Color3.fromRGB(255, 182, 70),
+		90,
+		0.86
+	)
+	createSummerAmbienceEdge(
+		"BottomEmberHaze",
+		UDim2.new(0, 0, 0.82, 0),
+		UDim2.new(1, 0, 0.18, 0),
+		Color3.fromRGB(236, 94, 34),
+		-90,
+		0.87
+	)
+	createSummerAmbienceEdge(
+		"LeftHeatHaze",
+		UDim2.new(0, 0, 0, 0),
+		UDim2.new(0.13, 0, 1, 0),
+		Color3.fromRGB(255, 142, 45),
+		0,
+		0.89
+	)
+	createSummerAmbienceEdge(
+		"RightHeatHaze",
+		UDim2.new(0.87, 0, 0, 0),
+		UDim2.new(0.13, 0, 1, 0),
+		Color3.fromRGB(250, 126, 38),
+		180,
+		0.89
+	)
+
+	local effectName = "DeepDigSummerAmbience"
+	local summerAmbienceEffect = Lighting:FindFirstChild(effectName)
+	local summerAmbienceActive = false
+	local summerAmbienceSequence = 0
+	local summerAmbiencePulseHot = false
+	local summerAmbienceTweens = {}
+
+	if summerAmbienceEffect and not summerAmbienceEffect:IsA("ColorCorrectionEffect") then
+		summerAmbienceEffect = nil
+	end
+
+	local function clearSummerAmbienceTweens()
+		for _, tween in ipairs(summerAmbienceTweens) do
+			tween:Cancel()
+		end
+		summerAmbienceTweens = {}
+	end
+
+	local function tweenSummerAmbience(instance, duration, goal)
+		local tween = TweenService:Create(
+			instance,
+			TweenInfo.new(duration, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut),
+			goal
+		)
+		table.insert(summerAmbienceTweens, tween)
+		tween:Play()
+		return tween
+	end
+
+	local function getSummerAmbienceEffect(createIfMissing)
+		if summerAmbienceEffect and summerAmbienceEffect.Parent == Lighting then
+			return summerAmbienceEffect
+		end
+
+		summerAmbienceEffect = Lighting:FindFirstChild(effectName)
+		if summerAmbienceEffect and not summerAmbienceEffect:IsA("ColorCorrectionEffect") then
+			summerAmbienceEffect = nil
+		end
+
+		if not summerAmbienceEffect and createIfMissing then
+			summerAmbienceEffect = Instance.new("ColorCorrectionEffect")
+			summerAmbienceEffect.Name = effectName
+			summerAmbienceEffect.TintColor = Color3.fromRGB(255, 255, 255)
+			summerAmbienceEffect.Brightness = 0
+			summerAmbienceEffect.Contrast = 0
+			summerAmbienceEffect.Saturation = 0
+			summerAmbienceEffect.Enabled = false
+			summerAmbienceEffect.Parent = Lighting
+		end
+
+		return summerAmbienceEffect
+	end
+
+	local function scheduleSummerAmbiencePulse(sequence)
+		task.delay(1.15, function()
+			if sequence ~= summerAmbienceSequence or not summerAmbienceActive then
+				return
+			end
+
+			clearSummerAmbienceTweens()
+			summerAmbiencePulseHot = not summerAmbiencePulseHot
+
+			for _, edge in ipairs(summerAmbienceEdges) do
+				local pulseTransparency = edge.targetTransparency + (summerAmbiencePulseHot and -0.028 or 0.02)
+				tweenSummerAmbience(edge.frame, 1.45, {
+					BackgroundTransparency = math.clamp(pulseTransparency, 0.82, 0.93),
+				})
+			end
+
+			local effect = getSummerAmbienceEffect(true)
+			if effect then
+				effect.Enabled = true
+				local pulse = tweenSummerAmbience(effect, 1.45, {
+					TintColor = summerAmbiencePulseHot and Color3.fromRGB(255, 231, 194) or Color3.fromRGB(255, 215, 164),
+					Brightness = summerAmbiencePulseHot and 0.022 or 0.008,
+					Contrast = summerAmbiencePulseHot and 0.018 or 0.01,
+					Saturation = summerAmbiencePulseHot and 0.045 or 0.025,
+				})
+				pulse.Completed:Connect(function(playbackState)
+					if playbackState ~= Enum.PlaybackState.Completed or sequence ~= summerAmbienceSequence then
+						return
+					end
+					scheduleSummerAmbiencePulse(sequence)
+				end)
+			end
+		end)
+	end
+
+	return function(active)
+		if active == summerAmbienceActive and active == false then
+			return
+		end
+
+		summerAmbienceActive = active == true
+		summerAmbienceSequence = summerAmbienceSequence + 1
+		local sequence = summerAmbienceSequence
+
+		clearSummerAmbienceTweens()
+
+		if summerAmbienceActive then
+			summerAmbienceLayer.Visible = true
+
+			for _, edge in ipairs(summerAmbienceEdges) do
+				tweenSummerAmbience(edge.frame, 0.65, {
+					BackgroundTransparency = edge.targetTransparency,
+				})
+			end
+
+			local effect = getSummerAmbienceEffect(true)
+			if effect then
+				effect.Enabled = true
+				local fadeIn = tweenSummerAmbience(effect, 0.65, {
+					TintColor = Color3.fromRGB(255, 225, 176),
+					Brightness = 0.014,
+					Contrast = 0.012,
+					Saturation = 0.032,
+				})
+				fadeIn.Completed:Connect(function(playbackState)
+					if playbackState ~= Enum.PlaybackState.Completed or sequence ~= summerAmbienceSequence then
+						return
+					end
+					scheduleSummerAmbiencePulse(sequence)
+				end)
+			end
+
+			return
+		end
+
+		for _, edge in ipairs(summerAmbienceEdges) do
+			tweenSummerAmbience(edge.frame, 0.5, {
+				BackgroundTransparency = 1,
+			})
+		end
+
+		local effect = getSummerAmbienceEffect(false)
+		local fadeOut = nil
+		if effect then
+			fadeOut = tweenSummerAmbience(effect, 0.5, {
+				TintColor = Color3.fromRGB(255, 255, 255),
+				Brightness = 0,
+				Contrast = 0,
+				Saturation = 0,
+			})
+		end
+
+		local function finishFadeOut()
+			if sequence ~= summerAmbienceSequence then
+				return
+			end
+
+			summerAmbienceLayer.Visible = false
+			if effect then
+				effect.Enabled = false
+			end
+		end
+
+		if fadeOut then
+			fadeOut.Completed:Connect(function()
+				finishFadeOut()
+			end)
+		else
+			task.delay(0.5, finishFadeOut)
+		end
+	end
+end)()
+
 local PASS_UI_STYLES = {
 	[1] = { color = Color3.fromRGB(255, 80, 80), label = "2× LOOT" },
 	[2] = { color = Color3.fromRGB(255, 200, 0), label = "★ VIP" },
@@ -906,8 +1145,6 @@ local PASS_UI_KEYS = {
 	[Config.GAMEPASS_REBIRTH_BOOST_ID] = Config.GAMEPASS_REBIRTH_BOOST,
 }
 
-local badgeInstances = {} -- passId → TextLabel
-
 local function getPassUiStyle(passId)
 	return PASS_UI_STYLES[passId] or { color = Color3.fromRGB(100, 100, 100), label = "PASS" }
 end
@@ -922,8 +1159,6 @@ local function updatePassBadges(ownedGamepasses)
 	for _, child in ipairs(badgeRow:GetChildren()) do
 		if child:IsA("TextLabel") then child:Destroy() end
 	end
-	badgeInstances = {}
-
 	if not ownedGamepasses then return end
 
 	for _, passId in ipairs(PASS_UI_ORDER) do
@@ -946,7 +1181,6 @@ local function updatePassBadges(ownedGamepasses)
 			corner.CornerRadius = UDim.new(0, 4)
 			corner.Parent = badge
 
-			badgeInstances[passId] = badge
 		end
 	end
 end
@@ -955,6 +1189,7 @@ local function updateSeasonBadge(effectId)
 	local seasonUi = SEASON_BADGE_STYLES[effectId]
 	setHalloweenAmbienceActive(effectId == "halloween_loot" and seasonUi ~= nil)
 	setSpringAmbienceActive(effectId == "spring_loot" and seasonUi ~= nil)
+	setSummerAmbienceActive(effectId == "summer_loot" and seasonUi ~= nil)
 
 	if not seasonUi then
 		seasonBadge.Visible = false
