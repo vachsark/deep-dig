@@ -631,6 +631,249 @@ do
 	end
 end
 
+local function createSpringAmbienceController()
+local springAmbienceLayer = Instance.new("Frame")
+springAmbienceLayer.Name = "SpringAmbience"
+springAmbienceLayer.Size = UDim2.new(1, 0, 1, 0)
+springAmbienceLayer.Position = UDim2.new(0, 0, 0, 0)
+springAmbienceLayer.BackgroundTransparency = 1
+springAmbienceLayer.BorderSizePixel = 0
+springAmbienceLayer.Active = false
+springAmbienceLayer.Visible = false
+springAmbienceLayer.ZIndex = 5
+springAmbienceLayer.Parent = screenGui
+
+local springAmbienceEdges = {}
+
+local function createSpringAmbienceEdge(name, position, size, color, gradientRotation, targetTransparency)
+	local edge = Instance.new("Frame")
+	edge.Name = name
+	edge.Size = size
+	edge.Position = position
+	edge.BackgroundColor3 = color
+	edge.BackgroundTransparency = 1
+	edge.BorderSizePixel = 0
+	edge.Active = false
+	edge.ZIndex = 5
+	edge.Parent = springAmbienceLayer
+
+	local gradient = Instance.new("UIGradient")
+	gradient.Rotation = gradientRotation
+	gradient.Transparency = NumberSequence.new({
+		NumberSequenceKeypoint.new(0, 0),
+		NumberSequenceKeypoint.new(1, 1),
+	})
+	gradient.Parent = edge
+
+	table.insert(springAmbienceEdges, {
+		frame = edge,
+		targetTransparency = targetTransparency,
+	})
+end
+
+createSpringAmbienceEdge(
+	"TopGoldVignette",
+	UDim2.new(0, 0, 0, 0),
+	UDim2.new(1, 0, 0.16, 0),
+	Color3.fromRGB(245, 214, 92),
+	90,
+	0.87
+)
+createSpringAmbienceEdge(
+	"BottomGreenVignette",
+	UDim2.new(0, 0, 0.84, 0),
+	UDim2.new(1, 0, 0.16, 0),
+	Color3.fromRGB(94, 198, 86),
+	-90,
+	0.88
+)
+createSpringAmbienceEdge(
+	"LeftGreenVignette",
+	UDim2.new(0, 0, 0, 0),
+	UDim2.new(0.12, 0, 1, 0),
+	Color3.fromRGB(72, 180, 96),
+	0,
+	0.90
+)
+createSpringAmbienceEdge(
+	"RightGoldVignette",
+	UDim2.new(0.88, 0, 0, 0),
+	UDim2.new(0.12, 0, 1, 0),
+	Color3.fromRGB(230, 190, 70),
+	180,
+	0.90
+)
+
+	local effectName = "DeepDigSpringAmbience"
+	local springAmbienceEffect = Lighting:FindFirstChild(effectName)
+	local springAmbienceActive = false
+	local springAmbienceSequence = 0
+	local springAmbiencePulseGold = false
+	local springAmbienceTweens = {}
+
+	if springAmbienceEffect and not springAmbienceEffect:IsA("ColorCorrectionEffect") then
+		springAmbienceEffect = nil
+	end
+
+	local function clearSpringAmbienceTweens()
+		for _, tween in ipairs(springAmbienceTweens) do
+			tween:Cancel()
+		end
+		springAmbienceTweens = {}
+	end
+
+	local function tweenSpringAmbience(instance, duration, goal)
+		local tween = TweenService:Create(
+			instance,
+			TweenInfo.new(duration, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut),
+			goal
+		)
+		table.insert(springAmbienceTweens, tween)
+		tween:Play()
+		return tween
+	end
+
+	local function getSpringAmbienceEffect(createIfMissing)
+		if springAmbienceEffect and springAmbienceEffect.Parent == Lighting then
+			return springAmbienceEffect
+		end
+
+		springAmbienceEffect = Lighting:FindFirstChild(effectName)
+		if springAmbienceEffect and not springAmbienceEffect:IsA("ColorCorrectionEffect") then
+			springAmbienceEffect = nil
+		end
+
+		if not springAmbienceEffect and createIfMissing then
+			springAmbienceEffect = Instance.new("ColorCorrectionEffect")
+			springAmbienceEffect.Name = effectName
+			springAmbienceEffect.TintColor = Color3.fromRGB(255, 255, 255)
+			springAmbienceEffect.Brightness = 0
+			springAmbienceEffect.Contrast = 0
+			springAmbienceEffect.Saturation = 0
+			springAmbienceEffect.Enabled = false
+			springAmbienceEffect.Parent = Lighting
+		end
+
+		return springAmbienceEffect
+	end
+
+	local function scheduleSpringAmbiencePulse(sequence)
+		task.delay(1.8, function()
+			if sequence ~= springAmbienceSequence or not springAmbienceActive then
+				return
+			end
+
+			clearSpringAmbienceTweens()
+			springAmbiencePulseGold = not springAmbiencePulseGold
+
+			for _, edge in ipairs(springAmbienceEdges) do
+				local pulseTransparency = edge.targetTransparency + (springAmbiencePulseGold and -0.02 or 0.018)
+				tweenSpringAmbience(edge.frame, 2.4, {
+					BackgroundTransparency = math.clamp(pulseTransparency, 0.84, 0.94),
+				})
+			end
+
+			local effect = getSpringAmbienceEffect(true)
+			if effect then
+				effect.Enabled = true
+				local pulse = tweenSpringAmbience(effect, 2.4, {
+					TintColor = springAmbiencePulseGold and Color3.fromRGB(255, 246, 214) or Color3.fromRGB(226, 255, 224),
+					Brightness = springAmbiencePulseGold and 0.018 or 0.008,
+					Contrast = springAmbiencePulseGold and 0.018 or 0.012,
+					Saturation = springAmbiencePulseGold and 0.04 or 0.025,
+				})
+				pulse.Completed:Connect(function(playbackState)
+					if playbackState ~= Enum.PlaybackState.Completed or sequence ~= springAmbienceSequence then
+						return
+					end
+					scheduleSpringAmbiencePulse(sequence)
+				end)
+			end
+		end)
+	end
+
+	local function setSpringAmbienceActive(active)
+		if active == springAmbienceActive and active == false then
+			return
+		end
+
+		springAmbienceActive = active == true
+		springAmbienceSequence = springAmbienceSequence + 1
+		local sequence = springAmbienceSequence
+
+		clearSpringAmbienceTweens()
+
+		if springAmbienceActive then
+			springAmbienceLayer.Visible = true
+
+			for _, edge in ipairs(springAmbienceEdges) do
+				tweenSpringAmbience(edge.frame, 0.75, {
+					BackgroundTransparency = edge.targetTransparency,
+				})
+			end
+
+			local effect = getSpringAmbienceEffect(true)
+			if effect then
+				effect.Enabled = true
+				local fadeIn = tweenSpringAmbience(effect, 0.75, {
+					TintColor = Color3.fromRGB(240, 255, 224),
+					Brightness = 0.012,
+					Contrast = 0.014,
+					Saturation = 0.03,
+				})
+				fadeIn.Completed:Connect(function(playbackState)
+					if playbackState ~= Enum.PlaybackState.Completed or sequence ~= springAmbienceSequence then
+						return
+					end
+					scheduleSpringAmbiencePulse(sequence)
+				end)
+			end
+
+			return
+		end
+
+		for _, edge in ipairs(springAmbienceEdges) do
+			tweenSpringAmbience(edge.frame, 0.55, {
+				BackgroundTransparency = 1,
+			})
+		end
+
+		local effect = getSpringAmbienceEffect(false)
+		local fadeOut = nil
+		if effect then
+			fadeOut = tweenSpringAmbience(effect, 0.55, {
+				TintColor = Color3.fromRGB(255, 255, 255),
+				Brightness = 0,
+				Contrast = 0,
+				Saturation = 0,
+			})
+		end
+
+		local function finishFadeOut()
+			if sequence ~= springAmbienceSequence then
+				return
+			end
+
+			springAmbienceLayer.Visible = false
+			if effect then
+				effect.Enabled = false
+			end
+		end
+
+		if fadeOut then
+			fadeOut.Completed:Connect(function()
+				finishFadeOut()
+			end)
+		else
+			task.delay(0.55, finishFadeOut)
+		end
+	end
+
+	return setSpringAmbienceActive
+end
+
+local setSpringAmbienceActive = createSpringAmbienceController()
+
 local PASS_UI_STYLES = {
 	[1] = { color = Color3.fromRGB(255, 80, 80), label = "2× LOOT" },
 	[2] = { color = Color3.fromRGB(255, 200, 0), label = "★ VIP" },
@@ -711,6 +954,7 @@ end
 local function updateSeasonBadge(effectId)
 	local seasonUi = SEASON_BADGE_STYLES[effectId]
 	setHalloweenAmbienceActive(effectId == "halloween_loot" and seasonUi ~= nil)
+	setSpringAmbienceActive(effectId == "spring_loot" and seasonUi ~= nil)
 
 	if not seasonUi then
 		seasonBadge.Visible = false
