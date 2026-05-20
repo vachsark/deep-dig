@@ -81,6 +81,7 @@ local EventTriggeredEvent = createRemote("EventTriggered")
 local NotifyEvent = createRemote("Notify")
 local GetPlayerDataFunc = createRemote("GetPlayerData", "RemoteFunction")
 local PlaySound = Remotes:WaitForChild("PlaySound", 5)
+local REFRESH_EXCAVATOR_VISUAL_EVENT_NAME = "RefreshExcavatorVisual"
 
 -- ── Quest progress feeder ────────────────────────────────────────
 -- QuestSystem creates ReplicatedStorage.QuestProgressBindable on load
@@ -1430,6 +1431,11 @@ BuyToolEvent.OnServerEvent:Connect(function(player, toolTier)
 
 	data.coins = data.coins - tool.cost
 	data.toolTier = toolTier
+
+	local refreshExcavatorVisual = ServerEvents:FindFirstChild(REFRESH_EXCAVATOR_VISUAL_EVENT_NAME)
+	if refreshExcavatorVisual then
+		refreshExcavatorVisual:Fire(player)
+	end
 
 	-- SOUND HOOK: power-up whoosh on tool upgrade
 	if PlaySound then

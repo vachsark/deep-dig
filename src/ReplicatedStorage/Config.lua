@@ -21,12 +21,84 @@ Config.TIERS = {
 
 -- Tools
 Config.TOOLS = {
-	{ name = "Rusty Shovel",      power = 1, speed = 1.0, cost = 0,      tier = 1, damage = 1 },
-	{ name = "Iron Pickaxe",      power = 2, speed = 0.8, cost = 500,    tier = 2, damage = 5 },
-	{ name = "Steel Drill",       power = 3, speed = 0.6, cost = 2500,   tier = 3, damage = 9 },
-	{ name = "Dynamite Kit",      power = 5, speed = 0.4, cost = 10000,  tier = 4, damage = 14 },
-	{ name = "Laser Cutter",      power = 8, speed = 0.25,cost = 50000,  tier = 5, damage = 19 },
-	{ name = "Quantum Excavator", power = 15,speed = 0.15,cost = 250000, tier = 6, damage = 25 },
+	{
+		name = "Rusty Shovel",
+		power = 1,
+		speed = 1.0,
+		cost = 0,
+		tier = 1,
+		damage = 1,
+		visual = {
+			handleColor = Color3.fromRGB(139, 90, 43),
+			handleMaterial = Enum.Material.Wood,
+			handleSize = Vector3.new(1, 1, 4),
+		},
+	},
+	{
+		name = "Iron Pickaxe",
+		power = 2,
+		speed = 0.8,
+		cost = 500,
+		tier = 2,
+		damage = 5,
+		visual = {
+			handleColor = Color3.fromRGB(130, 130, 140),
+			handleMaterial = Enum.Material.Metal,
+			handleSize = Vector3.new(1.1, 1.1, 4.2),
+		},
+	},
+	{
+		name = "Steel Drill",
+		power = 3,
+		speed = 0.6,
+		cost = 2500,
+		tier = 3,
+		damage = 9,
+		visual = {
+			handleColor = Color3.fromRGB(70, 105, 150),
+			handleMaterial = Enum.Material.DiamondPlate,
+			handleSize = Vector3.new(1.25, 1.25, 4.4),
+		},
+	},
+	{
+		name = "Dynamite Kit",
+		power = 5,
+		speed = 0.4,
+		cost = 10000,
+		tier = 4,
+		damage = 14,
+		visual = {
+			handleColor = Color3.fromRGB(190, 55, 45),
+			handleMaterial = Enum.Material.Granite,
+			handleSize = Vector3.new(1.35, 1.35, 4.7),
+		},
+	},
+	{
+		name = "Laser Cutter",
+		power = 8,
+		speed = 0.25,
+		cost = 50000,
+		tier = 5,
+		damage = 19,
+		visual = {
+			handleColor = Color3.fromRGB(35, 220, 255),
+			handleMaterial = Enum.Material.Neon,
+			handleSize = Vector3.new(1.45, 1.45, 5),
+		},
+	},
+	{
+		name = "Quantum Excavator",
+		power = 15,
+		speed = 0.15,
+		cost = 250000,
+		tier = 6,
+		damage = 25,
+		visual = {
+			handleColor = Color3.fromRGB(170, 70, 255),
+			handleMaterial = Enum.Material.ForceField,
+			handleSize = Vector3.new(1.6, 1.6, 5.4),
+		},
+	},
 }
 
 -- Loot

@@ -7,6 +7,9 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Config = require(ReplicatedStorage:WaitForChild("Config"))
 local PetDatabase = require(ReplicatedStorage:WaitForChild("PetDatabase"))
 
+local EXCAVATOR_TOOL_NAME = "Excavator"
+local REFRESH_EXCAVATOR_VISUAL_EVENT_NAME = "RefreshExcavatorVisual"
+
 local function getData(player)
 	return _G.DeepDig_playerData and _G.DeepDig_playerData[player.UserId]
 end
@@ -290,24 +293,124 @@ end
 -- Tool System — Click to Dig
 -- ═══════════════════════════════════════════════════════════════════
 
+local function getPlayerToolConfig(player)
+	local data = getData(player)
+	local toolTier = data and data.toolTier or 1
+	local toolConfig = Config.TOOLS[toolTier] or Config.TOOLS[1]
+
+	return toolConfig, toolConfig.tier or toolTier
+end
+
+local function applyExcavatorVisual(tool, toolConfig)
+	local fallbackVisual = Config.TOOLS[1] and Config.TOOLS[1].visual or {}
+	local visual = (toolConfig and toolConfig.visual) or fallbackVisual
+	local handle = tool:FindFirstChild("Handle")
+
+	if not handle or not handle:IsA("BasePart") then
+		if handle then
+			handle:Destroy()
+		end
+
+		handle = Instance.new("Part")
+		handle.Name = "Handle"
+		handle.Parent = tool
+	end
+
+	tool.Name = EXCAVATOR_TOOL_NAME
+	tool.ToolTip = toolConfig and toolConfig.name or "Rusty Shovel"
+	tool.RequiresHandle = true
+	tool.CanBeDropped = false
+	tool:SetAttribute("ToolTier", toolConfig and toolConfig.tier or 1)
+	tool:SetAttribute("ToolName", toolConfig and toolConfig.name or "Rusty Shovel")
+
+	handle.Size = visual.handleSize or Vector3.new(1, 1, 4)
+	handle.Color = visual.handleColor or Color3.fromRGB(139, 90, 43)
+	handle.Material = visual.handleMaterial or Enum.Material.Wood
+	handle.CanCollide = false
+	handle.Massless = true
+	handle:SetAttribute("ToolTier", toolConfig and toolConfig.tier or 1)
+end
+
+local function refreshExistingExcavators(player)
+	local toolConfig = getPlayerToolConfig(player)
+	local refreshedAny = false
+	local containers = {}
+
+	if player.Backpack then
+		table.insert(containers, player.Backpack)
+	end
+	if player.Character then
+		table.insert(containers, player.Character)
+	end
+
+	for _, container in ipairs(containers) do
+		for _, child in ipairs(container:GetChildren()) do
+			if child:IsA("Tool") and child.Name == EXCAVATOR_TOOL_NAME then
+				applyExcavatorVisual(child, toolConfig)
+				refreshedAny = true
+			end
+		end
+	end
+
+	return refreshedAny
+end
+
+local function createExcavator(player)
+	local toolConfig = getPlayerToolConfig(player)
+	local tool = Instance.new("Tool")
+
+	applyExcavatorVisual(tool, toolConfig)
+
+	return tool
+end
+
+local function waitForPlayerData(player, timeoutSeconds)
+	local startedAt = os.clock()
+
+	while player.Parent == Players and not getData(player) and os.clock() - startedAt < timeoutSeconds do
+		task.wait(0.1)
+	end
+end
+
 -- Give each player a dig tool on join
 local function giveTool(player)
 	local character = player.Character or player.CharacterAdded:Wait()
+	if not character then return end
+	waitForPlayerData(player, 5)
 
-	local tool = Instance.new("Tool")
-	tool.Name = "Excavator"
-	tool.RequiresHandle = true
-	tool.CanBeDropped = false
+	if refreshExistingExcavators(player) then
+		return
+	end
 
-	local handle = Instance.new("Part")
-	handle.Name = "Handle"
-	handle.Size = Vector3.new(1, 1, 4)
-	handle.Color = Color3.fromRGB(139, 90, 43)
-	handle.Material = Enum.Material.Wood
-	handle.Parent = tool
-
-	tool.Parent = player.Backpack
+	local tool = createExcavator(player)
+	tool.Parent = player:WaitForChild("Backpack")
 	print(("[DeepDig dig srv] gave Excavator to %s in Backpack"):format(player.Name))
+end
+
+local function setupExcavatorRefreshEvents()
+	task.spawn(function()
+		local ServerEvents = ReplicatedStorage:WaitForChild("ServerEvents")
+		local refreshEvent = ServerEvents:FindFirstChild(REFRESH_EXCAVATOR_VISUAL_EVENT_NAME)
+
+		if not refreshEvent then
+			refreshEvent = Instance.new("BindableEvent")
+			refreshEvent.Name = REFRESH_EXCAVATOR_VISUAL_EVENT_NAME
+			refreshEvent.Parent = ServerEvents
+		end
+
+		refreshEvent.Event:Connect(function(player)
+			if player and player.Parent == Players then
+				refreshExistingExcavators(player)
+			end
+		end)
+
+		local playerDataReady = ServerEvents:WaitForChild("PlayerDataReady")
+		playerDataReady.Event:Connect(function(player)
+			if player and player.Parent == Players then
+				refreshExistingExcavators(player)
+			end
+		end)
+	end)
 end
 
 -- Listen for dig requests from client
@@ -385,5 +488,6 @@ end
 -- ═══════════════════════════════════════════════════════════════════
 
 generateInitialTerrain()
+setupExcavatorRefreshEvents()
 setupDigRemote()
 print("[DeepDig] DigSystem loaded")
