@@ -1008,6 +1008,8 @@ BlockBrokenEvent.Event:Connect(function(player, blockPosition)
 	-- Guarantee a drop for the first 10 blocks (FTUE)
 	if isNewPlayer then dropChance = 1.0 end
 
+	local autoCollectedPayload = nil
+
 	if math.random() < dropChance then
 		-- FTUE: First-ever find is always Common or Uncommon.
 		-- Save the big dopamine spike for after the loop is understood.
@@ -1099,6 +1101,11 @@ BlockBrokenEvent.Event:Connect(function(player, blockPosition)
 
 				local earned = awardSellPayout(player, data, item.sellValue, true)
 				applyFirstSellAffordabilityGrant(player, data)
+				autoCollectedPayload = {
+					name = item.name,
+					earned = earned,
+					rarity = item.rarity,
+				}
 
 				NotifyEvent:FireClient(player, "Auto Collector sold duplicate " .. item.name .. " for " .. earned .. " coins.", item.rarity)
 				if PlaySound then
@@ -1177,6 +1184,7 @@ BlockBrokenEvent.Event:Connect(function(player, blockPosition)
 		blocksDug = data.totalBlocksDug,
 		totalEarned = data.totalEarned,
 		rebirths = data.rebirths or 0,
+		autoCollected = autoCollectedPayload,
 		-- spring_loot bumps fragments per-block; keep the HUD coherent.
 		fragments = data.fragments,
 	}, data, player))

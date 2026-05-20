@@ -2207,6 +2207,156 @@ function showStreakRewardBurst(payload)
 end
 end
 
+DeepDigAutoCollectedUi = {}
+DeepDigAutoCollectedUi.panel = Instance.new("Frame")
+DeepDigAutoCollectedUi.panel.Name = "AutoCollectorBurst"
+DeepDigAutoCollectedUi.panel.AnchorPoint = Vector2.new(0.5, 0.5)
+DeepDigAutoCollectedUi.panel.Size = UDim2.fromOffset(300, 92)
+DeepDigAutoCollectedUi.panel.Position = UDim2.fromScale(0.5, 0.34)
+DeepDigAutoCollectedUi.panel.BackgroundColor3 = Color3.fromRGB(14, 48, 50)
+DeepDigAutoCollectedUi.panel.BackgroundTransparency = 1
+DeepDigAutoCollectedUi.panel.BorderSizePixel = 0
+DeepDigAutoCollectedUi.panel.Visible = false
+DeepDigAutoCollectedUi.panel.ZIndex = 82
+DeepDigAutoCollectedUi.panel.Parent = screenGui
+
+DeepDigAutoCollectedUi.corner = Instance.new("UICorner")
+DeepDigAutoCollectedUi.corner.CornerRadius = UDim.new(0, 10)
+DeepDigAutoCollectedUi.corner.Parent = DeepDigAutoCollectedUi.panel
+
+DeepDigAutoCollectedUi.stroke = Instance.new("UIStroke")
+DeepDigAutoCollectedUi.stroke.Color = Color3.fromRGB(70, 235, 215)
+DeepDigAutoCollectedUi.stroke.Thickness = 2
+DeepDigAutoCollectedUi.stroke.Transparency = 1
+DeepDigAutoCollectedUi.stroke.Parent = DeepDigAutoCollectedUi.panel
+
+DeepDigAutoCollectedUi.title = Instance.new("TextLabel")
+DeepDigAutoCollectedUi.title.Name = "Title"
+DeepDigAutoCollectedUi.title.Size = UDim2.new(1, -24, 0, 24)
+DeepDigAutoCollectedUi.title.Position = UDim2.fromOffset(12, 9)
+DeepDigAutoCollectedUi.title.BackgroundTransparency = 1
+DeepDigAutoCollectedUi.title.Text = "AUTO SOLD"
+DeepDigAutoCollectedUi.title.TextColor3 = Color3.fromRGB(94, 255, 224)
+DeepDigAutoCollectedUi.title.TextTransparency = 1
+DeepDigAutoCollectedUi.title.TextSize = 18
+DeepDigAutoCollectedUi.title.Font = Enum.Font.GothamBlack
+DeepDigAutoCollectedUi.title.TextXAlignment = Enum.TextXAlignment.Center
+DeepDigAutoCollectedUi.title.ZIndex = 83
+DeepDigAutoCollectedUi.title.Parent = DeepDigAutoCollectedUi.panel
+
+DeepDigAutoCollectedUi.item = Instance.new("TextLabel")
+DeepDigAutoCollectedUi.item.Name = "Item"
+DeepDigAutoCollectedUi.item.Size = UDim2.new(1, -24, 0, 24)
+DeepDigAutoCollectedUi.item.Position = UDim2.fromOffset(12, 33)
+DeepDigAutoCollectedUi.item.BackgroundTransparency = 1
+DeepDigAutoCollectedUi.item.Text = "Duplicate find"
+DeepDigAutoCollectedUi.item.TextColor3 = Color3.fromRGB(225, 255, 248)
+DeepDigAutoCollectedUi.item.TextTransparency = 1
+DeepDigAutoCollectedUi.item.TextSize = 15
+DeepDigAutoCollectedUi.item.Font = Enum.Font.GothamBold
+DeepDigAutoCollectedUi.item.TextWrapped = true
+DeepDigAutoCollectedUi.item.TextXAlignment = Enum.TextXAlignment.Center
+DeepDigAutoCollectedUi.item.ZIndex = 83
+DeepDigAutoCollectedUi.item.Parent = DeepDigAutoCollectedUi.panel
+
+DeepDigAutoCollectedUi.amount = Instance.new("TextLabel")
+DeepDigAutoCollectedUi.amount.Name = "Amount"
+DeepDigAutoCollectedUi.amount.Size = UDim2.new(1, -24, 0, 28)
+DeepDigAutoCollectedUi.amount.Position = UDim2.fromOffset(12, 56)
+DeepDigAutoCollectedUi.amount.BackgroundTransparency = 1
+DeepDigAutoCollectedUi.amount.Text = "+0 coins"
+DeepDigAutoCollectedUi.amount.TextColor3 = Color3.fromRGB(255, 224, 90)
+DeepDigAutoCollectedUi.amount.TextTransparency = 1
+DeepDigAutoCollectedUi.amount.TextSize = 22
+DeepDigAutoCollectedUi.amount.Font = Enum.Font.GothamBlack
+DeepDigAutoCollectedUi.amount.TextXAlignment = Enum.TextXAlignment.Center
+DeepDigAutoCollectedUi.amount.ZIndex = 83
+DeepDigAutoCollectedUi.amount.Parent = DeepDigAutoCollectedUi.panel
+
+DeepDigAutoCollectedSequence = 0
+DeepDigAutoCollectedTweens = {}
+
+function DeepDigClearAutoCollectedTweens()
+	for _, tween in ipairs(DeepDigAutoCollectedTweens) do
+		tween:Cancel()
+	end
+	DeepDigAutoCollectedTweens = {}
+end
+
+function DeepDigTweenAutoCollected(instance, duration, goal, easingStyle, easingDirection)
+	local tween = TweenService:Create(
+		instance,
+		TweenInfo.new(duration, easingStyle or Enum.EasingStyle.Quad, easingDirection or Enum.EasingDirection.Out),
+		goal
+	)
+	table.insert(DeepDigAutoCollectedTweens, tween)
+	tween:Play()
+	return tween
+end
+
+function DeepDigShowAutoCollectedBurst(payload)
+	if type(payload) ~= "table" then
+		return
+	end
+
+	local earned = math.floor(tonumber(payload.earned) or 0)
+	if earned <= 0 then
+		return
+	end
+
+	local itemName = tostring(payload.name or "Duplicate find")
+	local rarity = tostring(payload.rarity or "Common")
+
+	DeepDigAutoCollectedSequence = DeepDigAutoCollectedSequence + 1
+	local sequence = DeepDigAutoCollectedSequence
+	DeepDigClearAutoCollectedTweens()
+
+	DeepDigAutoCollectedUi.panel.Visible = true
+	DeepDigAutoCollectedUi.panel.Size = UDim2.fromOffset(282, 86)
+	DeepDigAutoCollectedUi.panel.Position = UDim2.fromScale(0.5, 0.36)
+	DeepDigAutoCollectedUi.panel.BackgroundTransparency = 0.18
+	DeepDigAutoCollectedUi.stroke.Transparency = 0
+	DeepDigAutoCollectedUi.stroke.Thickness = 2
+	DeepDigAutoCollectedUi.title.TextTransparency = 0
+	DeepDigAutoCollectedUi.item.TextTransparency = 0
+	DeepDigAutoCollectedUi.amount.TextTransparency = 0
+	DeepDigAutoCollectedUi.item.Text = itemName .. " - " .. rarity
+	DeepDigAutoCollectedUi.amount.Text = "+" .. tostring(earned) .. " coins"
+
+	DeepDigTweenAutoCollected(DeepDigAutoCollectedUi.panel, 0.14, {
+		Size = UDim2.fromOffset(318, 98),
+		Position = UDim2.fromScale(0.5, 0.34),
+		BackgroundTransparency = 0.08,
+	}, Enum.EasingStyle.Back)
+	DeepDigTweenAutoCollected(DeepDigAutoCollectedUi.stroke, 0.18, {
+		Color = Color3.fromRGB(255, 220, 88),
+	})
+
+	task.delay(1.35, function()
+		if sequence ~= DeepDigAutoCollectedSequence then
+			return
+		end
+
+		DeepDigTweenAutoCollected(DeepDigAutoCollectedUi.panel, 0.22, {
+			Position = UDim2.fromScale(0.5, 0.31),
+			BackgroundTransparency = 1,
+		}, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+		DeepDigTweenAutoCollected(DeepDigAutoCollectedUi.stroke, 0.2, {
+			Transparency = 1,
+			Color = Color3.fromRGB(70, 235, 215),
+		}, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+		DeepDigTweenAutoCollected(DeepDigAutoCollectedUi.title, 0.18, { TextTransparency = 1 }, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+		DeepDigTweenAutoCollected(DeepDigAutoCollectedUi.item, 0.18, { TextTransparency = 1 }, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+		local amountFade = DeepDigTweenAutoCollected(DeepDigAutoCollectedUi.amount, 0.18, { TextTransparency = 1 }, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+		amountFade.Completed:Connect(function()
+			if sequence ~= DeepDigAutoCollectedSequence then
+				return
+			end
+			DeepDigAutoCollectedUi.panel.Visible = false
+		end)
+	end)
+end
+
 local offlineIncomePanel = Instance.new("Frame")
 offlineIncomePanel.Name = "OfflineIncomeReward"
 offlineIncomePanel.AnchorPoint = Vector2.new(0.5, 0.5)
@@ -3148,6 +3298,9 @@ Remotes.UpdateHUD.OnClientEvent:Connect(function(data)
 	end
 	if data.offlineIncome then
 		showOfflineIncomePopup(data.offlineIncome)
+	end
+	if data.autoCollected then
+		DeepDigShowAutoCollectedBurst(data.autoCollected)
 	end
 
 	refreshStreakRevivePrompt(data)
