@@ -1626,6 +1626,11 @@ local function playLegendaryFindFlash()
 	findFlashSequence = findFlashSequence + 1
 	local sequence = findFlashSequence
 
+	local previousGlint = findFlashLayer:FindFirstChild("Glint")
+	if previousGlint then
+		previousGlint:Destroy()
+	end
+
 	if findFlashInTween then
 		findFlashInTween:Cancel()
 	end
@@ -1634,17 +1639,91 @@ local function playLegendaryFindFlash()
 	end
 
 	findFlashOverlay.BackgroundTransparency = 1
+	findFlashOverlay.BackgroundColor3 = Color3.fromRGB(255, 218, 82)
+
+	local glint = Instance.new("Frame")
+	glint.Name = "Glint"
+	glint.Size = UDim2.new(0, 18, 0, 18)
+	glint.AnchorPoint = Vector2.new(0.5, 0.5)
+	glint.Position = UDim2.new(0.5, 0, 0.48, 0)
+	glint.BackgroundTransparency = 1
+	glint.BorderSizePixel = 0
+	glint.ZIndex = 92
+	glint.Parent = findFlashLayer
+
+	local pulse = Instance.new("Frame")
+	pulse.Name = "Pulse"
+	pulse.Size = UDim2.new(0, 34, 0, 34)
+	pulse.AnchorPoint = Vector2.new(0.5, 0.5)
+	pulse.Position = UDim2.new(0.5, 0, 0.5, 0)
+	pulse.BackgroundTransparency = 1
+	pulse.BorderSizePixel = 0
+	pulse.ZIndex = 91
+	pulse.Parent = glint
+
+	local pulseCorner = Instance.new("UICorner")
+	pulseCorner.CornerRadius = UDim.new(1, 0)
+	pulseCorner.Parent = pulse
+
+	local pulseStroke = Instance.new("UIStroke")
+	pulseStroke.Color = Color3.fromRGB(255, 238, 146)
+	pulseStroke.Transparency = 0.05
+	pulseStroke.Thickness = 3
+	pulseStroke.Parent = pulse
+
+	local horizontalGlint = Instance.new("Frame")
+	horizontalGlint.Name = "Horizontal"
+	horizontalGlint.Size = UDim2.new(0, 14, 0, 5)
+	horizontalGlint.AnchorPoint = Vector2.new(0.5, 0.5)
+	horizontalGlint.Position = UDim2.new(0.5, 0, 0.5, 0)
+	horizontalGlint.BackgroundColor3 = Color3.fromRGB(255, 248, 210)
+	horizontalGlint.BackgroundTransparency = 0.05
+	horizontalGlint.BorderSizePixel = 0
+	horizontalGlint.ZIndex = 93
+	horizontalGlint.Parent = glint
+
+	local verticalGlint = Instance.new("Frame")
+	verticalGlint.Name = "Vertical"
+	verticalGlint.Size = UDim2.new(0, 5, 0, 14)
+	verticalGlint.AnchorPoint = Vector2.new(0.5, 0.5)
+	verticalGlint.Position = UDim2.new(0.5, 0, 0.5, 0)
+	verticalGlint.BackgroundColor3 = Color3.fromRGB(255, 248, 210)
+	verticalGlint.BackgroundTransparency = 0.05
+	verticalGlint.BorderSizePixel = 0
+	verticalGlint.ZIndex = 93
+	verticalGlint.Parent = glint
 
 	findFlashInTween = TweenService:Create(findFlashOverlay, TweenInfo.new(0.08, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-		BackgroundTransparency = 0.34,
+		BackgroundTransparency = 0.18,
 	})
 	findFlashInTween:Play()
+
+	TweenService:Create(pulse, TweenInfo.new(0.36, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+		Size = UDim2.new(0, 155, 0, 155),
+	}):Play()
+	TweenService:Create(pulseStroke, TweenInfo.new(0.36, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+		Transparency = 1,
+		Thickness = 1,
+	}):Play()
+	TweenService:Create(horizontalGlint, TweenInfo.new(0.18, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+		Size = UDim2.new(0, 190, 0, 6),
+	}):Play()
+	TweenService:Create(verticalGlint, TweenInfo.new(0.18, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+		Size = UDim2.new(0, 6, 0, 80),
+	}):Play()
+	TweenService:Create(horizontalGlint, TweenInfo.new(0.26, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+		BackgroundTransparency = 1,
+	}):Play()
+	TweenService:Create(verticalGlint, TweenInfo.new(0.26, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+		BackgroundTransparency = 1,
+	}):Play()
+
 	findFlashInTween.Completed:Connect(function(playbackState)
 		if sequence ~= findFlashSequence or playbackState ~= Enum.PlaybackState.Completed then
 			return
 		end
 
-		findFlashOutTween = TweenService:Create(findFlashOverlay, TweenInfo.new(0.22, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+		findFlashOutTween = TweenService:Create(findFlashOverlay, TweenInfo.new(0.34, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
 			BackgroundTransparency = 1,
 		})
 		findFlashOutTween:Play()
@@ -1654,6 +1733,9 @@ local function playLegendaryFindFlash()
 			end
 
 			findFlashOverlay.BackgroundTransparency = 1
+			if glint.Parent then
+				glint:Destroy()
+			end
 		end)
 	end)
 end
