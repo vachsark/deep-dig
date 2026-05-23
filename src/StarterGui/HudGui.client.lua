@@ -2458,6 +2458,7 @@ offlineIncomeCorner.Parent = offlineIncomePanel
 local offlineIncomeStroke = Instance.new("UIStroke")
 offlineIncomeStroke.Color = Color3.fromRGB(255, 200, 50)
 offlineIncomeStroke.Thickness = 2
+offlineIncomeStroke.Transparency = 1
 offlineIncomeStroke.Parent = offlineIncomePanel
 
 local offlineIncomeTitle = Instance.new("TextLabel")
@@ -2520,7 +2521,7 @@ offlineIncomeClaim.Size = UDim2.new(0, 150, 0, 34)
 offlineIncomeClaim.Position = UDim2.new(0.5, -75, 1, -44)
 offlineIncomeClaim.BackgroundColor3 = Color3.fromRGB(255, 200, 50)
 offlineIncomeClaim.BorderSizePixel = 0
-offlineIncomeClaim.Text = "CLAIMED"
+offlineIncomeClaim.Text = "Collect"
 offlineIncomeClaim.TextColor3 = Color3.fromRGB(40, 20, 0)
 offlineIncomeClaim.TextSize = 15
 offlineIncomeClaim.Font = Enum.Font.GothamBlack
@@ -2531,26 +2532,133 @@ local offlineIncomeClaimCorner = Instance.new("UICorner")
 offlineIncomeClaimCorner.CornerRadius = UDim.new(0, 8)
 offlineIncomeClaimCorner.Parent = offlineIncomeClaim
 
-local function showOfflineIncomePopup(summary)
-	if not summary or not summary.reward or summary.reward <= 0 then
-		return
+local showOfflineIncomePopup
+
+do
+	local offlineIncomeState = {
+		sequence = 0,
+		lastKey = nil,
+		tweens = {},
+	}
+
+	local function clearOfflineIncomeTweens()
+		for _, tween in ipairs(offlineIncomeState.tweens) do
+			tween:Cancel()
+		end
+		offlineIncomeState.tweens = {}
 	end
 
-	local countedDuration = summary.countedDuration or "0m"
-	local capDuration = summary.capDuration or "8h"
-	offlineIncomeReward.Text = "+" .. tostring(summary.reward) .. " coins"
-	offlineIncomeBody.Text = "Offline time counted: " .. countedDuration
-	if summary.hitCap == true then
-		offlineIncomeCap.Text = "You hit the " .. capDuration .. " offline cap."
-	else
-		offlineIncomeCap.Text = "Cap window: " .. capDuration .. " (not reached)."
+	local function tweenOfflineIncome(instance, duration, goal, easingStyle, easingDirection)
+		local tween = TweenService:Create(
+			instance,
+			TweenInfo.new(duration, easingStyle or Enum.EasingStyle.Quad, easingDirection or Enum.EasingDirection.Out),
+			goal
+		)
+		table.insert(offlineIncomeState.tweens, tween)
+		tween:Play()
+		return tween
 	end
-	offlineIncomePanel.Visible = true
+
+	local function hideOfflineIncomePopup()
+		if not offlineIncomePanel.Visible then
+			return
+		end
+
+		offlineIncomeState.sequence = offlineIncomeState.sequence + 1
+		local sequence = offlineIncomeState.sequence
+		clearOfflineIncomeTweens()
+
+		tweenOfflineIncome(offlineIncomePanel, 0.22, {
+			Position = UDim2.new(0.5, 0, 0.47, 0),
+			BackgroundTransparency = 1,
+		}, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+		tweenOfflineIncome(offlineIncomeStroke, 0.2, { Transparency = 1 }, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+		tweenOfflineIncome(offlineIncomeTitle, 0.18, { TextTransparency = 1 }, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+		tweenOfflineIncome(offlineIncomeReward, 0.18, { TextTransparency = 1 }, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+		tweenOfflineIncome(offlineIncomeBody, 0.18, { TextTransparency = 1 }, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+		tweenOfflineIncome(offlineIncomeCap, 0.18, { TextTransparency = 1 }, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+		tweenOfflineIncome(offlineIncomeClaim, 0.18, {
+			BackgroundTransparency = 1,
+			TextTransparency = 1,
+		}, Enum.EasingStyle.Quad, Enum.EasingDirection.In).Completed:Connect(function()
+			if sequence ~= offlineIncomeState.sequence then
+				return
+			end
+
+			offlineIncomePanel.Visible = false
+		end)
+	end
+
+	function showOfflineIncomePopup(summary)
+		local reward = summary and math.floor(tonumber(summary.reward) or 0) or 0
+		if reward <= 0 then
+			return
+		end
+
+		local countedDuration = summary.countedDuration or "0m"
+		local capDuration = summary.capDuration or "8h"
+		local popupKey = tostring(reward) .. "|" .. tostring(countedDuration) .. "|" .. tostring(capDuration) .. "|" .. tostring(summary.hitCap == true)
+		if popupKey == offlineIncomeState.lastKey then
+			return
+		end
+
+		offlineIncomeState.lastKey = popupKey
+		offlineIncomeState.sequence = offlineIncomeState.sequence + 1
+		local sequence = offlineIncomeState.sequence
+		clearOfflineIncomeTweens()
+
+		offlineIncomeReward.Text = "+" .. tostring(reward) .. " coins"
+		offlineIncomeBody.Text = "Offline time counted: " .. countedDuration
+		if summary.hitCap == true then
+			offlineIncomeCap.Text = "You hit the " .. capDuration .. " offline cap."
+		else
+			offlineIncomeCap.Text = "Cap window: " .. capDuration .. " (not reached)."
+		end
+
+		offlineIncomePanel.Visible = true
+		offlineIncomePanel.Size = UDim2.new(0, 370, 0, 182)
+		offlineIncomePanel.Position = UDim2.new(0.5, 0, 0.53, 0)
+		offlineIncomePanel.BackgroundTransparency = 1
+		offlineIncomeStroke.Transparency = 1
+		offlineIncomeTitle.TextTransparency = 1
+		offlineIncomeReward.TextTransparency = 1
+		offlineIncomeBody.TextTransparency = 1
+		offlineIncomeCap.TextTransparency = 1
+		offlineIncomeClaim.BackgroundTransparency = 1
+		offlineIncomeClaim.TextTransparency = 1
+
+		tweenOfflineIncome(offlineIncomePanel, 0.18, {
+			Size = UDim2.new(0, 390, 0, 190),
+			Position = UDim2.new(0.5, 0, 0.5, 0),
+			BackgroundTransparency = 0.04,
+		}, Enum.EasingStyle.Back)
+		tweenOfflineIncome(offlineIncomeStroke, 0.18, { Transparency = 0 })
+		tweenOfflineIncome(offlineIncomeTitle, 0.16, { TextTransparency = 0 })
+		tweenOfflineIncome(offlineIncomeReward, 0.2, { TextTransparency = 0 })
+		tweenOfflineIncome(offlineIncomeBody, 0.2, { TextTransparency = 0 })
+		tweenOfflineIncome(offlineIncomeCap, 0.22, { TextTransparency = 0 })
+		tweenOfflineIncome(offlineIncomeClaim, 0.2, {
+			BackgroundTransparency = 0,
+			TextTransparency = 0,
+		})
+
+		if LocalPlaySound and LocalPlaySound:IsA("BindableEvent") then
+			LocalPlaySound:Fire("sell_coins")
+		end
+
+		task.delay(7, function()
+			if sequence ~= offlineIncomeState.sequence then
+				return
+			end
+
+			hideOfflineIncomePopup()
+		end)
+	end
+
+	offlineIncomeClaim.MouseButton1Click:Connect(function()
+		hideOfflineIncomePopup()
+	end)
 end
-
-offlineIncomeClaim.MouseButton1Click:Connect(function()
-	offlineIncomePanel.Visible = false
-end)
 
 local function refreshStreakRevivePrompt(data)
 	if data then
@@ -3391,6 +3499,13 @@ Remotes.UpdateHUD.OnClientEvent:Connect(function(data)
 	updateFtueGuideFromHUD(data)
 	ingestResurfaceFields(data)
 end)
+
+do
+	local offlineIncomeRewardEvent = Remotes:WaitForChild("OfflineIncomeReward", 5)
+	if offlineIncomeRewardEvent then
+		offlineIncomeRewardEvent.OnClientEvent:Connect(showOfflineIncomePopup)
+	end
+end
 
 Remotes.ItemFound.OnClientEvent:Connect(function(item)
 	if item and LEGENDARY_FIND_FLASH_RARITIES[item.rarity] then

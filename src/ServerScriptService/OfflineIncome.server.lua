@@ -7,6 +7,12 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Remotes = ReplicatedStorage:WaitForChild("Remotes")
 local NotifyEvent = Remotes:WaitForChild("Notify")
 local UpdateHUDEvent = Remotes:WaitForChild("UpdateHUD")
+local OfflineIncomeRewardEvent = Remotes:FindFirstChild("OfflineIncomeReward")
+if not OfflineIncomeRewardEvent then
+	OfflineIncomeRewardEvent = Instance.new("RemoteEvent")
+	OfflineIncomeRewardEvent.Name = "OfflineIncomeReward"
+	OfflineIncomeRewardEvent.Parent = Remotes
+end
 
 local FOREMAN_PASS_ID = 4
 local DEFAULT_OFFLINE_SECONDS_CAP = 8 * 3600
@@ -106,6 +112,13 @@ local function grantOfflineIncome(player)
 
 	local countedDuration = formatOfflineDuration(elapsed)
 	local capDuration = formatOfflineDuration(offlineSecondsCap)
+	local rewardSummary = {
+		reward = reward,
+		countedDuration = countedDuration,
+		capDuration = capDuration,
+		hitCap = elapsed >= offlineSecondsCap,
+	}
+
 	NotifyEvent:FireClient(
 		player,
 		"Welcome back! You earned " .. reward .. " coins while offline (" .. countedDuration .. " counted, capped at " .. capDuration .. ").",
@@ -114,6 +127,7 @@ local function grantOfflineIncome(player)
 	UpdateHUDEvent:FireClient(player, {
 		coins = data.coins,
 	})
+	OfflineIncomeRewardEvent:FireClient(player, rewardSummary)
 end
 
 local function onPlayerAdded(player)
