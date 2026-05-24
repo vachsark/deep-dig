@@ -920,10 +920,12 @@ BlockBrokenEvent.Event:Connect(function(player, blockPosition)
 		data.fragments = (data.fragments or 0) + 1
 	end
 
+	local crewDigBonus = 0
 	if hasNearbyCrewmate(player) then
 		local crewFragmentBonus = awardCrewCoopDigXP(player)
 		data.fragments = (data.fragments or 0) + crewFragmentBonus
 		if crewFragmentBonus > 0 then
+			crewDigBonus = crewFragmentBonus
 			notifyCrewDigBonus(player, crewFragmentBonus)
 		end
 	end
@@ -1178,7 +1180,7 @@ BlockBrokenEvent.Event:Connect(function(player, blockPosition)
 	triggerRandomEvent(player)
 
 	-- Update client HUD
-	UpdateHUDEvent:FireClient(player, addStandardHudFields({
+	local hudPayload = {
 		coins = data.coins,
 		depth = depth,
 		tierName = tierName,
@@ -1188,7 +1190,11 @@ BlockBrokenEvent.Event:Connect(function(player, blockPosition)
 		autoCollected = autoCollectedPayload,
 		-- spring_loot bumps fragments per-block; keep the HUD coherent.
 		fragments = data.fragments,
-	}, data, player))
+	}
+	if crewDigBonus > 0 then
+		hudPayload.crewDigBonus = crewDigBonus
+	end
+	UpdateHUDEvent:FireClient(player, addStandardHudFields(hudPayload, data, player))
 end)
 
 -- ═══════════════════════════════════════════════════════════════════

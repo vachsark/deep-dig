@@ -135,6 +135,12 @@ local SOUNDS = {
 		playbackSpeed = 1.26,
 		pitchRange = { 1.02, 1.08 },
 	},
+	crew_bonus = {
+		id = "rbxassetid://6837730320", -- compact co-op fragment bonus chime
+		volume = 0.52,
+		playbackSpeed = 1.34,
+		pitchRange = { 1.04, 1.1 },
+	},
 	streak_milestone = {
 		id = "rbxassetid://5852285683", -- stronger milestone shimmer
 		volume = 0.9,
