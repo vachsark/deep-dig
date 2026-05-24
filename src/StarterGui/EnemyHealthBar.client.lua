@@ -22,6 +22,7 @@ local MINIBOSS_WARNING_NAME = "DeepDigEnemyMinibossWarning"
 local MINIBOSS_ENRAGE_WARNING_NAME = "DeepDigEnemyMinibossEnrageWarning"
 local BOSS_BAR_GUI_NAME = "DeepDigMinibossBossBar"
 local MINIBOSS_DEFEAT_GUI_NAME = "DeepDigMinibossDefeatClear"
+local ENEMY_THREAT_GUI_NAME = "DeepDigEnemyThreatIndicator"
 local MAX_DISTANCE = 80
 local BAR_WIDTH = 120
 local BAR_HEIGHT = 36
@@ -66,8 +67,12 @@ local PLAYER_HIT_JOLT_POSITION = 0.32
 local PLAYER_HIT_JOLT_ROTATION = 0.75
 local BOSS_BAR_DISPLAY_ORDER = 70
 local MINIBOSS_DEFEAT_DISPLAY_ORDER = 95
+local ENEMY_THREAT_DISPLAY_ORDER = 64
 local BOSS_BAR_WIDTH = 380
 local BOSS_BAR_HEIGHT = 52
+local ENEMY_THREAT_WIDTH = 112
+local ENEMY_THREAT_HEIGHT = 34
+local ENEMY_THREAT_EDGE_PADDING = 38
 
 local trackedEnemies = {}
 local trackedEnemyOrder = {}
@@ -92,6 +97,10 @@ local playerHitJoltState = nil
 local playerHitJoltBound = false
 local lastPlayerHitJoltCFrame = CFrame.new()
 local lastPlayerHitJoltActive = false
+local enemyThreatGui = nil
+local enemyThreatFrame = nil
+local enemyThreatArrow = nil
+local enemyThreatDistanceLabel = nil
 
 local LocalPlaySound = SoundService:FindFirstChild(LOCAL_PLAY_SOUND_NAME)
 if not LocalPlaySound then
@@ -134,6 +143,263 @@ local function disconnectAll(connections)
 			connection:Disconnect()
 		end
 	end
+end
+
+local function ensureEnemyThreatIndicator()
+	if enemyThreatFrame and enemyThreatFrame.Parent then
+		return
+	end
+
+	local playerGui = player:FindFirstChildOfClass("PlayerGui") or player:WaitForChild("PlayerGui")
+
+	enemyThreatGui = Instance.new("ScreenGui")
+	enemyThreatGui.Name = ENEMY_THREAT_GUI_NAME
+	enemyThreatGui.ResetOnSpawn = false
+	enemyThreatGui.IgnoreGuiInset = true
+	enemyThreatGui.DisplayOrder = ENEMY_THREAT_DISPLAY_ORDER
+	enemyThreatGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+	enemyThreatGui.Parent = playerGui
+
+	enemyThreatFrame = Instance.new("Frame")
+	enemyThreatFrame.Name = "ThreatMarker"
+	enemyThreatFrame.AnchorPoint = Vector2.new(0.5, 0.5)
+	enemyThreatFrame.Size = UDim2.fromOffset(ENEMY_THREAT_WIDTH, ENEMY_THREAT_HEIGHT)
+	enemyThreatFrame.BackgroundColor3 = Color3.fromRGB(34, 20, 18)
+	enemyThreatFrame.BackgroundTransparency = 0.08
+	enemyThreatFrame.BorderSizePixel = 0
+	enemyThreatFrame.Visible = false
+	enemyThreatFrame.ZIndex = 1
+	enemyThreatFrame.Parent = enemyThreatGui
+
+	local corner = Instance.new("UICorner")
+	corner.CornerRadius = UDim.new(0, 8)
+	corner.Parent = enemyThreatFrame
+
+	local stroke = Instance.new("UIStroke")
+	stroke.Color = ATTACK_WARNING_COLOR
+	stroke.Transparency = 0.16
+	stroke.Thickness = 1
+	stroke.Parent = enemyThreatFrame
+
+	enemyThreatArrow = Instance.new("TextLabel")
+	enemyThreatArrow.Name = "Direction"
+	enemyThreatArrow.Position = UDim2.fromOffset(6, 4)
+	enemyThreatArrow.Size = UDim2.fromOffset(26, 26)
+	enemyThreatArrow.BackgroundTransparency = 1
+	enemyThreatArrow.Text = ">"
+	enemyThreatArrow.TextColor3 = ATTACK_WARNING_COLOR
+	enemyThreatArrow.TextStrokeTransparency = 0.22
+	enemyThreatArrow.TextSize = 25
+	enemyThreatArrow.Font = Enum.Font.GothamBlack
+	enemyThreatArrow.ZIndex = 2
+	enemyThreatArrow.Parent = enemyThreatFrame
+
+	local nameLabel = Instance.new("TextLabel")
+	nameLabel.Name = "Label"
+	nameLabel.Position = UDim2.fromOffset(34, 4)
+	nameLabel.Size = UDim2.fromOffset(70, 14)
+	nameLabel.BackgroundTransparency = 1
+	nameLabel.Text = "ENEMY"
+	nameLabel.TextColor3 = Color3.fromRGB(255, 236, 224)
+	nameLabel.TextStrokeTransparency = 0.38
+	nameLabel.TextSize = 13
+	nameLabel.Font = Enum.Font.GothamBlack
+	nameLabel.TextXAlignment = Enum.TextXAlignment.Left
+	nameLabel.ZIndex = 2
+	nameLabel.Parent = enemyThreatFrame
+
+	enemyThreatDistanceLabel = Instance.new("TextLabel")
+	enemyThreatDistanceLabel.Name = "Distance"
+	enemyThreatDistanceLabel.Position = UDim2.fromOffset(34, 18)
+	enemyThreatDistanceLabel.Size = UDim2.fromOffset(70, 12)
+	enemyThreatDistanceLabel.BackgroundTransparency = 1
+	enemyThreatDistanceLabel.TextColor3 = Color3.fromRGB(255, 190, 158)
+	enemyThreatDistanceLabel.TextStrokeTransparency = 0.52
+	enemyThreatDistanceLabel.TextSize = 10
+	enemyThreatDistanceLabel.Font = Enum.Font.GothamBold
+	enemyThreatDistanceLabel.TextXAlignment = Enum.TextXAlignment.Left
+	enemyThreatDistanceLabel.TextTruncate = Enum.TextTruncate.AtEnd
+	enemyThreatDistanceLabel.ZIndex = 2
+	enemyThreatDistanceLabel.Parent = enemyThreatFrame
+end
+
+local function hideEnemyThreatIndicator()
+	if enemyThreatFrame then
+		enemyThreatFrame.Visible = false
+	end
+end
+
+local function getPlayerReferencePosition(camera)
+	local character = player.Character
+	local root = character and character:FindFirstChild("HumanoidRootPart")
+	if root and root:IsA("BasePart") then
+		return root.Position
+	end
+
+	return camera.CFrame.Position
+end
+
+local function getLiveOwnedEnemyRoot(model, record)
+	if not record or not model or not model.Parent then
+		return nil
+	end
+
+	if model:GetAttribute("OwnerUserId") ~= player.UserId then
+		return nil
+	end
+
+	if model:GetAttribute("IsEmerging") == true then
+		return nil
+	end
+
+	if not record.humanoid or record.humanoid.Health <= 0 then
+		return nil
+	end
+
+	local root = model:FindFirstChild("HumanoidRootPart")
+	if not root or not root:IsA("BasePart") then
+		return nil
+	end
+
+	return root
+end
+
+local function isViewportPointVisible(viewportPoint, onScreen, viewportSize)
+	return onScreen
+		and viewportPoint.Z > 0
+		and viewportPoint.X >= 0
+		and viewportPoint.X <= viewportSize.X
+		and viewportPoint.Y >= 0
+		and viewportPoint.Y <= viewportSize.Y
+end
+
+local function getOffscreenDirection(camera, rootPosition, viewportPoint, viewportSize)
+	local x = viewportPoint.X
+	local y = viewportPoint.Y
+	if viewportPoint.Z < 0 then
+		x = viewportSize.X - x
+		y = viewportSize.Y - y
+	end
+
+	local center = Vector2.new(viewportSize.X * 0.5, viewportSize.Y * 0.5)
+	local direction = Vector2.new(x - center.X, y - center.Y)
+	if direction.Magnitude < 1 then
+		local cameraSpace = camera.CFrame:PointToObjectSpace(rootPosition)
+		direction = Vector2.new(cameraSpace.X, -cameraSpace.Y)
+	end
+	if direction.Magnitude < 1 then
+		direction = Vector2.new(0, -1)
+	end
+
+	return direction.Unit
+end
+
+local function getDirectionAngle(direction)
+	if math.abs(direction.X) < 0.001 then
+		if direction.Y >= 0 then
+			return 90
+		end
+
+		return -90
+	end
+
+	local angle = math.deg(math.atan(direction.Y / direction.X))
+	if direction.X < 0 then
+		angle = angle + 180
+	end
+
+	return angle
+end
+
+local function getEdgePosition(direction, viewportSize)
+	local center = Vector2.new(viewportSize.X * 0.5, viewportSize.Y * 0.5)
+	local minX = ENEMY_THREAT_EDGE_PADDING + ENEMY_THREAT_WIDTH * 0.5
+	local maxX = viewportSize.X - ENEMY_THREAT_EDGE_PADDING - ENEMY_THREAT_WIDTH * 0.5
+	local minY = ENEMY_THREAT_EDGE_PADDING + ENEMY_THREAT_HEIGHT * 0.5
+	local maxY = viewportSize.Y - ENEMY_THREAT_EDGE_PADDING - ENEMY_THREAT_HEIGHT * 0.5
+
+	if minX > maxX then
+		minX = center.X
+		maxX = center.X
+	end
+	if minY > maxY then
+		minY = center.Y
+		maxY = center.Y
+	end
+
+	local scaleX = math.huge
+	if math.abs(direction.X) > 0.001 then
+		if direction.X > 0 then
+			scaleX = (maxX - center.X) / direction.X
+		else
+			scaleX = (minX - center.X) / direction.X
+		end
+	end
+
+	local scaleY = math.huge
+	if math.abs(direction.Y) > 0.001 then
+		if direction.Y > 0 then
+			scaleY = (maxY - center.Y) / direction.Y
+		else
+			scaleY = (minY - center.Y) / direction.Y
+		end
+	end
+
+	local scale = math.max(math.min(scaleX, scaleY), 0)
+	local position = center + direction * scale
+	return Vector2.new(
+		math.clamp(position.X, minX, maxX),
+		math.clamp(position.Y, minY, maxY)
+	)
+end
+
+local function updateEnemyThreatIndicator()
+	local camera = workspace.CurrentCamera
+	if not camera then
+		hideEnemyThreatIndicator()
+		return
+	end
+
+	local viewportSize = camera.ViewportSize
+	if viewportSize.X <= 0 or viewportSize.Y <= 0 then
+		hideEnemyThreatIndicator()
+		return
+	end
+
+	local referencePosition = getPlayerReferencePosition(camera)
+	local nearestRoot = nil
+	local nearestViewportPoint = nil
+	local nearestDistance = math.huge
+
+	for _, model in ipairs(trackedEnemyOrder) do
+		local record = trackedEnemies[model]
+		local root = getLiveOwnedEnemyRoot(model, record)
+		if root then
+			local viewportPoint, onScreen = camera:WorldToViewportPoint(root.Position)
+			if not isViewportPointVisible(viewportPoint, onScreen, viewportSize) then
+				local distance = (root.Position - referencePosition).Magnitude
+				if distance < nearestDistance then
+					nearestRoot = root
+					nearestViewportPoint = viewportPoint
+					nearestDistance = distance
+				end
+			end
+		end
+	end
+
+	if not nearestRoot then
+		hideEnemyThreatIndicator()
+		return
+	end
+
+	ensureEnemyThreatIndicator()
+
+	local direction = getOffscreenDirection(camera, nearestRoot.Position, nearestViewportPoint, viewportSize)
+	local position = getEdgePosition(direction, viewportSize)
+	enemyThreatFrame.Position = UDim2.fromOffset(position.X, position.Y)
+	enemyThreatFrame.Visible = true
+	enemyThreatArrow.Rotation = getDirectionAngle(direction)
+	enemyThreatDistanceLabel.Text = string.format("%d studs", math.floor(nearestDistance + 0.5))
 end
 
 local function ensureBossBar()
@@ -1898,5 +2164,6 @@ end
 
 enemiesFolder.ChildAdded:Connect(trackEnemy)
 enemiesFolder.ChildRemoved:Connect(cleanupEnemy)
+RunService.RenderStepped:Connect(updateEnemyThreatIndicator)
 
 print("[DeepDig] EnemyHealthBar loaded")
