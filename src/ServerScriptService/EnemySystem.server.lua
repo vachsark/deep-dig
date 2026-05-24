@@ -57,6 +57,7 @@ local TOUCH_ATTACK_RANGE_TOLERANCE = 2
 local WALK_RADIUS = 12
 local IDLE_WANDER_INTERVAL = 3
 local FIRST_ENEMY_DEPTH = 11
+local SPAWN_WINDUP_DURATION = 1.2
 
 local liveEnemies = {}
 local enemiesByPlayer = {}
@@ -270,7 +271,7 @@ local function notifyMinibossSpawn(player, enemy, model)
 		return
 	end
 
-	NotifyEvent:FireClient(player, enemy.name .. " has surfaced nearby!", "Legendary")
+	NotifyEvent:FireClient(player, enemy.name .. " is emerging nearby!", "Legendary")
 	fireEnemyCombatFeedback(player, "miniboss_spawn", model)
 end
 
@@ -352,10 +353,37 @@ local function getTouchAttackRange(record)
 	return (largestEnemyAxis * 0.5) + TOUCH_ATTACK_RANGE_TOLERANCE
 end
 
+local function isEnemyEmerging(record)
+	if not record then
+		return false
+	end
+
+	return record.model and record.model:GetAttribute("IsEmerging") == true
+end
+
+local function releaseEmergingEnemy(record)
+	if record.dead or not record.model or not record.model.Parent then
+		return
+	end
+	if not record.humanoid or record.humanoid.Health <= 0 then
+		return
+	end
+	if not record.root or not record.root.Parent then
+		return
+	end
+
+	record.model:SetAttribute("IsEmerging", false)
+	record.root.Anchored = false
+	record.humanoid.WalkSpeed = record.enemy.walkSpeed
+end
+
 local function applyPendingTouchAttack(record, player, userId)
 	record.pendingTouchAttacksByUserId[userId] = nil
 
 	if record.dead or not record.model or not record.model.Parent then
+		return
+	end
+	if isEnemyEmerging(record) then
 		return
 	end
 	if not record.humanoid or record.humanoid.Health <= 0 then
@@ -385,6 +413,9 @@ end
 
 local function handleTouched(record, hit)
 	if record.dead or not hit then
+		return
+	end
+	if isEnemyEmerging(record) then
 		return
 	end
 
@@ -509,6 +540,7 @@ local function spawnEnemyForPlayer(player)
 	if enemy.isMiniboss then
 		enemyName = enemy.name .. " [Miniboss]"
 	end
+	local spawnReadyAt = os.clock() + SPAWN_WINDUP_DURATION
 
 	local model = Instance.new("Model")
 	model.Name = enemyName
@@ -519,6 +551,8 @@ local function spawnEnemyForPlayer(player)
 	model:SetAttribute("EnemyRank", enemy.isMiniboss and "Miniboss" or "Enemy")
 	model:SetAttribute("MaxHealth", enemy.hp)
 	model:SetAttribute("HasEnraged", false)
+	model:SetAttribute("IsEmerging", true)
+	model:SetAttribute("SpawnReadyAt", spawnReadyAt)
 
 	local root = Instance.new("Part")
 	root.Name = "HumanoidRootPart"
@@ -526,13 +560,14 @@ local function spawnEnemyForPlayer(player)
 	root.Color = enemy.color
 	root.Material = Enum.Material.Slate
 	root.CanCollide = true
+	root.Anchored = true
 	root.CFrame = CFrame.new(spawnPosition)
 	root.Parent = model
 
 	local humanoid = Instance.new("Humanoid")
 	humanoid.MaxHealth = enemy.hp
 	humanoid.Health = enemy.hp
-	humanoid.WalkSpeed = enemy.walkSpeed
+	humanoid.WalkSpeed = 0
 	humanoid.DisplayName = enemyName
 	humanoid.Parent = model
 
@@ -572,6 +607,10 @@ local function spawnEnemyForPlayer(player)
 	enemiesByPlayer[player] = enemiesByPlayer[player] or {}
 	table.insert(enemiesByPlayer[player], record)
 	notifyMinibossSpawn(player, enemy, model)
+
+	task.delay(SPAWN_WINDUP_DURATION, function()
+		releaseEmergingEnemy(record)
+	end)
 end
 
 local function startSpawnLoop(player)
@@ -626,6 +665,10 @@ local function staggerEnemy(record, playerRoot, enemyRoot)
 			return
 		end
 		if not record.humanoid or record.humanoid.Health <= 0 then
+			return
+		end
+		if isEnemyEmerging(record) then
+			record.humanoid.WalkSpeed = 0
 			return
 		end
 
@@ -701,31 +744,36 @@ task.spawn(function()
 			if not record.dead and record.model.Parent and record.humanoid.Health > 0 then
 				local ownerRoot = record.owner and getPlayerRoot(record.owner)
 				if ownerRoot and record.root and record.root.Parent then
-					local enemyPosition = record.root.Position
-					local distanceToOwner = (ownerRoot.Position - enemyPosition).Magnitude
-					local aggroRange = record.enemy.aggroRange or 16
-					local targetPosition = nil
-					local inAggroRange = distanceToOwner <= aggroRange
-
-					if inAggroRange then
-						if not record.inAggroRange then
-							fireEnemyCombatFeedback(record.owner, "aggro", record.model)
-						end
-						record.inAggroRange = true
-						targetPosition = ownerRoot.Position
-					elseif os.clock() >= (record.nextWanderAt or 0) then
+					if isEnemyEmerging(record) then
 						record.inAggroRange = false
-						targetPosition = getWanderPosition(record.homePosition or enemyPosition)
-						record.nextWanderAt = os.clock() + IDLE_WANDER_INTERVAL
+						record.humanoid.WalkSpeed = 0
 					else
-						record.inAggroRange = false
-					end
+						local enemyPosition = record.root.Position
+						local distanceToOwner = (ownerRoot.Position - enemyPosition).Magnitude
+						local aggroRange = record.enemy.aggroRange or 16
+						local targetPosition = nil
+						local inAggroRange = distanceToOwner <= aggroRange
 
-					if not record.staggeredUntil or os.clock() >= record.staggeredUntil then
-						record.humanoid.WalkSpeed = record.enemy.walkSpeed
-					end
-					if targetPosition then
-						record.humanoid:MoveTo(targetPosition)
+						if inAggroRange then
+							if not record.inAggroRange then
+								fireEnemyCombatFeedback(record.owner, "aggro", record.model)
+							end
+							record.inAggroRange = true
+							targetPosition = ownerRoot.Position
+						elseif os.clock() >= (record.nextWanderAt or 0) then
+							record.inAggroRange = false
+							targetPosition = getWanderPosition(record.homePosition or enemyPosition)
+							record.nextWanderAt = os.clock() + IDLE_WANDER_INTERVAL
+						else
+							record.inAggroRange = false
+						end
+
+						if not record.staggeredUntil or os.clock() >= record.staggeredUntil then
+							record.humanoid.WalkSpeed = record.enemy.walkSpeed
+						end
+						if targetPosition then
+							record.humanoid:MoveTo(targetPosition)
+						end
 					end
 				end
 			end

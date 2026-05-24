@@ -47,6 +47,7 @@ local ATTACK_WARNING_SCALE = 1.12
 local MINIBOSS_SCALE = 1.32
 local ENRAGE_SCALE = 1.22
 local ENEMY_SPAWN_CUE_DURATION = 0.52
+local ENEMY_EMERGENCE_CUE_MAX_DURATION = 1.65
 local AGGRO_WARNING_DURATION = 0.58
 local ATTACK_WARNING_DURATION = 0.38
 local MINIBOSS_WARNING_DURATION = 1.05
@@ -1004,19 +1005,21 @@ local function showEnemySpawnCue(model)
 	billboard.Adornee = root
 	billboard.AlwaysOnTop = true
 	billboard.MaxDistance = MAX_DISTANCE
-	billboard.Size = UDim2.fromOffset(82, 24)
-	billboard.StudsOffset = Vector3.new(0, 4.05, 0)
+	billboard.Size = UDim2.fromOffset(104, 28)
+	billboard.StudsOffset = Vector3.new(0, 4.25, 0)
 	billboard.Parent = root
+
+	local isEmerging = model:GetAttribute("IsEmerging") == true
 
 	local label = Instance.new("TextLabel")
 	label.Name = "Cue"
 	label.Size = UDim2.fromScale(1, 1)
 	label.BackgroundTransparency = 1
-	label.Text = "surfaced"
+	label.Text = isEmerging and "emerging!" or "surfaced"
 	label.TextColor3 = ENEMY_SPAWN_COLOR
 	label.TextStrokeTransparency = 0.28
-	label.TextSize = 14
-	label.Font = Enum.Font.GothamBold
+	label.TextSize = isEmerging and 16 or 14
+	label.Font = isEmerging and Enum.Font.GothamBlack or Enum.Font.GothamBold
 	label.Parent = billboard
 
 	local stroke = Instance.new("UIStroke")
@@ -1025,35 +1028,86 @@ local function showEnemySpawnCue(model)
 	stroke.Thickness = 1
 	stroke.Parent = label
 
-	local moveTween = TweenService:Create(billboard, TweenInfo.new(
-		ENEMY_SPAWN_CUE_DURATION,
-		Enum.EasingStyle.Quad,
-		Enum.EasingDirection.Out
-	), {
-		Size = UDim2.fromOffset(94, 28),
-		StudsOffset = Vector3.new(0, 4.45, 0),
-	})
-	local fadeTween = TweenService:Create(label, TweenInfo.new(
-		ENEMY_SPAWN_CUE_DURATION,
-		Enum.EasingStyle.Quad,
-		Enum.EasingDirection.Out
-	), {
-		TextTransparency = 1,
-		TextStrokeTransparency = 1,
-	})
-	local strokeTween = TweenService:Create(stroke, TweenInfo.new(
-		ENEMY_SPAWN_CUE_DURATION,
-		Enum.EasingStyle.Quad,
-		Enum.EasingDirection.Out
-	), {
-		Transparency = 1,
-	})
+	local closing = false
+	local attributeConnection = nil
+	local function finishCue()
+		if closing or not billboard.Parent then
+			return
+		end
+		closing = true
+		if attributeConnection then
+			attributeConnection:Disconnect()
+			attributeConnection = nil
+		end
 
-	moveTween:Play()
-	fadeTween:Play()
-	strokeTween:Play()
+		label.Text = "surfaced"
+		label.TextSize = 14
+		label.Font = Enum.Font.GothamBold
 
-	task.delay(ENEMY_SPAWN_CUE_DURATION + 0.05, function()
+		local moveTween = TweenService:Create(billboard, TweenInfo.new(
+			ENEMY_SPAWN_CUE_DURATION,
+			Enum.EasingStyle.Quad,
+			Enum.EasingDirection.Out
+		), {
+			Size = UDim2.fromOffset(94, 28),
+			StudsOffset = Vector3.new(0, 4.55, 0),
+		})
+		local fadeTween = TweenService:Create(label, TweenInfo.new(
+			ENEMY_SPAWN_CUE_DURATION,
+			Enum.EasingStyle.Quad,
+			Enum.EasingDirection.Out
+		), {
+			TextTransparency = 1,
+			TextStrokeTransparency = 1,
+		})
+		local strokeTween = TweenService:Create(stroke, TweenInfo.new(
+			ENEMY_SPAWN_CUE_DURATION,
+			Enum.EasingStyle.Quad,
+			Enum.EasingDirection.Out
+		), {
+			Transparency = 1,
+		})
+
+		moveTween:Play()
+		fadeTween:Play()
+		strokeTween:Play()
+	end
+
+	if isEmerging then
+		local pulseTween = TweenService:Create(billboard, TweenInfo.new(
+			0.34,
+			Enum.EasingStyle.Quad,
+			Enum.EasingDirection.InOut,
+			-1,
+			true
+		), {
+			Size = UDim2.fromOffset(116, 32),
+			StudsOffset = Vector3.new(0, 4.55, 0),
+		})
+		pulseTween:Play()
+
+		attributeConnection = model:GetAttributeChangedSignal("IsEmerging"):Connect(function()
+			if model:GetAttribute("IsEmerging") ~= true then
+				pulseTween:Cancel()
+				finishCue()
+			end
+		end)
+
+		task.delay(ENEMY_EMERGENCE_CUE_MAX_DURATION, function()
+			if billboard.Parent then
+				pulseTween:Cancel()
+				finishCue()
+			end
+		end)
+	else
+		finishCue()
+	end
+
+	task.delay(ENEMY_EMERGENCE_CUE_MAX_DURATION + ENEMY_SPAWN_CUE_DURATION + 0.08, function()
+		if attributeConnection then
+			attributeConnection:Disconnect()
+			attributeConnection = nil
+		end
 		if billboard.Parent then
 			billboard:Destroy()
 		end
@@ -1823,6 +1877,7 @@ EnemyCombatFeedback.OnClientEvent:Connect(function(payload)
 	elseif feedbackType == "enemy_spawn" then
 		showEnemySpawnCue(payload.model)
 	elseif feedbackType == "miniboss_spawn" then
+		showEnemySpawnCue(payload.model)
 		showMinibossWarning(payload.model)
 	elseif feedbackType == "miniboss_enrage" then
 		pulseBossBarEnrage(payload.model)
