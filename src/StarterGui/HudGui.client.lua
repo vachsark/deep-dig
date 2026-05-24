@@ -1600,6 +1600,200 @@ do
 	end
 end
 
+updateDepthTone = (function(applyDepthTone)
+	local surfaceTiers = {
+		Modern = true,
+		Surface = true,
+	}
+	local tierColors = {}
+	for _, tier in ipairs(Config.TIERS or {}) do
+		tierColors[tier.name] = tier.color
+	end
+
+	local banner = Instance.new("Frame")
+	banner.Name = "DepthTierArrival"
+	banner.AnchorPoint = Vector2.new(0.5, 0.5)
+	banner.Size = UDim2.fromOffset(430, 116)
+	banner.Position = UDim2.fromScale(0.5, 0.47)
+	banner.BackgroundColor3 = Color3.fromRGB(18, 18, 24)
+	banner.BackgroundTransparency = 1
+	banner.BorderSizePixel = 0
+	banner.Visible = false
+	banner.ZIndex = 84
+	banner.Parent = screenGui
+
+	local bannerCorner = Instance.new("UICorner")
+	bannerCorner.CornerRadius = UDim.new(0, 12)
+	bannerCorner.Parent = banner
+
+	local bannerStroke = Instance.new("UIStroke")
+	bannerStroke.Color = Color3.fromRGB(255, 230, 150)
+	bannerStroke.Thickness = 2
+	bannerStroke.Transparency = 1
+	bannerStroke.Parent = banner
+
+	local title = Instance.new("TextLabel")
+	title.Name = "Title"
+	title.Size = UDim2.new(1, -40, 0, 30)
+	title.Position = UDim2.fromOffset(20, 18)
+	title.BackgroundTransparency = 1
+	title.Text = "Layer Reached"
+	title.TextColor3 = Color3.fromRGB(255, 240, 210)
+	title.TextTransparency = 1
+	title.TextSize = 22
+	title.Font = Enum.Font.GothamBlack
+	title.TextXAlignment = Enum.TextXAlignment.Center
+	title.ZIndex = 85
+	title.Parent = banner
+
+	local tierLabel = Instance.new("TextLabel")
+	tierLabel.Name = "Tier"
+	tierLabel.Size = UDim2.new(1, -40, 0, 36)
+	tierLabel.Position = UDim2.fromOffset(20, 52)
+	tierLabel.BackgroundTransparency = 1
+	tierLabel.Text = ""
+	tierLabel.TextColor3 = Color3.fromRGB(255, 230, 150)
+	tierLabel.TextTransparency = 1
+	tierLabel.TextSize = 30
+	tierLabel.Font = Enum.Font.GothamBlack
+	tierLabel.TextXAlignment = Enum.TextXAlignment.Center
+	tierLabel.ZIndex = 85
+	tierLabel.Parent = banner
+
+	local seenTierNames = {}
+	local lastTierName = nil
+	local sequence = 0
+	local activeTweens = {}
+
+	local function clearTweens()
+		for _, tween in ipairs(activeTweens) do
+			tween:Cancel()
+		end
+		activeTweens = {}
+	end
+
+	local function tween(instance, duration, goal, easingStyle, easingDirection)
+		local activeTween = TweenService:Create(
+			instance,
+			TweenInfo.new(duration, easingStyle or Enum.EasingStyle.Quad, easingDirection or Enum.EasingDirection.Out),
+			goal
+		)
+		table.insert(activeTweens, activeTween)
+		activeTween:Play()
+		return activeTween
+	end
+
+	local function getTierNameFromDepth(depth)
+		if type(depth) ~= "number" then
+			return nil
+		end
+
+		for _, tier in ipairs(Config.TIERS or {}) do
+			if depth >= tier.minDepth and depth <= tier.maxDepth then
+				return tier.name
+			end
+		end
+
+		return "Modern"
+	end
+
+	local function getTierName(data)
+		if data and type(data.tierName) == "string" and data.tierName ~= "" then
+			return data.tierName
+		end
+
+		if data then
+			return getTierNameFromDepth(data.depth)
+		end
+
+		return nil
+	end
+
+	local function getReadableTierColor(tierColor)
+		return tierColor:Lerp(Color3.fromRGB(255, 245, 225), 0.42)
+	end
+
+	local function playBanner(tierName)
+		sequence = sequence + 1
+		local currentSequence = sequence
+		local tierColor = tierColors[tierName] or Color3.fromRGB(255, 230, 150)
+		local readableTierColor = getReadableTierColor(tierColor)
+
+		clearTweens()
+		banner.Visible = true
+		banner.Size = UDim2.fromOffset(392, 104)
+		banner.Position = UDim2.fromScale(0.5, 0.49)
+		banner.BackgroundTransparency = 1
+		bannerStroke.Color = tierColor
+		bannerStroke.Transparency = 1
+		title.TextTransparency = 1
+		tierLabel.Text = tierName
+		tierLabel.TextColor3 = readableTierColor
+		tierLabel.TextTransparency = 1
+
+		tween(banner, 0.18, {
+			Size = UDim2.fromOffset(430, 116),
+			Position = UDim2.fromScale(0.5, 0.47),
+			BackgroundTransparency = 0.08,
+		}, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
+		tween(bannerStroke, 0.18, { Transparency = 0.05 })
+		tween(title, 0.14, { TextTransparency = 0 })
+		tween(tierLabel, 0.18, { TextTransparency = 0 })
+
+		if LocalPlaySound and LocalPlaySound:IsA("BindableEvent") then
+			LocalPlaySound:Fire("depth_tier_unlock")
+		end
+
+		task.delay(2.2, function()
+			if currentSequence ~= sequence then
+				return
+			end
+
+			tween(banner, 0.22, {
+				Position = UDim2.fromScale(0.5, 0.45),
+				BackgroundTransparency = 1,
+			}, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+			tween(bannerStroke, 0.18, { Transparency = 1 }, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+			tween(title, 0.16, { TextTransparency = 1 }, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+			local fadeOut = tween(tierLabel, 0.16, { TextTransparency = 1 }, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+			fadeOut.Completed:Connect(function(playbackState)
+				if currentSequence ~= sequence or playbackState ~= Enum.PlaybackState.Completed then
+					return
+				end
+				banner.Visible = false
+			end)
+		end)
+	end
+
+	return function(data)
+		applyDepthTone(data)
+
+		local tierName = getTierName(data)
+		if not tierName then
+			return
+		end
+
+		local wasSeen = seenTierNames[tierName] == true
+		seenTierNames[tierName] = true
+
+		if lastTierName == nil then
+			lastTierName = tierName
+			return
+		end
+
+		if tierName == lastTierName then
+			return
+		end
+
+		lastTierName = tierName
+		if surfaceTiers[tierName] or wasSeen then
+			return
+		end
+
+		playBanner(tierName)
+	end
+end)(updateDepthTone)
+
 local findFlashLayer = Instance.new("Frame")
 findFlashLayer.Name = "LegendaryFindFlash"
 findFlashLayer.Size = UDim2.new(1, 0, 1, 0)

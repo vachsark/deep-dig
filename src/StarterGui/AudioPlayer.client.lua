@@ -140,6 +140,11 @@ local SOUNDS = {
 		volume = 0.9,
 		playbackSpeed = 0.92,
 	},
+	depth_tier_unlock = {
+		id = "rbxassetid://5852285683", -- bright layer-arrival shimmer
+		volume = 0.9,
+		playbackSpeed = 0.82,
+	},
 	resurface_fanfare = {
 		id = "rbxassetid://6079316752", -- triumphant fanfare
 		volume = 1.0,
