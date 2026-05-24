@@ -2191,9 +2191,182 @@ local function refreshStreakLabel()
 	end
 end
 
-local function refreshFriendBoostIndicator(data)
-	if not data or data.friendBoostActive ~= true then
+local refreshFriendBoostIndicator
+
+do
+	local friendBoostFx = {
+		restColor = Color3.fromRGB(70, 205, 150),
+		restTextColor = Color3.fromRGB(10, 35, 24),
+		restTransparency = 0.15,
+		lastActive = nil,
+		burstSequence = 0,
+		activeBurst = nil,
+	}
+
+	local stroke = Instance.new("UIStroke")
+	stroke.Color = Color3.fromRGB(210, 255, 230)
+	stroke.Thickness = 1
+	stroke.Transparency = 1
+	stroke.Parent = friendBoostLabel
+	friendBoostFx.stroke = stroke
+
+	local scale = Instance.new("UIScale")
+	scale.Scale = 1
+	scale.Parent = friendBoostLabel
+	friendBoostFx.scale = scale
+
+local function clearFriendBoostBurst(sequence)
+	if sequence and sequence ~= friendBoostFx.burstSequence then
+		return
+	end
+
+	if friendBoostFx.activeBurst then
+		friendBoostFx.activeBurst:Destroy()
+		friendBoostFx.activeBurst = nil
+	end
+end
+
+local function restoreFriendBoostChip(sequence)
+	if sequence and sequence ~= friendBoostFx.burstSequence then
+		return
+	end
+
+	friendBoostLabel.BackgroundColor3 = friendBoostFx.restColor
+	friendBoostLabel.BackgroundTransparency = friendBoostFx.restTransparency
+	friendBoostLabel.TextColor3 = friendBoostFx.restTextColor
+	friendBoostFx.scale.Scale = 1
+	friendBoostFx.stroke.Transparency = 1
+end
+
+local function playFriendBoostActivationBurst(percent)
+	friendBoostFx.burstSequence = friendBoostFx.burstSequence + 1
+	local sequence = friendBoostFx.burstSequence
+	clearFriendBoostBurst()
+
+	friendBoostLabel.Visible = true
+	friendBoostLabel.BackgroundColor3 = Color3.fromRGB(160, 255, 205)
+	friendBoostLabel.BackgroundTransparency = 0
+	friendBoostLabel.TextColor3 = Color3.fromRGB(3, 28, 18)
+	friendBoostFx.scale.Scale = 0.88
+	friendBoostFx.stroke.Transparency = 0.08
+
+	LocalPlaySound:Fire("friend_boost")
+
+	TweenService:Create(friendBoostFx.scale, TweenInfo.new(0.16, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+		Scale = 1.12,
+	}):Play()
+	TweenService:Create(friendBoostLabel, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+		BackgroundColor3 = Color3.fromRGB(125, 245, 184),
+	}):Play()
+
+	task.delay(0.18, function()
+		if sequence ~= friendBoostFx.burstSequence or not friendBoostLabel.Visible then
+			return
+		end
+
+		TweenService:Create(friendBoostFx.scale, TweenInfo.new(0.16, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+			Scale = 1,
+		}):Play()
+		TweenService:Create(friendBoostLabel, TweenInfo.new(0.22, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+			BackgroundColor3 = friendBoostFx.restColor,
+			BackgroundTransparency = friendBoostFx.restTransparency,
+			TextColor3 = friendBoostFx.restTextColor,
+		}):Play()
+		TweenService:Create(friendBoostFx.stroke, TweenInfo.new(0.26, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+			Transparency = 1,
+		}):Play()
+	end)
+
+	local burstFrame = Instance.new("Frame")
+	burstFrame.Name = "FriendBoostBurst"
+	burstFrame.AnchorPoint = Vector2.new(0.5, 0.5)
+	burstFrame.Position = UDim2.fromScale(0.5, 0.74)
+	burstFrame.Size = UDim2.fromOffset(262, 42)
+	burstFrame.BackgroundColor3 = Color3.fromRGB(24, 56, 42)
+	burstFrame.BackgroundTransparency = 1
+	burstFrame.BorderSizePixel = 0
+	burstFrame.ZIndex = 32
+	burstFrame.Parent = screenGui
+	friendBoostFx.activeBurst = burstFrame
+
+	local burstCorner = Instance.new("UICorner")
+	burstCorner.CornerRadius = UDim.new(0, 8)
+	burstCorner.Parent = burstFrame
+
+	local burstStroke = Instance.new("UIStroke")
+	burstStroke.Color = Color3.fromRGB(135, 255, 190)
+	burstStroke.Thickness = 1
+	burstStroke.Transparency = 1
+	burstStroke.Parent = burstFrame
+
+	local burstLabel = Instance.new("TextLabel")
+	burstLabel.Name = "Label"
+	burstLabel.AnchorPoint = Vector2.new(0.5, 0.5)
+	burstLabel.Position = UDim2.fromScale(0.5, 0.5)
+	burstLabel.Size = UDim2.new(1, -18, 1, 0)
+	burstLabel.BackgroundTransparency = 1
+	burstLabel.Text = "Friend Boost Active +" .. tostring(percent) .. "% Speed"
+	burstLabel.TextColor3 = Color3.fromRGB(228, 255, 239)
+	burstLabel.TextTransparency = 1
+	burstLabel.TextSize = 17
+	burstLabel.Font = Enum.Font.GothamBlack
+	burstLabel.TextXAlignment = Enum.TextXAlignment.Center
+	burstLabel.TextYAlignment = Enum.TextYAlignment.Center
+	burstLabel.ZIndex = 33
+	burstLabel.Parent = burstFrame
+
+	local burstScale = Instance.new("UIScale")
+	burstScale.Scale = 0.88
+	burstScale.Parent = burstFrame
+
+	TweenService:Create(burstFrame, TweenInfo.new(0.14, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+		BackgroundTransparency = 0.1,
+		Position = UDim2.fromScale(0.5, 0.7),
+	}):Play()
+	TweenService:Create(burstStroke, TweenInfo.new(0.14, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+		Transparency = 0.16,
+	}):Play()
+	TweenService:Create(burstLabel, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+		TextTransparency = 0,
+	}):Play()
+	TweenService:Create(burstScale, TweenInfo.new(0.2, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+		Scale = 1,
+	}):Play()
+
+	task.delay(0.5, function()
+		if sequence ~= friendBoostFx.burstSequence or friendBoostFx.activeBurst ~= burstFrame then
+			return
+		end
+
+		TweenService:Create(burstFrame, TweenInfo.new(0.24, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+			BackgroundTransparency = 1,
+			Position = UDim2.fromScale(0.5, 0.67),
+		}):Play()
+		TweenService:Create(burstStroke, TweenInfo.new(0.22, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+			Transparency = 1,
+		}):Play()
+		TweenService:Create(burstLabel, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+			TextTransparency = 1,
+		}):Play()
+	end)
+
+	task.delay(0.86, function()
+		clearFriendBoostBurst(sequence)
+		restoreFriendBoostChip(sequence)
+	end)
+end
+
+function refreshFriendBoostIndicator(data)
+	if not data or data.friendBoostActive == nil then
+		return
+	end
+
+	if data.friendBoostActive ~= true then
+		friendBoostFx.lastActive = false
+		friendBoostFx.burstSequence = friendBoostFx.burstSequence + 1
 		friendBoostLabel.Visible = false
+		clearFriendBoostBurst()
+		restoreFriendBoostChip()
 		return
 	end
 
@@ -2201,6 +2374,13 @@ local function refreshFriendBoostIndicator(data)
 	local percent = math.max(1, math.floor(((multiplier - 1) * 100) + 0.5))
 	friendBoostLabel.Text = "Friend Boost +" .. tostring(percent) .. "% Speed"
 	friendBoostLabel.Visible = true
+
+	if friendBoostFx.lastActive ~= true then
+		playFriendBoostActivationBurst(percent)
+	end
+
+	friendBoostFx.lastActive = true
+end
 end
 
 local function refreshGroupBenefitIndicator(data)

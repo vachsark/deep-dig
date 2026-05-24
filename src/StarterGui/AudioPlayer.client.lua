@@ -141,6 +141,12 @@ local SOUNDS = {
 		playbackSpeed = 1.34,
 		pitchRange = { 1.04, 1.1 },
 	},
+	friend_boost = {
+		id = "rbxassetid://6837730320", -- compact friend speed boost chime
+		volume = 0.5,
+		playbackSpeed = 1.48,
+		pitchRange = { 1.02, 1.08 },
+	},
 	streak_milestone = {
 		id = "rbxassetid://5852285683", -- stronger milestone shimmer
 		volume = 0.9,
