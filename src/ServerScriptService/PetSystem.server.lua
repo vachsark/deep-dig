@@ -118,6 +118,24 @@ end
 
 local companionByUserId = {}
 
+local RARITY_AURA_COLORS = {
+	Common = Color3.fromRGB(180, 180, 180),
+	Uncommon = Color3.fromRGB(30, 200, 30),
+	Rare = Color3.fromRGB(30, 100, 255),
+	Epic = Color3.fromRGB(160, 50, 255),
+	Legendary = Color3.fromRGB(255, 170, 0),
+	Mythic = Color3.fromRGB(255, 50, 50),
+}
+
+local RARITY_AURA_INTENSITY = {
+	Common = 0.7,
+	Uncommon = 0.9,
+	Rare = 1.1,
+	Epic = 1.35,
+	Legendary = 1.65,
+	Mythic = 1.9,
+}
+
 local function getCompanionName(player)
 	return "PetCompanion_" .. tostring(player.UserId)
 end
@@ -150,6 +168,34 @@ local function getOwnedPetById(data, petId)
 	return nil
 end
 
+local function clamp(value, minValue, maxValue)
+	if value < minValue then
+		return minValue
+	end
+	if value > maxValue then
+		return maxValue
+	end
+	return value
+end
+
+local function getCompanionAuraProfile(owned, petDef)
+	local rarity = tostring(owned.rarity or petDef.rarity or "Common")
+	local level = tonumber(owned.level) or 1
+	local rarityIntensity = RARITY_AURA_INTENSITY[rarity] or RARITY_AURA_INTENSITY.Common
+	local levelBonus = clamp((level - 1) * 0.035, 0, 0.55)
+	local intensity = rarityIntensity + levelBonus
+	local petColor = petDef.color
+	local rarityColor = RARITY_AURA_COLORS[rarity] or petColor
+
+	return {
+		color = petColor:Lerp(rarityColor, 0.4),
+		brightness = clamp(0.35 + intensity * 0.35, 0.5, 1.35),
+		range = clamp(4.5 + intensity * 1.7, 5, 8.5),
+		particleRate = math.floor(clamp(2 + intensity * 2.1, 3, 7)),
+		particleSize = clamp(0.12 + intensity * 0.035, 0.14, 0.22),
+	}
+end
+
 local function buildCompanion(player, root, owned, petDef)
 	local companion = Instance.new("Part")
 	companion.Name = getCompanionName(player)
@@ -164,6 +210,42 @@ local function buildCompanion(player, root, owned, petDef)
 	companion.Material = Enum.Material.Neon
 	companion.Color = petDef.color
 	companion.Parent = petCompanionsFolder
+
+	local auraProfile = getCompanionAuraProfile(owned, petDef)
+
+	local glow = Instance.new("PointLight")
+	glow.Name = "PetCompanionGlow"
+	glow.Color = auraProfile.color
+	glow.Brightness = auraProfile.brightness
+	glow.Range = auraProfile.range
+	glow.Shadows = false
+	glow.Parent = companion
+
+	local aura = Instance.new("ParticleEmitter")
+	aura.Name = "PetCompanionAura"
+	aura.Color = ColorSequence.new(auraProfile.color)
+	aura.LightEmission = 0.55
+	aura.LightInfluence = 0.25
+	aura.Rate = auraProfile.particleRate
+	aura.Lifetime = NumberRange.new(0.8, 1.2)
+	aura.Speed = NumberRange.new(0.15, 0.55)
+	aura.SpreadAngle = Vector2.new(360, 360)
+	aura.Size = NumberSequence.new({
+		NumberSequenceKeypoint.new(0, auraProfile.particleSize),
+		NumberSequenceKeypoint.new(0.65, auraProfile.particleSize * 0.75),
+		NumberSequenceKeypoint.new(1, 0),
+	})
+	aura.Transparency = NumberSequence.new({
+		NumberSequenceKeypoint.new(0, 0.3),
+		NumberSequenceKeypoint.new(0.7, 0.55),
+		NumberSequenceKeypoint.new(1, 1),
+	})
+	aura.Rotation = NumberRange.new(0, 360)
+	aura.RotSpeed = NumberRange.new(-25, 25)
+	aura.Drag = 1
+	aura.LockedToPart = true
+	aura.Texture = "rbxasset://textures/particles/sparkles_main.dds"
+	aura.Parent = companion
 
 	local weld = Instance.new("WeldConstraint")
 	weld.Part0 = root
