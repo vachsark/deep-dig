@@ -81,6 +81,52 @@ local ACCENT_RED = Color3.fromRGB(240, 90, 90)
 
 local BADGE_TOTAL = 10 -- TODO: read BadgeSystem.BADGES count from a shared module if one is added.
 local COMBAT_BADGE_GOAL = 100
+local UNKNOWN_DEPTH_GOAL = 188
+
+local BADGE_MILESTONES = {
+	{
+		id = "hundred_blocks",
+		name = "Dig 100",
+		target = 100,
+		field = "totalBlocksDug",
+		color = ACCENT_BLUE,
+	},
+	{
+		id = "thousand_blocks",
+		name = "Dig 1,000",
+		target = 1000,
+		field = "totalBlocksDug",
+		color = ACCENT_BLUE,
+	},
+	{
+		id = "depth_unknown_tier",
+		name = "Unknown Depth",
+		target = UNKNOWN_DEPTH_GOAL,
+		field = "deepestBlock",
+		color = ACCENT_PURPLE,
+	},
+	{
+		id = "first_resurface",
+		name = "First Resurface",
+		target = 1,
+		field = "resurfaceCount",
+		color = ACCENT_GOLD,
+	},
+	{
+		id = "first_enemy_kill",
+		name = "First Enemy Kill",
+		target = 1,
+		field = "enemyKills",
+		color = ACCENT_RED,
+	},
+	{
+		id = "enemy_count_100",
+		name = "100 Enemy Kills",
+		target = 100,
+		field = "enemyKills",
+		color = ACCENT_RED,
+	},
+}
 
 -- ═══════════════════════════════════════════════════════════════════
 -- Helpers
@@ -360,6 +406,32 @@ local function getBadgeCount(data)
 		return 0
 	end
 	return countTableEntries(data.badgesAwarded)
+end
+
+local function hasBadgeAwarded(data, badgeId)
+	if type(data) ~= "table" or type(data.badgesAwarded) ~= "table" then
+		return false
+	end
+
+	return data.badgesAwarded[badgeId] ~= nil
+end
+
+local function getMilestoneCurrent(data, milestone)
+	if type(data) ~= "table" or type(milestone) ~= "table" then
+		return 0
+	end
+
+	if milestone.field == "totalBlocksDug" then
+		return clampNumber(data.totalBlocksDug or data.blocksDug)
+	elseif milestone.field == "deepestBlock" then
+		return clampNumber(data.deepestBlock or data.currentDepth)
+	elseif milestone.field == "resurfaceCount" then
+		return math.max(clampNumber(data.resurfaceCount), clampNumber(data.rebirths))
+	elseif milestone.field == "enemyKills" then
+		return clampNumber(data.enemyKills)
+	end
+
+	return 0
 end
 
 local function getCollectionCount(data)
@@ -679,14 +751,94 @@ local equippedLabel = makeLine(petsCard, 48, "Equipped: Loading...", TEXT_SOFT)
 local petHintLabel = makeLine(petsCard, 68, "No pets yet - hatch one!", TEXT_MUTED)
 
 -- Badges card
-local badgeCard, badgeStroke = makeCard(content, 92)
+local badgeCard, badgeStroke = makeCard(content, 234)
 badgeCard.LayoutOrder = 7
 badgeStroke.Color = Color3.fromRGB(95, 85, 55)
 addCardTitle(badgeCard, "Badges", ACCENT_GOLD)
 
-local badgeCountLabel = makeLine(badgeCard, 28, "Unlocked: Loading...", TEXT_PRIMARY)
-local badgeTotalLabel = makeLine(badgeCard, 48, "Total: Loading...", TEXT_SOFT)
-local badgeHintLabel = makeLine(badgeCard, 68, "Loading...", TEXT_MUTED)
+local badgeCountLabel = makeLabel(
+	badgeCard,
+	UDim2.new(0.55, -9, 0, 18),
+	UDim2.fromOffset(9, 28),
+	"Unlocked: Loading...",
+	TEXT_PRIMARY,
+	Enum.Font.Gotham,
+	14,
+	Enum.TextXAlignment.Left,
+	Enum.TextTruncate.AtEnd
+)
+local badgeTotalLabel = makeLabel(
+	badgeCard,
+	UDim2.new(0.45, -9, 0, 18),
+	UDim2.new(0.55, 0, 0, 28),
+	"Total: Loading...",
+	TEXT_SOFT,
+	Enum.Font.Gotham,
+	14,
+	Enum.TextXAlignment.Right,
+	Enum.TextTruncate.AtEnd
+)
+local badgeMilestoneRows = {}
+
+local function makeBadgeMilestoneRow(parent, y, milestone)
+	local nameLabel = makeLabel(
+		parent,
+		UDim2.new(0.58, -9, 0, 16),
+		UDim2.fromOffset(9, y),
+		milestone.name,
+		TEXT_SOFT,
+		Enum.Font.Gotham,
+		13,
+		Enum.TextXAlignment.Left,
+		Enum.TextTruncate.AtEnd
+	)
+
+	local valueLabel = makeLabel(
+		parent,
+		UDim2.new(0.42, -9, 0, 16),
+		UDim2.new(0.58, 0, 0, y),
+		"0 / " .. formatNumber(milestone.target),
+		TEXT_MUTED,
+		Enum.Font.Gotham,
+		13,
+		Enum.TextXAlignment.Right,
+		Enum.TextTruncate.AtEnd
+	)
+
+	local track = Instance.new("Frame")
+	track.Size = UDim2.new(1, -18, 0, 6)
+	track.Position = UDim2.fromOffset(9, y + 18)
+	track.BackgroundColor3 = Color3.fromRGB(42, 38, 32)
+	track.BackgroundTransparency = 0.05
+	track.BorderSizePixel = 0
+	track.ClipsDescendants = true
+	track.Parent = parent
+
+	local trackCorner = Instance.new("UICorner")
+	trackCorner.CornerRadius = UDim.new(0, 3)
+	trackCorner.Parent = track
+
+	local fill = Instance.new("Frame")
+	fill.Size = UDim2.fromScale(0, 1)
+	fill.BackgroundColor3 = milestone.color or ACCENT_GOLD
+	fill.BorderSizePixel = 0
+	fill.Parent = track
+
+	local fillCorner = Instance.new("UICorner")
+	fillCorner.CornerRadius = UDim.new(0, 3)
+	fillCorner.Parent = fill
+
+	return {
+		milestone = milestone,
+		nameLabel = nameLabel,
+		valueLabel = valueLabel,
+		fill = fill,
+	}
+end
+
+for index, milestone in ipairs(BADGE_MILESTONES) do
+	badgeMilestoneRows[index] = makeBadgeMilestoneRow(badgeCard, 52 + ((index - 1) * 28), milestone)
+end
 
 -- ═══════════════════════════════════════════════════════════════════
 -- Data cache + live refresh
@@ -721,7 +873,8 @@ local function render()
 	local tierName = getTierNameForDepth(deepestBlock)
 	local tierColor = getTierColor(tierName)
 	local enemyKills = clampNumber(hasData and data.enemyKills or 0)
-	local enemyBadgeProgress = math.min(enemyKills, COMBAT_BADGE_GOAL)
+	local enemyCombatComplete = hasBadgeAwarded(data, "enemy_count_100") or enemyKills >= COMBAT_BADGE_GOAL
+	local enemyBadgeProgress = enemyCombatComplete and COMBAT_BADGE_GOAL or math.min(enemyKills, COMBAT_BADGE_GOAL)
 	local enemyBadgeRatio = 0
 	if hasData and COMBAT_BADGE_GOAL > 0 then
 		enemyBadgeRatio = enemyBadgeProgress / COMBAT_BADGE_GOAL
@@ -742,10 +895,10 @@ local function render()
 	dugLabel.Text = "Blocks Dug: " .. (hasData and formatNumber(totalBlocksDug) or "Loading...")
 
 	combatKillsLabel.Text = "Enemies Defeated: " .. (hasData and formatNumber(enemyKills) or "Loading...")
-	combatBadgeLabel.Text = "100-Kill Badge: " .. (hasData and (formatNumber(enemyBadgeProgress) .. " / " .. formatNumber(COMBAT_BADGE_GOAL)) or "Loading...")
-	combatBadgeLabel.TextColor3 = hasData and (enemyBadgeProgress >= COMBAT_BADGE_GOAL and ACCENT_GREEN or TEXT_SOFT) or TEXT_SOFT
+	combatBadgeLabel.Text = "Combat Badge: " .. (hasData and (formatNumber(enemyBadgeProgress) .. " / " .. formatNumber(COMBAT_BADGE_GOAL)) or "Loading...")
+	combatBadgeLabel.TextColor3 = hasData and (enemyCombatComplete and ACCENT_GREEN or TEXT_SOFT) or TEXT_SOFT
 	combatProgressFill.Size = UDim2.fromScale(enemyBadgeRatio, 1)
-	combatProgressFill.BackgroundColor3 = enemyBadgeProgress >= COMBAT_BADGE_GOAL and ACCENT_GREEN or ACCENT_RED
+	combatProgressFill.BackgroundColor3 = enemyCombatComplete and ACCENT_GREEN or ACCENT_RED
 
 	inventoryLabel.Text = "Collected: " .. (hasData and (formatNumber(inventoryCount) .. " items") or "Loading...")
 	if hasData and uniqueCount == 0 then
@@ -769,17 +922,23 @@ local function render()
 		petHintLabel.TextColor3 = TEXT_MUTED
 	end
 
-	badgeCountLabel.Text = "Unlocked: " .. (hasData and (formatNumber(unlockedBadges) .. " / " .. formatNumber(BADGE_TOTAL)) or "Loading...")
-	badgeTotalLabel.Text = "Total Badges: " .. (hasData and formatNumber(BADGE_TOTAL) or "Loading...")
-	if hasData and unlockedBadges == 0 then
-		badgeHintLabel.Text = "No badges earned yet."
-		badgeHintLabel.TextColor3 = ACCENT_RED
-	elseif hasData then
-		badgeHintLabel.Text = "Progress tracked: " .. formatNumber(unlockedBadges) .. " unlocked"
-		badgeHintLabel.TextColor3 = TEXT_MUTED
-	else
-		badgeHintLabel.Text = "Loading..."
-		badgeHintLabel.TextColor3 = TEXT_MUTED
+	badgeCountLabel.Text = "Unlocked: " .. (hasData and formatNumber(unlockedBadges) or "Loading...")
+	badgeTotalLabel.Text = "Total: " .. (hasData and formatNumber(BADGE_TOTAL) or "Loading...")
+	for _, row in ipairs(badgeMilestoneRows) do
+		local milestone = row.milestone
+		local current = hasData and getMilestoneCurrent(data, milestone) or 0
+		local complete = hasBadgeAwarded(data, milestone.id) or current >= milestone.target
+		local displayCurrent = complete and math.max(current, milestone.target) or current
+		local ratio = 0
+		if milestone.target > 0 then
+			ratio = math.min(displayCurrent / milestone.target, 1)
+		end
+
+		row.valueLabel.Text = formatNumber(displayCurrent) .. " / " .. formatNumber(milestone.target)
+		row.valueLabel.TextColor3 = complete and ACCENT_GREEN or TEXT_MUTED
+		row.nameLabel.TextColor3 = complete and ACCENT_GREEN or TEXT_SOFT
+		row.fill.Size = UDim2.fromScale(ratio, 1)
+		row.fill.BackgroundColor3 = complete and ACCENT_GREEN or (milestone.color or ACCENT_GOLD)
 	end
 
 	local openTint = panelOpen and Color3.fromRGB(50, 48, 30) or PANEL_BG
