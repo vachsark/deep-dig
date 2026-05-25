@@ -52,6 +52,7 @@ local BANNER_TOP_OFFSET = 110      -- px below the top edge for the first banner
 local BANNER_STACK_GAP  = 90       -- px between stacked banners
 local MAX_BANNERS       = 3
 local FLASH_FADE        = 0.55
+local CAMERA_BUMP_BINDING_NAME = "NotifyManagerRarityCameraBump"
 
 local RARITY_BORDER_COLOR = {
 	Legendary = Color3.fromRGB(255, 195, 60),   -- warm gold
@@ -88,6 +89,19 @@ local RARITY_FLASH = {
 	},
 }
 
+local RARITY_CAMERA_BUMP = {
+	Legendary = {
+		duration = 0.16,
+		positionStrength = 0.045,
+		rotationStrength = 0.16,
+	},
+	Mythic = {
+		duration = 0.20,
+		positionStrength = 0.075,
+		rotationStrength = 0.26,
+	},
+}
+
 -- ─────────────────────────────────────────────────────────────────────────
 -- Ring buffer for duplicate suppression
 -- ─────────────────────────────────────────────────────────────────────────
@@ -117,6 +131,10 @@ local bannerGui = nil
 local flashFrame = nil
 local flashTween = nil
 local activeBanners = {}   -- ordered oldest→newest list of banner Frames
+local cameraBumpSequence = 0
+local cameraBumpState = nil
+local cameraBumpBaseCFrame = nil
+local cameraBumpBound = false
 
 local function ensureBannerGui()
 	if bannerGui and bannerGui.Parent then
@@ -166,6 +184,86 @@ local function ensureFlashFrame()
 	return flashFrame
 end
 
+local function clearRarityCameraBump(sequence)
+	if sequence and cameraBumpState and sequence ~= cameraBumpState.sequence then
+		return
+	end
+
+	local camera = workspace.CurrentCamera
+	if camera and cameraBumpBaseCFrame then
+		camera.CFrame = cameraBumpBaseCFrame
+	end
+
+	cameraBumpState = nil
+	cameraBumpBaseCFrame = nil
+
+	if cameraBumpBound then
+		RunService:UnbindFromRenderStep(CAMERA_BUMP_BINDING_NAME)
+		cameraBumpBound = false
+	end
+end
+
+local function playRarityCameraBump(rarity)
+	local bumpConfig = RARITY_CAMERA_BUMP[rarity]
+	if not bumpConfig then
+		return
+	end
+
+	cameraBumpSequence = cameraBumpSequence + 1
+	local sequence = cameraBumpSequence
+	clearRarityCameraBump()
+
+	cameraBumpState = {
+		sequence = sequence,
+		startTime = os.clock(),
+		duration = bumpConfig.duration,
+		positionStrength = bumpConfig.positionStrength,
+		rotationStrength = bumpConfig.rotationStrength,
+	}
+
+	if cameraBumpBound then
+		return
+	end
+
+	cameraBumpBound = true
+	RunService:BindToRenderStep(CAMERA_BUMP_BINDING_NAME, Enum.RenderPriority.Camera.Value + 2, function()
+		local camera = workspace.CurrentCamera
+		local state = cameraBumpState
+
+		if not camera or not state then
+			clearRarityCameraBump()
+			return
+		end
+
+		local elapsed = os.clock() - state.startTime
+		local progress = elapsed / state.duration
+		if progress >= 1 then
+			cameraBumpBaseCFrame = camera.CFrame
+			clearRarityCameraBump(state.sequence)
+			return
+		end
+
+		local clampedProgress = math.clamp(progress, 0, 1)
+		local falloff = 1 - clampedProgress
+		local impulse = math.sin(clampedProgress * math.pi * 2) * falloff
+		local lift = math.sin(clampedProgress * math.pi) * falloff
+		local positionOffset = Vector3.new(
+			0,
+			state.positionStrength * 0.18 * lift,
+			state.positionStrength * impulse
+		)
+		local rotationScale = math.rad(state.rotationStrength)
+		local rotationOffset = CFrame.Angles(
+			-impulse * rotationScale,
+			0,
+			impulse * rotationScale * 0.45
+		)
+
+		cameraBumpBaseCFrame = camera.CFrame
+		camera.CFrame = cameraBumpBaseCFrame * CFrame.new(positionOffset) * rotationOffset
+	end)
+end
+
 local function playRarityFlash(rarity)
 	local flashConfig = RARITY_FLASH[rarity]
 	if not flashConfig then
@@ -199,6 +297,7 @@ local function playRarityFlash(rarity)
 		end
 	end)
 	tween:Play()
+	playRarityCameraBump(rarity)
 end
 
 local function targetYForSlot(slotIndex)
