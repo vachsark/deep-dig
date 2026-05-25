@@ -133,7 +133,8 @@ local flashTween = nil
 local activeBanners = {}   -- ordered oldest→newest list of banner Frames
 local cameraBumpSequence = 0
 local cameraBumpState = nil
-local cameraBumpBaseCFrame = nil
+local cameraBumpLastOffset = nil
+local cameraBumpLastAppliedCFrame = nil
 local cameraBumpBound = false
 
 local function ensureBannerGui()
@@ -190,12 +191,13 @@ local function clearRarityCameraBump(sequence)
 	end
 
 	local camera = workspace.CurrentCamera
-	if camera and cameraBumpBaseCFrame then
-		camera.CFrame = cameraBumpBaseCFrame
+	if camera and cameraBumpLastOffset and camera.CFrame == cameraBumpLastAppliedCFrame then
+		camera.CFrame = camera.CFrame * cameraBumpLastOffset:Inverse()
 	end
 
 	cameraBumpState = nil
-	cameraBumpBaseCFrame = nil
+	cameraBumpLastOffset = nil
+	cameraBumpLastAppliedCFrame = nil
 
 	if cameraBumpBound then
 		RunService:UnbindFromRenderStep(CAMERA_BUMP_BINDING_NAME)
@@ -235,10 +237,15 @@ local function playRarityCameraBump(rarity)
 			return
 		end
 
+		if cameraBumpLastOffset and camera.CFrame == cameraBumpLastAppliedCFrame then
+			camera.CFrame = camera.CFrame * cameraBumpLastOffset:Inverse()
+		end
+		cameraBumpLastOffset = nil
+		cameraBumpLastAppliedCFrame = nil
+
 		local elapsed = os.clock() - state.startTime
 		local progress = elapsed / state.duration
 		if progress >= 1 then
-			cameraBumpBaseCFrame = camera.CFrame
 			clearRarityCameraBump(state.sequence)
 			return
 		end
@@ -258,9 +265,11 @@ local function playRarityCameraBump(rarity)
 			0,
 			impulse * rotationScale * 0.45
 		)
+		local bumpOffset = CFrame.new(positionOffset) * rotationOffset
 
-		cameraBumpBaseCFrame = camera.CFrame
-		camera.CFrame = cameraBumpBaseCFrame * CFrame.new(positionOffset) * rotationOffset
+		camera.CFrame = camera.CFrame * bumpOffset
+		cameraBumpLastOffset = bumpOffset
+		cameraBumpLastAppliedCFrame = camera.CFrame
 	end)
 end
 
