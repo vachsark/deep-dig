@@ -80,6 +80,7 @@ local ACCENT_GREEN = Color3.fromRGB(80, 220, 140)
 local ACCENT_RED = Color3.fromRGB(240, 90, 90)
 
 local BADGE_TOTAL = 10 -- TODO: read BadgeSystem.BADGES count from a shared module if one is added.
+local COMBAT_BADGE_GOAL = 100
 
 -- ═══════════════════════════════════════════════════════════════════
 -- Helpers
@@ -625,9 +626,41 @@ local depthLabel = makeLine(progressCard, 28, "Depth: Loading...", TEXT_PRIMARY)
 local tierLabel = makeLine(progressCard, 48, "Tier: Loading...", TEXT_SOFT)
 local dugLabel = makeLine(progressCard, 68, "Blocks Dug: Loading...", TEXT_MUTED)
 
+-- Combat card
+local combatCard, combatStroke = makeCard(content, 92)
+combatCard.LayoutOrder = 4
+combatStroke.Color = Color3.fromRGB(95, 60, 60)
+addCardTitle(combatCard, "Combat", ACCENT_RED)
+
+local combatKillsLabel = makeLine(combatCard, 28, "Enemies Defeated: Loading...", TEXT_PRIMARY)
+local combatBadgeLabel = makeLine(combatCard, 48, "100-Kill Badge: Loading...", TEXT_SOFT)
+
+local combatProgressTrack = Instance.new("Frame")
+combatProgressTrack.Size = UDim2.new(1, -18, 0, 8)
+combatProgressTrack.Position = UDim2.fromOffset(9, 72)
+combatProgressTrack.BackgroundColor3 = Color3.fromRGB(45, 35, 38)
+combatProgressTrack.BackgroundTransparency = 0.05
+combatProgressTrack.BorderSizePixel = 0
+combatProgressTrack.ClipsDescendants = true
+combatProgressTrack.Parent = combatCard
+
+local combatTrackCorner = Instance.new("UICorner")
+combatTrackCorner.CornerRadius = UDim.new(0, 4)
+combatTrackCorner.Parent = combatProgressTrack
+
+local combatProgressFill = Instance.new("Frame")
+combatProgressFill.Size = UDim2.fromScale(0, 1)
+combatProgressFill.BackgroundColor3 = ACCENT_RED
+combatProgressFill.BorderSizePixel = 0
+combatProgressFill.Parent = combatProgressTrack
+
+local combatFillCorner = Instance.new("UICorner")
+combatFillCorner.CornerRadius = UDim.new(0, 4)
+combatFillCorner.Parent = combatProgressFill
+
 -- Collection card
 local collectionCard, collectionStroke = makeCard(content, 92)
-collectionCard.LayoutOrder = 4
+collectionCard.LayoutOrder = 5
 collectionStroke.Color = Color3.fromRGB(60, 90, 90)
 addCardTitle(collectionCard, "Collection", ACCENT_BLUE)
 
@@ -637,7 +670,7 @@ local databaseLabel = makeLine(collectionCard, 68, "Database Total: Loading...",
 
 -- Pets card
 local petsCard, petsStroke = makeCard(content, 92)
-petsCard.LayoutOrder = 5
+petsCard.LayoutOrder = 6
 petsStroke.Color = Color3.fromRGB(90, 70, 90)
 addCardTitle(petsCard, "Pets", ACCENT_PURPLE)
 
@@ -647,7 +680,7 @@ local petHintLabel = makeLine(petsCard, 68, "No pets yet - hatch one!", TEXT_MUT
 
 -- Badges card
 local badgeCard, badgeStroke = makeCard(content, 92)
-badgeCard.LayoutOrder = 6
+badgeCard.LayoutOrder = 7
 badgeStroke.Color = Color3.fromRGB(95, 85, 55)
 addCardTitle(badgeCard, "Badges", ACCENT_GOLD)
 
@@ -687,6 +720,12 @@ local function render()
 	local totalBlocksDug = clampNumber((hasData and data.totalBlocksDug) or (data and data.blocksDug) or 0)
 	local tierName = getTierNameForDepth(deepestBlock)
 	local tierColor = getTierColor(tierName)
+	local enemyKills = clampNumber(hasData and data.enemyKills or 0)
+	local enemyBadgeProgress = math.min(enemyKills, COMBAT_BADGE_GOAL)
+	local enemyBadgeRatio = 0
+	if hasData and COMBAT_BADGE_GOAL > 0 then
+		enemyBadgeRatio = enemyBadgeProgress / COMBAT_BADGE_GOAL
+	end
 	local inventoryCount = getInventoryCount(data)
 	local uniqueCount = getCollectionCount(data)
 	local petCount = getPetCount(data)
@@ -701,6 +740,12 @@ local function render()
 	tierLabel.Text = "Tier: " .. (hasData and tierName or "Loading...")
 	tierLabel.TextColor3 = hasData and tierColor or TEXT_SOFT
 	dugLabel.Text = "Blocks Dug: " .. (hasData and formatNumber(totalBlocksDug) or "Loading...")
+
+	combatKillsLabel.Text = "Enemies Defeated: " .. (hasData and formatNumber(enemyKills) or "Loading...")
+	combatBadgeLabel.Text = "100-Kill Badge: " .. (hasData and (formatNumber(enemyBadgeProgress) .. " / " .. formatNumber(COMBAT_BADGE_GOAL)) or "Loading...")
+	combatBadgeLabel.TextColor3 = hasData and (enemyBadgeProgress >= COMBAT_BADGE_GOAL and ACCENT_GREEN or TEXT_SOFT) or TEXT_SOFT
+	combatProgressFill.Size = UDim2.fromScale(enemyBadgeRatio, 1)
+	combatProgressFill.BackgroundColor3 = enemyBadgeProgress >= COMBAT_BADGE_GOAL and ACCENT_GREEN or ACCENT_RED
 
 	inventoryLabel.Text = "Collected: " .. (hasData and (formatNumber(inventoryCount) .. " items") or "Loading...")
 	if hasData and uniqueCount == 0 then

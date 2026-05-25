@@ -116,6 +116,7 @@ local DEFAULT_DATA = {
 	collections = {},     -- { ["T-Rex Tooth"] = true, ... }
 	fragments = 0,        -- Duplicate recycling currency
 	rebirths = 0,
+	enemyKills = 0,
 	totalEarned = 0,
 	lastSeenAt = 0,      -- Unix timestamp of the last successful save
 	lastLoginDate = "",   -- "YYYY-MM-DD" for streak tracking
@@ -1478,6 +1479,7 @@ GetPlayerDataFunc.OnServerInvoke = function(player)
 		inventoryCapacity = getInventoryCapacityLabel(data),
 		collections = data.collections,
 		rebirths = data.rebirths,
+		enemyKills = data.enemyKills or 0,
 		totalEarned = data.totalEarned or 0,
 		loginStreak = data.loginStreak,
 		streakReviveEligible = data.streakReviveEligible,

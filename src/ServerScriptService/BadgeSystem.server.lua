@@ -27,6 +27,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Remotes = ReplicatedStorage:WaitForChild("Remotes")
 local NotifyEvent = Remotes:WaitForChild("Notify")
+local UpdateHUDEvent = Remotes:WaitForChild("UpdateHUD")
 
 -- ServerEvents folder + BlockBroken BindableEvent are created by
 -- GameManager. Wait so we don't race the load order on hot-reload.
@@ -292,6 +293,10 @@ EnemyKilledBindable.Event:Connect(function(player, _enemy)
 	if data.enemyKills >= 100 then
 		awardBadge(player, "enemy_count_100")
 	end
+
+	UpdateHUDEvent:FireClient(player, {
+		enemyKills = data.enemyKills,
+	})
 end)
 
 -- ═══════════════════════════════════════════════════════════════════
