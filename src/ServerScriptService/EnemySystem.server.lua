@@ -505,6 +505,246 @@ local function getWanderPosition(homePosition)
 	return homePosition + Vector3.new(math.cos(angle) * distance, 0, math.sin(angle) * distance)
 end
 
+local function scaleVector(vector, scale)
+	return Vector3.new(vector.X * scale, vector.Y * scale, vector.Z * scale)
+end
+
+local function createVisualPart(model, root, enemy, visual, spawnScale, spec)
+	local part = Instance.new(spec.className or "Part")
+	part.Name = spec.name
+	part.Size = scaleVector(spec.size, spawnScale)
+	if spec.shape and part:IsA("Part") then
+		part.Shape = spec.shape
+	end
+	part.Color = spec.useBodyColor and enemy.color or (spec.color or visual.accentColor or enemy.color)
+	part.Material = spec.material or visual.accentMaterial or visual.material or Enum.Material.Slate
+	part.Transparency = spec.transparency or 0
+	part.CanCollide = false
+	part.CanTouch = false
+	part.CanQuery = false
+	part.Massless = true
+	part.Anchored = false
+
+	local offset = scaleVector(spec.offset or Vector3.new(0, 0, 0), spawnScale)
+	local rotation = spec.rotation or CFrame.new()
+	part.CFrame = root.CFrame * CFrame.new(offset) * rotation
+	part.Parent = model
+
+	local weld = Instance.new("WeldConstraint")
+	weld.Part0 = root
+	weld.Part1 = part
+	weld.Parent = part
+
+	return part
+end
+
+local function addVisualLight(root, color, brightness, range)
+	local light = Instance.new("PointLight")
+	light.Name = "EnemyVisualGlow"
+	light.Color = color
+	light.Brightness = brightness
+	light.Range = range
+	light.Shadows = false
+	light.Parent = root
+end
+
+local function addVisualParticles(root, color, rate, size)
+	local emitter = Instance.new("ParticleEmitter")
+	emitter.Name = "EnemyVisualParticles"
+	emitter.Color = ColorSequence.new(color)
+	emitter.LightEmission = 0.55
+	emitter.Rate = rate
+	emitter.Lifetime = NumberRange.new(0.65, 1.15)
+	emitter.Speed = NumberRange.new(0.4, 1.1)
+	emitter.Size = NumberSequence.new(size)
+	emitter.Transparency = NumberSequence.new({
+		NumberSequenceKeypoint.new(0, 0.25),
+		NumberSequenceKeypoint.new(1, 1),
+	})
+	emitter.Parent = root
+end
+
+local VISUAL_FEATURES = {
+	crawler_legs = function(model, root, enemy, visual, spawnScale)
+		for _, side in ipairs({ -1, 1 }) do
+			for _, zOffset in ipairs({ -0.85, 0.85 }) do
+				createVisualPart(model, root, enemy, visual, spawnScale, {
+					name = "CrawlerLeg",
+					size = Vector3.new(1.55, 0.28, 0.36),
+					offset = Vector3.new(side * 2.1, -0.55, zOffset),
+					rotation = CFrame.Angles(0, 0, math.rad(side * -12)),
+					useBodyColor = true,
+					material = visual.material,
+				})
+			end
+		end
+	end,
+
+	back_spines = function(model, root, enemy, visual, spawnScale)
+		for _, xOffset in ipairs({ -1.05, 0, 1.05 }) do
+			createVisualPart(model, root, enemy, visual, spawnScale, {
+				name = "BoneSpine",
+				className = "WedgePart",
+				size = Vector3.new(0.55, 0.95, 0.75),
+				offset = Vector3.new(xOffset, 1.35, 0),
+				rotation = CFrame.Angles(0, math.rad(90), 0),
+			})
+		end
+	end,
+
+	sentinel_shield = function(model, root, enemy, visual, spawnScale)
+		createVisualPart(model, root, enemy, visual, spawnScale, {
+			name = "SentinelShield",
+			size = Vector3.new(2.8, 3.25, 0.35),
+			offset = Vector3.new(0, -0.1, -1.75),
+		})
+	end,
+
+	head_crest = function(model, root, enemy, visual, spawnScale)
+		createVisualPart(model, root, enemy, visual, spawnScale, {
+			name = "HeadCrest",
+			size = Vector3.new(1.05, 1.25, 0.35),
+			offset = Vector3.new(0, 2.95, -0.25),
+		})
+		createVisualPart(model, root, enemy, visual, spawnScale, {
+			name = "SentinelBrow",
+			size = Vector3.new(2.35, 0.35, 0.42),
+			offset = Vector3.new(0, 1.9, -1.55),
+		})
+	end,
+
+	construct_shoulders = function(model, root, enemy, visual, spawnScale)
+		for _, side in ipairs({ -1, 1 }) do
+			createVisualPart(model, root, enemy, visual, spawnScale, {
+				name = "ConstructShoulder",
+				size = Vector3.new(1.25, 1.65, 1.25),
+				offset = Vector3.new(side * 2.35, 0.85, 0),
+				useBodyColor = true,
+				material = visual.material,
+			})
+			createVisualPart(model, root, enemy, visual, spawnScale, {
+				name = "ConstructArm",
+				size = Vector3.new(0.65, 2.3, 0.65),
+				offset = Vector3.new(side * 2.75, -0.75, 0.25),
+				useBodyColor = true,
+				material = visual.material,
+			})
+		end
+	end,
+
+	scrap_stack = function(model, root, enemy, visual, spawnScale)
+		for index, xOffset in ipairs({ -0.85, 0, 0.85 }) do
+			createVisualPart(model, root, enemy, visual, spawnScale, {
+				name = "ScrapStack",
+				size = Vector3.new(0.55, 0.75 + index * 0.18, 0.55),
+				offset = Vector3.new(xOffset, 2.15 + index * 0.08, 0.95),
+			})
+		end
+	end,
+
+	wraith_ribs = function(model, root, enemy, visual, spawnScale)
+		for _, yOffset in ipairs({ -0.95, -0.25, 0.45, 1.15 }) do
+			createVisualPart(model, root, enemy, visual, spawnScale, {
+				name = "WraithRib",
+				size = Vector3.new(3.05, 0.16, 0.18),
+				offset = Vector3.new(0, yOffset, -0.95),
+				transparency = 0.1,
+			})
+		end
+		createVisualPart(model, root, enemy, visual, spawnScale, {
+			name = "WraithTail",
+			className = "WedgePart",
+			size = Vector3.new(2.2, 1.55, 2.2),
+			offset = Vector3.new(0, -3.05, 0),
+			rotation = CFrame.Angles(math.rad(180), 0, 0),
+			transparency = 0.25,
+			useBodyColor = true,
+			material = visual.material,
+		})
+	end,
+
+	wraith_mist = function(_model, root, _enemy, visual, spawnScale)
+		addVisualParticles(root, visual.accentColor, 8, 0.45 * spawnScale)
+	end,
+
+	void_orbit = function(model, root, enemy, visual, spawnScale)
+		for _, spec in ipairs({
+			{ offset = Vector3.new(1.85, 0.65, 0), size = Vector3.new(0.55, 0.55, 0.55) },
+			{ offset = Vector3.new(-1.85, -0.1, 0), size = Vector3.new(0.42, 0.42, 0.42) },
+			{ offset = Vector3.new(0, 0.25, 1.85), size = Vector3.new(0.48, 0.48, 0.48) },
+			{ offset = Vector3.new(0, 1.05, -1.85), size = Vector3.new(0.36, 0.36, 0.36) },
+		}) do
+			createVisualPart(model, root, enemy, visual, spawnScale, {
+				name = "VoidOrb",
+				size = spec.size,
+				offset = spec.offset,
+				shape = Enum.PartType.Ball,
+			})
+		end
+	end,
+
+	void_light = function(_model, root, _enemy, visual, spawnScale)
+		addVisualLight(root, visual.accentColor, 1.25, 10 * spawnScale)
+		addVisualParticles(root, visual.accentColor, 10, 0.35 * spawnScale)
+	end,
+
+	king_crown = function(model, root, enemy, visual, spawnScale)
+		for _, xOffset in ipairs({ -1.45, -0.7, 0, 0.7, 1.45 }) do
+			createVisualPart(model, root, enemy, visual, spawnScale, {
+				name = "KingCrownSpike",
+				className = "WedgePart",
+				size = Vector3.new(0.55, 1.45, 0.65),
+				offset = Vector3.new(xOffset, 3.65, -0.35),
+				rotation = CFrame.Angles(0, math.rad(90), 0),
+			})
+		end
+		createVisualPart(model, root, enemy, visual, spawnScale, {
+			name = "KingCrownBand",
+			size = Vector3.new(3.7, 0.38, 0.55),
+			offset = Vector3.new(0, 3.05, -0.35),
+		})
+	end,
+
+	king_shoulders = function(model, root, enemy, visual, spawnScale)
+		for _, side in ipairs({ -1, 1 }) do
+			createVisualPart(model, root, enemy, visual, spawnScale, {
+				name = "KingShoulder",
+				size = Vector3.new(2.1, 1.15, 1.45),
+				offset = Vector3.new(side * 2.95, 1.4, 0),
+				useBodyColor = true,
+				material = visual.material,
+			})
+			createVisualPart(model, root, enemy, visual, spawnScale, {
+				name = "KingShoulderSpike",
+				className = "WedgePart",
+				size = Vector3.new(1.25, 1.45, 0.95),
+				offset = Vector3.new(side * 3.7, 2.05, 0),
+				rotation = CFrame.Angles(0, math.rad(side * 90), 0),
+			})
+		end
+	end,
+
+	king_aura = function(_model, root, _enemy, visual, spawnScale)
+		addVisualLight(root, visual.accentColor, 2.1, 18 * spawnScale)
+		addVisualParticles(root, visual.accentColor, 16, 0.7 * spawnScale)
+	end,
+}
+
+local function applyEnemyVisualProfile(model, root, enemy, spawnScale)
+	local visual = enemy.visual or {}
+	root.Size = scaleVector(visual.bodySize or Vector3.new(3, 4, 3), spawnScale)
+	root.Color = enemy.color
+	root.Material = visual.material or Enum.Material.Slate
+	root.Transparency = visual.transparency or 0
+
+	for _, tag in ipairs(visual.featureTags or {}) do
+		local builder = VISUAL_FEATURES[tag]
+		if builder then
+			builder(model, root, enemy, visual, spawnScale)
+		end
+	end
+end
+
 local function spawnEnemyForPlayer(player)
 	local data = getSharedData(player)
 	if not data or (data.deepestBlock or 0) < FIRST_ENEMY_DEPTH then
@@ -556,13 +796,11 @@ local function spawnEnemyForPlayer(player)
 
 	local root = Instance.new("Part")
 	root.Name = "HumanoidRootPart"
-	root.Size = Vector3.new(3, 4, 3) * spawnScale
-	root.Color = enemy.color
-	root.Material = Enum.Material.Slate
 	root.CanCollide = true
 	root.Anchored = true
 	root.CFrame = CFrame.new(spawnPosition)
 	root.Parent = model
+	applyEnemyVisualProfile(model, root, enemy, spawnScale)
 
 	local humanoid = Instance.new("Humanoid")
 	humanoid.MaxHealth = enemy.hp

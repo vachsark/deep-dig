@@ -17,6 +17,13 @@ local ENEMIES = {
 		walkSpeed = 8,
 		aggroRange = 16,
 		spawnWeight = 100,
+		visual = {
+			bodySize = Vector3.new(3.8, 2.2, 2.8),
+			material = Enum.Material.SmoothPlastic,
+			accentColor = Color3.fromRGB(245, 240, 210),
+			accentMaterial = Enum.Material.SmoothPlastic,
+			featureTags = { "crawler_legs", "back_spines" },
+		},
 	},
 	{
 		id = "bronze_sentinel",
@@ -31,6 +38,13 @@ local ENEMIES = {
 		walkSpeed = 9,
 		aggroRange = 18,
 		spawnWeight = 100,
+		visual = {
+			bodySize = Vector3.new(3.2, 4.8, 3.2),
+			material = Enum.Material.Metal,
+			accentColor = Color3.fromRGB(255, 185, 75),
+			accentMaterial = Enum.Material.Metal,
+			featureTags = { "sentinel_shield", "head_crest" },
+		},
 	},
 	{
 		id = "rusted_construct",
@@ -45,6 +59,13 @@ local ENEMIES = {
 		walkSpeed = 7,
 		aggroRange = 18,
 		spawnWeight = 100,
+		visual = {
+			bodySize = Vector3.new(4, 3.6, 3.8),
+			material = Enum.Material.CorrodedMetal,
+			accentColor = Color3.fromRGB(210, 95, 45),
+			accentMaterial = Enum.Material.CorrodedMetal,
+			featureTags = { "construct_shoulders", "scrap_stack" },
+		},
 	},
 	{
 		id = "iron_wraith",
@@ -59,6 +80,14 @@ local ENEMIES = {
 		walkSpeed = 12,
 		aggroRange = 22,
 		spawnWeight = 100,
+		visual = {
+			bodySize = Vector3.new(2.4, 5.2, 2.4),
+			material = Enum.Material.SmoothPlastic,
+			transparency = 0.18,
+			accentColor = Color3.fromRGB(170, 210, 255),
+			accentMaterial = Enum.Material.Neon,
+			featureTags = { "wraith_ribs", "wraith_mist" },
+		},
 	},
 	{
 		id = "voidling",
@@ -73,6 +102,14 @@ local ENEMIES = {
 		walkSpeed = 13,
 		aggroRange = 24,
 		spawnWeight = 100,
+		visual = {
+			bodySize = Vector3.new(2.6, 3.2, 2.6),
+			material = Enum.Material.SmoothPlastic,
+			transparency = 0.08,
+			accentColor = Color3.fromRGB(170, 70, 255),
+			accentMaterial = Enum.Material.Neon,
+			featureTags = { "void_orbit", "void_light" },
+		},
 	},
 	{
 		id = "hollow_king",
@@ -89,6 +126,13 @@ local ENEMIES = {
 		spawnWeight = 8,
 		isMiniboss = true,
 		spawnScale = 1.45,
+		visual = {
+			bodySize = Vector3.new(4.4, 6.2, 4.4),
+			material = Enum.Material.Slate,
+			accentColor = Color3.fromRGB(215, 55, 255),
+			accentMaterial = Enum.Material.Neon,
+			featureTags = { "king_crown", "king_shoulders", "king_aura" },
+		},
 	},
 }
 
