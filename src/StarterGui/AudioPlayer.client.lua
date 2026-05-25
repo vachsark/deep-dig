@@ -147,6 +147,12 @@ local SOUNDS = {
 		playbackSpeed = 1.48,
 		pitchRange = { 1.02, 1.08 },
 	},
+	group_benefit = {
+		id = "rbxassetid://6837730320", -- compact group coin bonus chime
+		volume = 0.5,
+		playbackSpeed = 1.38,
+		pitchRange = { 1.0, 1.06 },
+	},
 	streak_milestone = {
 		id = "rbxassetid://5852285683", -- stronger milestone shimmer
 		volume = 0.9,

@@ -2383,21 +2383,222 @@ function refreshFriendBoostIndicator(data)
 end
 end
 
-local function refreshGroupBenefitIndicator(data)
-	if not data or data.groupBenefitActive == nil then
-		return
+local refreshGroupBenefitIndicator
+
+do
+	local groupBenefitFx = {
+		restColor = Config.GROUP_BENEFIT_DISPLAY_COLOR,
+		restTextColor = Color3.fromRGB(5, 25, 35),
+		restTransparency = 0.15,
+		lastActive = nil,
+		burstSequence = 0,
+		activeBurst = nil,
+		tweens = {},
+	}
+
+	local stroke = Instance.new("UIStroke")
+	stroke.Color = Color3.fromRGB(175, 235, 255)
+	stroke.Thickness = 1
+	stroke.Transparency = 1
+	stroke.Parent = groupBenefitLabel
+	groupBenefitFx.stroke = stroke
+
+	local scale = Instance.new("UIScale")
+	scale.Scale = 1
+	scale.Parent = groupBenefitLabel
+	groupBenefitFx.scale = scale
+
+	local function clearGroupBenefitBurst(sequence)
+		if sequence and sequence ~= groupBenefitFx.burstSequence then
+			return
+		end
+
+		if groupBenefitFx.activeBurst then
+			groupBenefitFx.activeBurst:Destroy()
+			groupBenefitFx.activeBurst = nil
+		end
 	end
 
-	if data.groupBenefitActive ~= true then
-		groupBenefitLabel.Visible = false
-		return
+	local function clearGroupBenefitTweens()
+		for _, tween in ipairs(groupBenefitFx.tweens) do
+			tween:Cancel()
+		end
+		groupBenefitFx.tweens = {}
 	end
 
-	local multiplier = data.groupBenefitMultiplier or Config.GROUP_BENEFIT_COIN_MULTIPLIER
-	local percent = math.max(1, math.floor(((multiplier - 1) * 100) + 0.5))
-	groupBenefitLabel.BackgroundColor3 = data.groupBenefitColor or Config.GROUP_BENEFIT_DISPLAY_COLOR
-	groupBenefitLabel.Text = "Group +" .. tostring(percent) .. "% Coins"
-	groupBenefitLabel.Visible = true
+	local function tweenGroupBenefit(instance, tweenInfo, goal)
+		local tween = TweenService:Create(instance, tweenInfo, goal)
+		table.insert(groupBenefitFx.tweens, tween)
+		tween:Play()
+		return tween
+	end
+
+	local function restoreGroupBenefitChip(sequence)
+		if sequence and sequence ~= groupBenefitFx.burstSequence then
+			return
+		end
+
+		groupBenefitLabel.BackgroundColor3 = groupBenefitFx.restColor
+		groupBenefitLabel.BackgroundTransparency = groupBenefitFx.restTransparency
+		groupBenefitLabel.TextColor3 = groupBenefitFx.restTextColor
+		groupBenefitFx.scale.Scale = 1
+		groupBenefitFx.stroke.Transparency = 1
+	end
+
+	local function playGroupBenefitActivationBurst(percent)
+		groupBenefitFx.burstSequence = groupBenefitFx.burstSequence + 1
+		local sequence = groupBenefitFx.burstSequence
+		clearGroupBenefitTweens()
+		clearGroupBenefitBurst()
+
+		groupBenefitLabel.Visible = true
+		groupBenefitLabel.BackgroundColor3 = Color3.fromRGB(164, 235, 255)
+		groupBenefitLabel.BackgroundTransparency = 0
+		groupBenefitLabel.TextColor3 = Color3.fromRGB(4, 25, 35)
+		groupBenefitFx.scale.Scale = 0.88
+		groupBenefitFx.stroke.Transparency = 0.08
+
+		LocalPlaySound:Fire("group_benefit")
+
+		tweenGroupBenefit(groupBenefitFx.scale, TweenInfo.new(0.16, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+			Scale = 1.12,
+		})
+		tweenGroupBenefit(groupBenefitLabel, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+			BackgroundColor3 = Color3.fromRGB(130, 220, 255),
+		})
+
+		task.delay(0.18, function()
+			if sequence ~= groupBenefitFx.burstSequence or not groupBenefitLabel.Visible then
+				return
+			end
+
+			tweenGroupBenefit(groupBenefitFx.scale, TweenInfo.new(0.16, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+				Scale = 1,
+			})
+			tweenGroupBenefit(groupBenefitLabel, TweenInfo.new(0.22, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+				BackgroundColor3 = groupBenefitFx.restColor,
+				BackgroundTransparency = groupBenefitFx.restTransparency,
+				TextColor3 = groupBenefitFx.restTextColor,
+			})
+			tweenGroupBenefit(groupBenefitFx.stroke, TweenInfo.new(0.26, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+				Transparency = 1,
+			})
+		end)
+
+		local burstFrame = Instance.new("Frame")
+		burstFrame.Name = "GroupBenefitBurst"
+		burstFrame.AnchorPoint = Vector2.new(0.5, 0.5)
+		burstFrame.Position = UDim2.fromScale(0.5, 0.62)
+		burstFrame.Size = UDim2.fromOffset(260, 42)
+		burstFrame.BackgroundColor3 = Color3.fromRGB(18, 46, 58)
+		burstFrame.BackgroundTransparency = 1
+		burstFrame.BorderSizePixel = 0
+		burstFrame.ZIndex = 32
+		burstFrame.Parent = screenGui
+		groupBenefitFx.activeBurst = burstFrame
+
+		local burstCorner = Instance.new("UICorner")
+		burstCorner.CornerRadius = UDim.new(0, 8)
+		burstCorner.Parent = burstFrame
+
+		local burstStroke = Instance.new("UIStroke")
+		burstStroke.Color = Color3.fromRGB(128, 226, 255)
+		burstStroke.Thickness = 1
+		burstStroke.Transparency = 1
+		burstStroke.Parent = burstFrame
+
+		local burstLabel = Instance.new("TextLabel")
+		burstLabel.Name = "Label"
+		burstLabel.AnchorPoint = Vector2.new(0.5, 0.5)
+		burstLabel.Position = UDim2.fromScale(0.5, 0.5)
+		burstLabel.Size = UDim2.new(1, -18, 1, 0)
+		burstLabel.BackgroundTransparency = 1
+		burstLabel.Text = "Group Bonus Active +" .. tostring(percent) .. "% Coins"
+		burstLabel.TextColor3 = Color3.fromRGB(226, 250, 255)
+		burstLabel.TextTransparency = 1
+		burstLabel.TextSize = 17
+		burstLabel.Font = Enum.Font.GothamBlack
+		burstLabel.TextXAlignment = Enum.TextXAlignment.Center
+		burstLabel.TextYAlignment = Enum.TextYAlignment.Center
+		burstLabel.ZIndex = 33
+		burstLabel.Parent = burstFrame
+
+		local burstScale = Instance.new("UIScale")
+		burstScale.Scale = 0.88
+		burstScale.Parent = burstFrame
+
+		tweenGroupBenefit(burstFrame, TweenInfo.new(0.14, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+			BackgroundTransparency = 0.1,
+			Position = UDim2.fromScale(0.5, 0.58),
+		})
+		tweenGroupBenefit(burstStroke, TweenInfo.new(0.14, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+			Transparency = 0.16,
+		})
+		tweenGroupBenefit(burstLabel, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+			TextTransparency = 0,
+		})
+		tweenGroupBenefit(burstScale, TweenInfo.new(0.2, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+			Scale = 1,
+		})
+
+		task.delay(0.5, function()
+			if sequence ~= groupBenefitFx.burstSequence or groupBenefitFx.activeBurst ~= burstFrame then
+				return
+			end
+
+			tweenGroupBenefit(burstFrame, TweenInfo.new(0.24, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+				BackgroundTransparency = 1,
+				Position = UDim2.fromScale(0.5, 0.55),
+			})
+			tweenGroupBenefit(burstStroke, TweenInfo.new(0.22, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+				Transparency = 1,
+			})
+			tweenGroupBenefit(burstLabel, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+				TextTransparency = 1,
+			})
+		end)
+
+		task.delay(0.86, function()
+			if sequence ~= groupBenefitFx.burstSequence then
+				return
+			end
+
+			clearGroupBenefitBurst(sequence)
+			clearGroupBenefitTweens()
+			restoreGroupBenefitChip(sequence)
+		end)
+	end
+
+	function refreshGroupBenefitIndicator(data)
+		if not data or data.groupBenefitActive == nil then
+			return
+		end
+
+		if data.groupBenefitActive ~= true then
+			groupBenefitFx.lastActive = false
+			groupBenefitFx.burstSequence = groupBenefitFx.burstSequence + 1
+			groupBenefitLabel.Visible = false
+			clearGroupBenefitTweens()
+			clearGroupBenefitBurst()
+			restoreGroupBenefitChip()
+			return
+		end
+
+		local multiplier = data.groupBenefitMultiplier or Config.GROUP_BENEFIT_COIN_MULTIPLIER
+		local percent = math.max(1, math.floor(((multiplier - 1) * 100) + 0.5))
+		groupBenefitFx.restColor = data.groupBenefitColor or Config.GROUP_BENEFIT_DISPLAY_COLOR
+		if not groupBenefitFx.activeBurst then
+			groupBenefitLabel.BackgroundColor3 = groupBenefitFx.restColor
+		end
+		groupBenefitLabel.Text = "Group +" .. tostring(percent) .. "% Coins"
+		groupBenefitLabel.Visible = true
+
+		if groupBenefitFx.lastActive ~= true then
+			playGroupBenefitActivationBurst(percent)
+		end
+
+		groupBenefitFx.lastActive = true
+	end
 end
 
 local streakRevivePanel = Instance.new("Frame")
