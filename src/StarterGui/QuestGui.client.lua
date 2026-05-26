@@ -8,6 +8,7 @@ local playerGui = player:WaitForChild("PlayerGui")
 
 local REMOTE_WAIT_SECONDS = 5
 local REFRESH_INTERVAL_SECONDS = 5
+local CLOSED_SUMMARY_INTERVAL_SECONDS = 25
 local LOCAL_PLAY_SOUND_NAME = "DeepDigLocalPlaySound"
 
 local remotesFolder = ReplicatedStorage:WaitForChild("Remotes", REMOTE_WAIT_SECONDS)
@@ -50,6 +51,8 @@ local activeCards = {}
 local activeCardByQuestId = {}
 local activeWeeklyCard = nil
 local refreshInFlight = false
+local currentReadyCount = 0
+local lastClosedSummaryRefresh = -CLOSED_SUMMARY_INTERVAL_SECONDS
 
 local COLOR_PANEL = Color3.fromRGB(19, 18, 28)
 local COLOR_PANEL_EDGE = Color3.fromRGB(42, 38, 60)
@@ -63,6 +66,10 @@ local COLOR_DISABLED = Color3.fromRGB(74, 72, 82)
 local COLOR_BAR_BG = Color3.fromRGB(38, 36, 48)
 local COLOR_BAR_FILL = Color3.fromRGB(255, 196, 72)
 local COLOR_WEEKLY = Color3.fromRGB(92, 145, 255)
+local COLOR_TOGGLE_OPEN = Color3.fromRGB(60, 54, 76)
+local COLOR_TOGGLE_CLOSED = Color3.fromRGB(44, 42, 58)
+local COLOR_TOGGLE_READY = Color3.fromRGB(38, 74, 48)
+local COLOR_TOGGLE_STROKE = Color3.fromRGB(68, 65, 82)
 
 local function destroyQuestCards()
 	for _, card in ipairs(activeCards) do
@@ -125,6 +132,52 @@ end
 
 local function markWeeklyQuestClaimed(claimed)
 	weeklyQuestClaimed = claimed == true
+end
+
+local function syncQuestClaimState(normalized)
+	if type(normalized) ~= "table" then
+		return
+	end
+
+	if normalized.day ~= "" and normalized.day ~= currentQuestDay then
+		claimedQuestIds = {}
+	end
+
+	if normalized.day ~= "" then
+		currentQuestDay = normalized.day
+	end
+
+	if normalized.weekly then
+		if normalized.weekly.weekKey ~= "" and normalized.weekly.weekKey ~= currentQuestWeekKey then
+			weeklyQuestClaimed = false
+		end
+
+		if normalized.weekly.weekKey ~= "" then
+			currentQuestWeekKey = normalized.weekly.weekKey
+		end
+
+		markWeeklyQuestClaimed(normalized.weekly.claimed)
+	end
+end
+
+local function countReadyQuests(normalized)
+	if type(normalized) ~= "table" then
+		return 0
+	end
+
+	local readyCount = 0
+	for _, quest in ipairs(normalized.quests) do
+		local questId = type(quest.id) == "string" and quest.id or ""
+		if questId ~= "" and quest.complete == true and not isQuestClaimed(questId) then
+			readyCount = readyCount + 1
+		end
+	end
+
+	if normalized.weekly and normalized.weekly.id ~= "" and normalized.weekly.complete == true and not isWeeklyQuestClaimed() then
+		readyCount = readyCount + 1
+	end
+
+	return readyCount
 end
 
 local panel = Instance.new("Frame")
@@ -223,9 +276,9 @@ loadingLabel.Parent = panel
 
 local toggleButton = Instance.new("TextButton")
 toggleButton.Name = "QuestToggle"
-toggleButton.Size = UDim2.fromOffset(120, 40)
-toggleButton.Position = UDim2.new(1, -136, 1, -56)
-toggleButton.BackgroundColor3 = Color3.fromRGB(44, 42, 58)
+toggleButton.Size = UDim2.fromOffset(154, 40)
+toggleButton.Position = UDim2.new(1, -170, 1, -56)
+toggleButton.BackgroundColor3 = COLOR_TOGGLE_CLOSED
 toggleButton.BorderSizePixel = 0
 toggleButton.Text = "Quests"
 toggleButton.TextColor3 = COLOR_TEXT_MAIN
@@ -240,7 +293,7 @@ toggleCorner.CornerRadius = UDim.new(0, 8)
 toggleCorner.Parent = toggleButton
 
 local toggleStroke = Instance.new("UIStroke")
-toggleStroke.Color = Color3.fromRGB(68, 65, 82)
+toggleStroke.Color = COLOR_TOGGLE_STROKE
 toggleStroke.Thickness = 1
 toggleStroke.Transparency = 0.2
 toggleStroke.Parent = toggleButton
@@ -325,10 +378,22 @@ local rewardBurstSequence = 0
 local function updateToggleAppearance()
 	if panelOpen then
 		toggleButton.Text = "Quests"
-		toggleButton.BackgroundColor3 = Color3.fromRGB(60, 54, 76)
+		toggleButton.BackgroundColor3 = COLOR_TOGGLE_OPEN
+		toggleStroke.Color = COLOR_TOGGLE_STROKE
+		toggleStroke.Thickness = 1
+		toggleStroke.Transparency = 0.2
+	elseif currentReadyCount > 0 then
+		toggleButton.Text = "Quests · " .. currentReadyCount .. " Ready"
+		toggleButton.BackgroundColor3 = COLOR_TOGGLE_READY
+		toggleStroke.Color = COLOR_ACCENT
+		toggleStroke.Thickness = 2
+		toggleStroke.Transparency = 0.08
 	else
 		toggleButton.Text = "Quests"
-		toggleButton.BackgroundColor3 = Color3.fromRGB(44, 42, 58)
+		toggleButton.BackgroundColor3 = COLOR_TOGGLE_CLOSED
+		toggleStroke.Color = COLOR_TOGGLE_STROKE
+		toggleStroke.Thickness = 1
+		toggleStroke.Transparency = 0.2
 	end
 end
 
@@ -406,16 +471,37 @@ local function pulseToggle()
 	toggleStroke.Color = COLOR_ACCENT
 	toggleStroke.Thickness = 3
 	toggleStroke.Transparency = 0
-	toggleButton.BackgroundColor3 = Color3.fromRGB(72, 58, 38)
+	toggleButton.BackgroundColor3 = Color3.fromRGB(58, 102, 56)
 
 	tweenRewardBurst(toggleStroke, 0.42, {
-		Color = Color3.fromRGB(68, 65, 82),
-		Thickness = 1,
-		Transparency = 0.2,
+		Color = currentReadyCount > 0 and COLOR_ACCENT or COLOR_TOGGLE_STROKE,
+		Thickness = currentReadyCount > 0 and 2 or 1,
+		Transparency = currentReadyCount > 0 and 0.08 or 0.2,
 	})
 	tweenRewardBurst(toggleButton, 0.42, {
-		BackgroundColor3 = panelOpen and Color3.fromRGB(60, 54, 76) or Color3.fromRGB(44, 42, 58),
+		BackgroundColor3 = panelOpen and COLOR_TOGGLE_OPEN or currentReadyCount > 0 and COLOR_TOGGLE_READY or COLOR_TOGGLE_CLOSED,
 	})
+end
+
+local function updateQuestToggleSummary(status)
+	local normalized = normalizeStatus(status)
+	if not normalized then
+		currentReadyCount = 0
+		updateToggleAppearance()
+		return nil
+	end
+
+	syncQuestClaimState(normalized)
+
+	local previousReadyCount = currentReadyCount
+	currentReadyCount = countReadyQuests(normalized)
+	updateToggleAppearance()
+
+	if currentReadyCount > previousReadyCount and not panelOpen then
+		pulseToggle()
+	end
+
+	return normalized
 end
 
 local function pulseClaimedCard(entry)
@@ -470,6 +556,8 @@ local function showQuestClaimReward(payload)
 	elseif questId ~= "" then
 		markQuestClaimed(questId)
 	end
+	currentReadyCount = math.max(0, currentReadyCount - 1)
+	updateToggleAppearance()
 
 	local entry = isWeekly and activeWeeklyCard or activeCardByQuestId[questId]
 
@@ -747,25 +835,7 @@ local function renderQuestStatus(status)
 		return
 	end
 
-	if normalized.day ~= "" and normalized.day ~= currentQuestDay then
-		claimedQuestIds = {}
-	end
-
-	if normalized.day ~= "" then
-		currentQuestDay = normalized.day
-	end
-
-	if normalized.weekly then
-		if normalized.weekly.weekKey ~= "" and normalized.weekly.weekKey ~= currentQuestWeekKey then
-			weeklyQuestClaimed = false
-		end
-
-		if normalized.weekly.weekKey ~= "" then
-			currentQuestWeekKey = normalized.weekly.weekKey
-		end
-
-		markWeeklyQuestClaimed(normalized.weekly.claimed)
-	end
+	syncQuestClaimState(normalized)
 
 	setLoadingVisible(false, normalized.day)
 
@@ -804,6 +874,10 @@ local function refreshQuestStatus()
 	local ok, result = pcall(function()
 		return getQuestStatus:InvokeServer()
 	end)
+
+	if ok then
+		updateQuestToggleSummary(result)
+	end
 
 	if panelOpen then
 		if ok then
@@ -847,6 +921,12 @@ task.spawn(function()
 	while screenGui.Parent do
 		if panelOpen then
 			refreshQuestStatus()
+		else
+			local now = os.clock()
+			if now - lastClosedSummaryRefresh >= CLOSED_SUMMARY_INTERVAL_SECONDS then
+				lastClosedSummaryRefresh = now
+				refreshQuestStatus()
+			end
 		end
 		task.wait(REFRESH_INTERVAL_SECONDS)
 	end
