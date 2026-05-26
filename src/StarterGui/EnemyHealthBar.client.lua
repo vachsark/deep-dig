@@ -65,6 +65,15 @@ local PLAYER_HIT_JOLT_BIND_NAME = "DeepDigPlayerHitCameraJolt"
 local PLAYER_HIT_JOLT_DURATION = 0.14
 local PLAYER_HIT_JOLT_POSITION = 0.32
 local PLAYER_HIT_JOLT_ROTATION = 0.75
+local LOW_HEALTH_WARNING_GUI_NAME = "DeepDigLowHealthWarning"
+local LOW_HEALTH_THRESHOLD = 0.35
+local LOW_HEALTH_DISPLAY_ORDER = PLAYER_HIT_DISPLAY_ORDER - 1
+local LOW_HEALTH_EDGE_THICKNESS = 124
+local LOW_HEALTH_PULSE_IN_TRANSPARENCY = 0.4
+local LOW_HEALTH_PULSE_OUT_TRANSPARENCY = 0.72
+local LOW_HEALTH_CLEAR_TRANSPARENCY = 1
+local LOW_HEALTH_PULSE_DURATION = 0.42
+local LOW_HEALTH_CLEAR_DURATION = 0.12
 local BOSS_BAR_DISPLAY_ORDER = 70
 local MINIBOSS_DEFEAT_DISPLAY_ORDER = 95
 local ENEMY_THREAT_DISPLAY_ORDER = 64
@@ -97,6 +106,14 @@ local playerHitJoltState = nil
 local playerHitJoltBound = false
 local lastPlayerHitJoltCFrame = CFrame.new()
 local lastPlayerHitJoltActive = false
+local lowHealthGui = nil
+local lowHealthEdges = {}
+local lowHealthPulseTweens = {}
+local lowHealthPulseSequence = 0
+local lowHealthActive = false
+local lowHealthCurrentHumanoid = nil
+local lowHealthHumanoidConnection = nil
+local lowHealthDiedConnection = nil
 local enemyThreatGui = nil
 local enemyThreatFrame = nil
 local enemyThreatArrow = nil
@@ -993,6 +1010,234 @@ local function playPlayerHitFeedback(damage)
 	playPlayerHitFlash()
 	showPlayerHitReadout(damage)
 	playPlayerHitJolt()
+end
+
+local function createLowHealthEdge(name, position, size, rotation)
+	local edge = Instance.new("Frame")
+	edge.Name = name
+	edge.Position = position
+	edge.Size = size
+	edge.BackgroundColor3 = Color3.fromRGB(210, 36, 32)
+	edge.BackgroundTransparency = LOW_HEALTH_CLEAR_TRANSPARENCY
+	edge.BorderSizePixel = 0
+	edge.Visible = false
+	edge.ZIndex = 1
+	edge.Parent = lowHealthGui
+
+	local gradient = Instance.new("UIGradient")
+	gradient.Rotation = rotation
+	gradient.Transparency = NumberSequence.new({
+		NumberSequenceKeypoint.new(0, 0),
+		NumberSequenceKeypoint.new(1, 1),
+	})
+	gradient.Parent = edge
+
+	return edge
+end
+
+local function ensureLowHealthWarning()
+	if lowHealthGui and lowHealthGui.Parent then
+		return
+	end
+
+	local playerGui = player:FindFirstChildOfClass("PlayerGui") or player:WaitForChild("PlayerGui")
+	local existingGui = playerGui:FindFirstChild(LOW_HEALTH_WARNING_GUI_NAME)
+	if existingGui and existingGui:IsA("ScreenGui") then
+		existingGui:ClearAllChildren()
+		lowHealthGui = existingGui
+	else
+		lowHealthGui = Instance.new("ScreenGui")
+		lowHealthGui.Name = LOW_HEALTH_WARNING_GUI_NAME
+		lowHealthGui.Parent = playerGui
+	end
+	lowHealthGui.ResetOnSpawn = false
+	lowHealthGui.IgnoreGuiInset = true
+	lowHealthGui.DisplayOrder = LOW_HEALTH_DISPLAY_ORDER
+	lowHealthGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+
+	lowHealthEdges = {
+		createLowHealthEdge(
+			"TopEdge",
+			UDim2.fromScale(0, 0),
+			UDim2.new(1, 0, 0, LOW_HEALTH_EDGE_THICKNESS),
+			90
+		),
+		createLowHealthEdge(
+			"BottomEdge",
+			UDim2.new(0, 0, 1, -LOW_HEALTH_EDGE_THICKNESS),
+			UDim2.new(1, 0, 0, LOW_HEALTH_EDGE_THICKNESS),
+			270
+		),
+		createLowHealthEdge(
+			"LeftEdge",
+			UDim2.fromScale(0, 0),
+			UDim2.new(0, LOW_HEALTH_EDGE_THICKNESS, 1, 0),
+			0
+		),
+		createLowHealthEdge(
+			"RightEdge",
+			UDim2.new(1, -LOW_HEALTH_EDGE_THICKNESS, 0, 0),
+			UDim2.new(0, LOW_HEALTH_EDGE_THICKNESS, 1, 0),
+			180
+		),
+	}
+end
+
+local function cancelLowHealthPulseTweens()
+	for _, tween in ipairs(lowHealthPulseTweens) do
+		if tween then
+			tween:Cancel()
+		end
+	end
+
+	lowHealthPulseTweens = {}
+end
+
+local function setLowHealthWarningTransparency(transparency, visible)
+	for _, edge in ipairs(lowHealthEdges) do
+		if edge and edge.Parent then
+			edge.BackgroundTransparency = transparency
+			edge.Visible = visible
+		end
+	end
+end
+
+local function stopLowHealthWarning(fadeOut)
+	if not lowHealthActive and not lowHealthGui then
+		return
+	end
+
+	lowHealthActive = false
+	lowHealthPulseSequence = lowHealthPulseSequence + 1
+	local sequence = lowHealthPulseSequence
+	cancelLowHealthPulseTweens()
+
+	if not lowHealthGui or not lowHealthGui.Parent then
+		return
+	end
+
+	if fadeOut then
+		for _, edge in ipairs(lowHealthEdges) do
+			if edge and edge.Parent then
+				local tween = TweenService:Create(edge, TweenInfo.new(
+					LOW_HEALTH_CLEAR_DURATION,
+					Enum.EasingStyle.Quad,
+					Enum.EasingDirection.Out
+				), {
+					BackgroundTransparency = LOW_HEALTH_CLEAR_TRANSPARENCY,
+				})
+				table.insert(lowHealthPulseTweens, tween)
+				tween:Play()
+			end
+		end
+
+		task.delay(LOW_HEALTH_CLEAR_DURATION + 0.03, function()
+			if sequence ~= lowHealthPulseSequence then
+				return
+			end
+
+			cancelLowHealthPulseTweens()
+			setLowHealthWarningTransparency(LOW_HEALTH_CLEAR_TRANSPARENCY, false)
+		end)
+	else
+		setLowHealthWarningTransparency(LOW_HEALTH_CLEAR_TRANSPARENCY, false)
+	end
+end
+
+local function startLowHealthWarning()
+	ensureLowHealthWarning()
+
+	if lowHealthActive then
+		return
+	end
+
+	lowHealthActive = true
+	lowHealthPulseSequence = lowHealthPulseSequence + 1
+	local sequence = lowHealthPulseSequence
+	cancelLowHealthPulseTweens()
+	setLowHealthWarningTransparency(LOW_HEALTH_PULSE_OUT_TRANSPARENCY, true)
+
+	task.spawn(function()
+		local pulseIn = true
+		while lowHealthActive and sequence == lowHealthPulseSequence do
+			local targetTransparency = LOW_HEALTH_PULSE_OUT_TRANSPARENCY
+			if pulseIn then
+				targetTransparency = LOW_HEALTH_PULSE_IN_TRANSPARENCY
+			end
+
+			cancelLowHealthPulseTweens()
+			for _, edge in ipairs(lowHealthEdges) do
+				if edge and edge.Parent then
+					edge.Visible = true
+					local tween = TweenService:Create(edge, TweenInfo.new(
+						LOW_HEALTH_PULSE_DURATION,
+						Enum.EasingStyle.Sine,
+						Enum.EasingDirection.InOut
+					), {
+						BackgroundTransparency = targetTransparency,
+					})
+					table.insert(lowHealthPulseTweens, tween)
+					tween:Play()
+				end
+			end
+
+			pulseIn = not pulseIn
+			task.wait(LOW_HEALTH_PULSE_DURATION)
+		end
+	end)
+end
+
+local function updateLowHealthWarning(humanoid)
+	if humanoid ~= lowHealthCurrentHumanoid then
+		return
+	end
+
+	local maxHealth = math.max(humanoid.MaxHealth, 1)
+	local isLowHealth = humanoid.Health > 0 and humanoid.Health / maxHealth <= LOW_HEALTH_THRESHOLD
+	if isLowHealth then
+		startLowHealthWarning()
+	else
+		stopLowHealthWarning(true)
+	end
+end
+
+local function disconnectLowHealthHumanoid()
+	if lowHealthHumanoidConnection then
+		lowHealthHumanoidConnection:Disconnect()
+		lowHealthHumanoidConnection = nil
+	end
+
+	if lowHealthDiedConnection then
+		lowHealthDiedConnection:Disconnect()
+		lowHealthDiedConnection = nil
+	end
+
+	lowHealthCurrentHumanoid = nil
+	stopLowHealthWarning(true)
+end
+
+local function attachLowHealthHumanoid(character)
+	disconnectLowHealthHumanoid()
+	if not character then
+		return
+	end
+
+	local humanoid = character:FindFirstChildOfClass("Humanoid") or character:WaitForChild("Humanoid", 5)
+	if not humanoid or not character.Parent then
+		return
+	end
+
+	lowHealthCurrentHumanoid = humanoid
+	lowHealthHumanoidConnection = humanoid.HealthChanged:Connect(function()
+		updateLowHealthWarning(humanoid)
+	end)
+	lowHealthDiedConnection = humanoid.Died:Connect(function()
+		if humanoid == lowHealthCurrentHumanoid then
+			stopLowHealthWarning(true)
+		end
+	end)
+
+	updateLowHealthWarning(humanoid)
 end
 
 local function showDamageNumber(model, damage)
@@ -2091,6 +2336,20 @@ local function pulseEnemy(model, feedbackType)
 
 	task.delay(restoreDelay, function()
 		restoreFeedback(model, record, token)
+	end)
+end
+
+player.CharacterAdded:Connect(attachLowHealthHumanoid)
+player.CharacterRemoving:Connect(function(character)
+	local humanoid = lowHealthCurrentHumanoid
+	if humanoid and humanoid.Parent == character then
+		disconnectLowHealthHumanoid()
+	end
+end)
+
+if player.Character then
+	task.spawn(function()
+		attachLowHealthHumanoid(player.Character)
 	end)
 end
 
