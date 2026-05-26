@@ -42,6 +42,14 @@ local EVENT_PULSE_SETTINGS = {
 		color = Color3.fromRGB(255, 205, 65),
 		peakTransparency = 0.62,
 	},
+	["lucky_hour"] = {
+		color = Color3.fromRGB(166, 225, 84),
+		peakTransparency = 0.64,
+	},
+	["echo_blocks"] = {
+		color = Color3.fromRGB(116, 96, 230),
+		peakTransparency = 0.66,
+	},
 }
 
 local LocalPlaySound = SoundService:FindFirstChild(LOCAL_PLAY_SOUND_NAME)
