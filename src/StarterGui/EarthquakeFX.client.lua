@@ -50,6 +50,22 @@ local EVENT_PULSE_SETTINGS = {
 		color = Color3.fromRGB(116, 96, 230),
 		peakTransparency = 0.66,
 	},
+	["halloween_loot"] = {
+		color = Color3.fromRGB(255, 135, 52),
+		peakTransparency = 0.6,
+	},
+	["winter_loot"] = {
+		color = Color3.fromRGB(155, 225, 255),
+		peakTransparency = 0.62,
+	},
+	["spring_loot"] = {
+		color = Color3.fromRGB(154, 224, 88),
+		peakTransparency = 0.64,
+	},
+	["summer_loot"] = {
+		color = Color3.fromRGB(255, 82, 48),
+		peakTransparency = 0.61,
+	},
 }
 
 local LocalPlaySound = SoundService:FindFirstChild(LOCAL_PLAY_SOUND_NAME)
