@@ -4,6 +4,7 @@
 --   2. Renders a centered banner at the top of the screen for Legendary / Mythic
 --      notifies (always shown, never suppressed). Up to 3 stacked banners; the
 --      oldest is removed if a 4th tries to appear.
+--   3. Plays a brief full-screen gold flash for Legendary / Mythic notifies.
 --
 -- HudGui.client.lua already owns the standard side-toast notification surface.
 -- This script does NOT touch or replace that surface — it only adds a parallel
@@ -53,6 +54,9 @@ local BANNER_STACK_GAP  = 90       -- px between stacked banners
 local MAX_BANNERS       = 3
 local FLASH_FADE        = 0.55
 local CAMERA_BUMP_BINDING_NAME = "NotifyManagerRarityCameraBump"
+local GOLD_FLASH_GUI_NAME = "LegendaryFindGoldFlash"
+local GOLD_FLASH_FRAME_NAME = "GoldFlashOverlay"
+local GOLD_FLASH_GRADIENT_NAME = "GoldFlashGradient"
 
 local RARITY_BORDER_COLOR = {
 	Legendary = Color3.fromRGB(255, 195, 60),   -- warm gold
@@ -69,25 +73,17 @@ local IMPORTANT_RARITIES = {
 	Mythic    = true,
 }
 
-local RARITY_FLASH = {
-	Legendary = {
-		color = Color3.fromRGB(255, 210, 70),
-		startTransparency = 0.42,
-		gradient = ColorSequence.new({
-			ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 235, 150)),
-			ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 180, 40)),
-		}),
-	},
-	Mythic = {
-		color = Color3.fromRGB(255, 80, 45),
-		startTransparency = 0.28,
-		gradient = ColorSequence.new({
-			ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 55, 45)),
-			ColorSequenceKeypoint.new(0.55, Color3.fromRGB(255, 185, 55)),
-			ColorSequenceKeypoint.new(1, Color3.fromRGB(180, 20, 60)),
-		}),
-	},
+local GOLD_FLASH_RARITIES = {
+	Legendary = true,
+	Mythic = true,
 }
+local GOLD_FLASH_COLOR = Color3.fromRGB(255, 218, 82)
+local GOLD_FLASH_START_TRANSPARENCY = 0.32
+local GOLD_FLASH_GRADIENT = ColorSequence.new({
+	ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 246, 180)),
+	ColorSequenceKeypoint.new(0.58, Color3.fromRGB(255, 206, 62)),
+	ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 178, 36)),
+})
 
 local RARITY_CAMERA_BUMP = {
 	Legendary = {
@@ -128,8 +124,9 @@ end
 -- ─────────────────────────────────────────────────────────────────────────
 
 local bannerGui = nil
-local flashFrame = nil
-local flashTween = nil
+local goldFlashGui = nil
+local goldFlashFrame = nil
+local goldFlashTween = nil
 local activeBanners = {}   -- ordered oldest→newest list of banner Frames
 local cameraBumpSequence = 0
 local cameraBumpState = nil
@@ -152,37 +149,51 @@ local function ensureBannerGui()
 	return bannerGui
 end
 
-local function ensureFlashFrame()
-	local gui = ensureBannerGui()
-	if flashFrame and flashFrame.Parent == gui then
-		return flashFrame
+local function ensureGoldFlashFrame()
+	if not goldFlashGui or not goldFlashGui.Parent then
+		goldFlashGui = playerGui:FindFirstChild(GOLD_FLASH_GUI_NAME)
+		if not goldFlashGui then
+			goldFlashGui = Instance.new("ScreenGui")
+			goldFlashGui.Name = GOLD_FLASH_GUI_NAME
+			goldFlashGui.ResetOnSpawn = false
+			goldFlashGui.IgnoreGuiInset = true
+			goldFlashGui.DisplayOrder = 99
+			goldFlashGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+			goldFlashGui.Parent = playerGui
+		end
 	end
 
-	flashFrame = gui:FindFirstChild("RarityFlash")
-	if not flashFrame then
-		flashFrame = Instance.new("Frame")
-		flashFrame.Name = "RarityFlash"
-		flashFrame.Parent = gui
+	if goldFlashFrame and goldFlashFrame.Parent == goldFlashGui then
+		return goldFlashFrame
 	end
 
-	flashFrame.Active = false
-	flashFrame.AnchorPoint = Vector2.new(0, 0)
-	flashFrame.Position = UDim2.new(0, 0, 0, 0)
-	flashFrame.Size = UDim2.fromScale(1, 1)
-	flashFrame.BackgroundTransparency = 1
-	flashFrame.BorderSizePixel = 0
-	flashFrame.Visible = false
-	flashFrame.ZIndex = 100
+	goldFlashFrame = goldFlashGui:FindFirstChild(GOLD_FLASH_FRAME_NAME)
+	if not goldFlashFrame then
+		goldFlashFrame = Instance.new("Frame")
+		goldFlashFrame.Name = GOLD_FLASH_FRAME_NAME
+		goldFlashFrame.Parent = goldFlashGui
+	end
 
-	local gradient = flashFrame:FindFirstChild("RarityFlashGradient")
+	goldFlashFrame.Active = false
+	goldFlashFrame.AnchorPoint = Vector2.new(0, 0)
+	goldFlashFrame.Position = UDim2.new(0, 0, 0, 0)
+	goldFlashFrame.Size = UDim2.fromScale(1, 1)
+	goldFlashFrame.BackgroundColor3 = GOLD_FLASH_COLOR
+	goldFlashFrame.BackgroundTransparency = 1
+	goldFlashFrame.BorderSizePixel = 0
+	goldFlashFrame.Visible = false
+	goldFlashFrame.ZIndex = 1
+
+	local gradient = goldFlashFrame:FindFirstChild(GOLD_FLASH_GRADIENT_NAME)
 	if not gradient then
 		gradient = Instance.new("UIGradient")
-		gradient.Name = "RarityFlashGradient"
-		gradient.Parent = flashFrame
+		gradient.Name = GOLD_FLASH_GRADIENT_NAME
+		gradient.Parent = goldFlashFrame
 	end
+	gradient.Color = GOLD_FLASH_GRADIENT
 	gradient.Rotation = 25
 
-	return flashFrame
+	return goldFlashFrame
 end
 
 local function clearRarityCameraBump(sequence)
@@ -274,35 +285,30 @@ local function playRarityCameraBump(rarity)
 end
 
 local function playRarityFlash(rarity)
-	local flashConfig = RARITY_FLASH[rarity]
-	if not flashConfig then
+	if GOLD_FLASH_RARITIES[rarity] ~= true then
 		return
 	end
 
-	local frame = ensureFlashFrame()
-	local gradient = frame:FindFirstChild("RarityFlashGradient")
-	if flashTween then
-		flashTween:Cancel()
-		flashTween = nil
+	local frame = ensureGoldFlashFrame()
+	if goldFlashTween then
+		goldFlashTween:Cancel()
+		goldFlashTween = nil
 	end
 
-	frame.BackgroundColor3 = flashConfig.color
-	frame.BackgroundTransparency = flashConfig.startTransparency
+	frame.BackgroundColor3 = GOLD_FLASH_COLOR
+	frame.BackgroundTransparency = GOLD_FLASH_START_TRANSPARENCY
 	frame.Visible = true
-	if gradient then
-		gradient.Color = flashConfig.gradient
-	end
 
 	local tween = TweenService:Create(
 		frame,
 		TweenInfo.new(FLASH_FADE, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
 		{ BackgroundTransparency = 1 }
 	)
-	flashTween = tween
+	goldFlashTween = tween
 	tween.Completed:Connect(function(playbackState)
-		if flashTween == tween and playbackState == Enum.PlaybackState.Completed then
+		if goldFlashTween == tween and playbackState == Enum.PlaybackState.Completed then
 			frame.Visible = false
-			flashTween = nil
+			goldFlashTween = nil
 		end
 	end)
 	tween:Play()
