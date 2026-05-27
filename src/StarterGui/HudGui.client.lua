@@ -148,26 +148,62 @@ invLabel.Font = Enum.Font.Gotham
 invLabel.TextXAlignment = Enum.TextXAlignment.Left
 invLabel.Parent = screenGui
 
-local currentInventoryCount = 0
-local currentInventoryCapacity = Config.DEFAULT_BACKPACK_CAPACITY
+local pulseSellAllButton = function() end
+local setInventoryDisplay
+do
+	local currentInventoryCount = 0
+	local currentInventoryCapacity = Config.DEFAULT_BACKPACK_CAPACITY
+	local inventoryWasFull = false
+	local normalColor = Color3.fromRGB(140, 140, 140)
+	local warningColor = Color3.fromRGB(255, 190, 70)
+	local fullColor = Color3.fromRGB(255, 80, 80)
 
-local function formatInventoryText(count, capacity)
-	if capacity == "unlimited" then
-		return "Items: " .. tostring(count) .. "/unlimited"
+	local function formatInventoryText(count, capacity)
+		if capacity == "unlimited" then
+			return "Items: " .. tostring(count) .. "/unlimited"
+		end
+
+		return "Items: " .. tostring(count) .. "/" .. tostring(capacity or Config.DEFAULT_BACKPACK_CAPACITY)
 	end
 
-	return "Items: " .. tostring(count) .. "/" .. tostring(capacity or Config.DEFAULT_BACKPACK_CAPACITY)
-end
+	function setInventoryDisplay(count, capacity)
+		if count ~= nil then
+			currentInventoryCount = count
+		end
+		if capacity ~= nil then
+			currentInventoryCapacity = capacity
+		end
 
-local function setInventoryDisplay(count, capacity)
-	if count ~= nil then
-		currentInventoryCount = count
-	end
-	if capacity ~= nil then
-		currentInventoryCapacity = capacity
-	end
+		invLabel.Text = formatInventoryText(currentInventoryCount, currentInventoryCapacity)
 
-	invLabel.Text = formatInventoryText(currentInventoryCount, currentInventoryCapacity)
+		if currentInventoryCapacity == "unlimited" then
+			inventoryWasFull = false
+			invLabel.TextColor3 = normalColor
+			invLabel.Font = Enum.Font.Gotham
+			return
+		end
+
+		local countNumber = tonumber(currentInventoryCount) or 0
+		local capacityNumber = tonumber(currentInventoryCapacity) or Config.DEFAULT_BACKPACK_CAPACITY
+		local isFull = capacityNumber > 0 and countNumber >= capacityNumber
+		local isWarning = capacityNumber > 0 and countNumber / capacityNumber >= 0.8
+
+		if isFull then
+			invLabel.TextColor3 = fullColor
+			invLabel.Font = Enum.Font.GothamBold
+		elseif isWarning then
+			invLabel.TextColor3 = warningColor
+			invLabel.Font = Enum.Font.GothamBold
+		else
+			invLabel.TextColor3 = normalColor
+			invLabel.Font = Enum.Font.Gotham
+		end
+
+		if isFull and not inventoryWasFull then
+			pulseSellAllButton()
+		end
+		inventoryWasFull = isFull
+	end
 end
 
 -- ─── Fragments counter ───────────────────────────────────────────────────────
@@ -3323,6 +3359,60 @@ sellButton.Parent = screenGui
 local sellCorner = Instance.new("UICorner")
 sellCorner.CornerRadius = UDim.new(0, 8)
 sellCorner.Parent = sellButton
+
+do
+	local sellGlow = Instance.new("UIStroke")
+	sellGlow.Name = "FullBackpackGlow"
+	sellGlow.Color = Color3.fromRGB(255, 230, 110)
+	sellGlow.Thickness = 2
+	sellGlow.Transparency = 1
+	sellGlow.Parent = sellButton
+
+	local restColor = sellButton.BackgroundColor3
+	local restTextColor = sellButton.TextColor3
+	local activeSellButtonTween = nil
+	local activeSellGlowTween = nil
+	local sellPulseSequence = 0
+
+	pulseSellAllButton = function()
+		sellPulseSequence = sellPulseSequence + 1
+		local sequence = sellPulseSequence
+
+		if activeSellButtonTween then
+			activeSellButtonTween:Cancel()
+		end
+		if activeSellGlowTween then
+			activeSellGlowTween:Cancel()
+		end
+
+		sellButton.BackgroundColor3 = Color3.fromRGB(75, 220, 75)
+		sellButton.TextColor3 = Color3.fromRGB(255, 255, 210)
+		sellGlow.Transparency = 0.05
+
+		activeSellButtonTween = TweenService:Create(
+			sellButton,
+			TweenInfo.new(0.45, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+			{
+				BackgroundColor3 = restColor,
+				TextColor3 = restTextColor,
+			}
+		)
+		activeSellGlowTween = TweenService:Create(
+			sellGlow,
+			TweenInfo.new(0.45, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+			{ Transparency = 1 }
+		)
+
+		activeSellButtonTween:Play()
+		activeSellGlowTween:Play()
+		activeSellButtonTween.Completed:Connect(function()
+			if sequence ~= sellPulseSequence then return end
+			sellButton.BackgroundColor3 = restColor
+			sellButton.TextColor3 = restTextColor
+			sellGlow.Transparency = 1
+		end)
+	end
+end
 
 sellButton.MouseButton1Click:Connect(function()
 	Remotes.SellAll:FireServer()
