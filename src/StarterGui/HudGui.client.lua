@@ -295,6 +295,102 @@ do
 	end
 end
 
+local refreshEquippedPetChip
+do
+	local PET_RARITY_COLORS = {
+		Common = Color3.fromRGB(205, 215, 210),
+		Uncommon = Color3.fromRGB(95, 220, 130),
+		Rare = Color3.fromRGB(90, 170, 255),
+		Epic = Color3.fromRGB(190, 115, 255),
+		Legendary = Color3.fromRGB(255, 205, 80),
+		Mythic = Color3.fromRGB(255, 100, 150),
+	}
+
+	local petChip = Instance.new("Frame")
+	petChip.Name = "EquippedPetBuff"
+	petChip.Size = UDim2.new(0, 330, 0, 44)
+	petChip.Position = UDim2.new(0, 210, 0, 52)
+	petChip.BackgroundColor3 = Color3.fromRGB(28, 24, 34)
+	petChip.BackgroundTransparency = 0.08
+	petChip.BorderSizePixel = 0
+	petChip.Visible = false
+	petChip.Parent = screenGui
+
+	local petChipCorner = Instance.new("UICorner")
+	petChipCorner.CornerRadius = UDim.new(0, 7)
+	petChipCorner.Parent = petChip
+
+	local petChipStroke = Instance.new("UIStroke")
+	petChipStroke.Color = Color3.fromRGB(130, 110, 180)
+	petChipStroke.Thickness = 1
+	petChipStroke.Transparency = 0.2
+	petChipStroke.Parent = petChip
+
+	local petNameLabel = Instance.new("TextLabel")
+	petNameLabel.Name = "PetName"
+	petNameLabel.Size = UDim2.new(1, -18, 0, 20)
+	petNameLabel.Position = UDim2.new(0, 9, 0, 4)
+	petNameLabel.BackgroundTransparency = 1
+	petNameLabel.Text = ""
+	petNameLabel.TextColor3 = Color3.fromRGB(235, 230, 245)
+	petNameLabel.TextSize = 13
+	petNameLabel.Font = Enum.Font.GothamBlack
+	petNameLabel.TextXAlignment = Enum.TextXAlignment.Left
+	petNameLabel.TextTruncate = Enum.TextTruncate.AtEnd
+	petNameLabel.Parent = petChip
+
+	local petBonusLabel = Instance.new("TextLabel")
+	petBonusLabel.Name = "PetBonuses"
+	petBonusLabel.Size = UDim2.new(1, -18, 0, 18)
+	petBonusLabel.Position = UDim2.new(0, 9, 0, 23)
+	petBonusLabel.BackgroundTransparency = 1
+	petBonusLabel.Text = ""
+	petBonusLabel.TextColor3 = Color3.fromRGB(220, 210, 235)
+	petBonusLabel.TextSize = 12
+	petBonusLabel.Font = Enum.Font.GothamBold
+	petBonusLabel.TextXAlignment = Enum.TextXAlignment.Left
+	petBonusLabel.TextTruncate = Enum.TextTruncate.AtEnd
+	petBonusLabel.Parent = petChip
+
+	local function formatBoost(multiplier)
+		local boost = math.max(0, math.floor(((tonumber(multiplier) or 1) - 1) * 100 + 0.5))
+		return "+" .. tostring(boost) .. "%"
+	end
+
+	function refreshEquippedPetChip(data)
+		if not data then
+			return
+		end
+
+		if data.equippedPet == false then
+			petChip.Visible = false
+			return
+		end
+
+		if data.equippedPet == nil and data.petName == nil and data.petMultipliers == nil then
+			return
+		end
+
+		if type(data.petName) ~= "string" or type(data.petMultipliers) ~= "table" then
+			petChip.Visible = false
+			return
+		end
+
+		local rarity = data.petRarity or "Common"
+		local count = tonumber(data.petCount) or 0
+		local countSuffix = count > 1 and (" • " .. tostring(count) .. " pets") or ""
+		local rarityColor = PET_RARITY_COLORS[rarity] or Color3.fromRGB(235, 230, 245)
+
+		petNameLabel.Text = "🐾 " .. rarity .. " " .. data.petName .. countSuffix
+		petNameLabel.TextColor3 = rarityColor
+		petBonusLabel.Text = "Dig " .. formatBoost(data.petMultipliers.dig_speed)
+			.. "   Loot " .. formatBoost(data.petMultipliers.loot_value)
+			.. "   Luck " .. formatBoost(data.petMultipliers.luck)
+		petChipStroke.Color = rarityColor
+		petChip.Visible = true
+	end
+end
+
 -- ─── Gamepass badge row ──────────────────────────────────────────────────────
 -- Small pills shown when a gamepass is active.
 
@@ -4161,6 +4257,7 @@ Remotes.UpdateHUD.OnClientEvent:Connect(function(data)
 	refreshStreakRevivePrompt(data)
 	refreshFriendBoostIndicator(data)
 	refreshGroupBenefitIndicator(data)
+	refreshEquippedPetChip(data)
 	updateFtueGuideFromHUD(data)
 	ingestResurfaceFields(data)
 end)
@@ -4409,6 +4506,7 @@ task.spawn(function()
 		refreshStreakRevivePrompt(data)
 		refreshFriendBoostIndicator(data)
 		refreshGroupBenefitIndicator(data)
+		refreshEquippedPetChip(data)
 		updateDepthTone(data)
 
 		-- First-time tutorial: only on truly fresh profile (zero blocks dug, no inventory).

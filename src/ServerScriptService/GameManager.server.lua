@@ -206,6 +206,8 @@ local function hasOwnedGamepass(data, passId, passKey)
 end
 
 local addStandardHudFields
+local getEquippedPetRecord
+local getEquippedPetMultipliers
 
 local function getOfflineIncomeCapSeconds(data)
 	if hasOwnedGamepass(data, Config.GAMEPASS_FOREMAN_ID, Config.GAMEPASS_FOREMAN) then
@@ -640,6 +642,23 @@ function addStandardHudFields(payload, data, player)
 	addInventoryHudFields(payload, data)
 	addFriendBoostHudFields(payload, player)
 	addGroupBenefitHudFields(payload, player)
+	if data then
+		payload.petCount = type(data.pets) == "table" and #data.pets or 0
+		local equippedRecord = getEquippedPetRecord(data)
+		if equippedRecord then
+			local petMultipliers = getEquippedPetMultipliers(data) or {}
+			payload.equippedPet = equippedRecord.id
+			payload.petName = equippedRecord.name
+			payload.petRarity = equippedRecord.rarity
+			payload.petMultipliers = {
+				dig_speed = petMultipliers.dig_speed or 1,
+				loot_value = petMultipliers.loot_value or 1,
+				luck = petMultipliers.luck or 1,
+			}
+		else
+			payload.equippedPet = false
+		end
+	end
 	return payload
 end
 
@@ -690,23 +709,32 @@ local function getResurfaceLootMultiplier(data)
 	return 1 + (rebirths * bonusPerRebirth)
 end
 
-local function getEquippedPetMultipliers(data)
+function getEquippedPetRecord(data)
 	if not data or not data.equippedPet or type(data.pets) ~= "table" then
 		return nil
 	end
 
 	for _, record in ipairs(data.pets) do
 		if type(record) == "table" and record.id == data.equippedPet then
-			if type(record.multipliers) == "table" then
-				return record.multipliers
-			end
-
-			local petDef = PetDatabase.getPet(record.name)
-			return petDef and petDef.multipliers
+			return record
 		end
 	end
 
 	return nil
+end
+
+function getEquippedPetMultipliers(data)
+	local record = getEquippedPetRecord(data)
+	if not record then
+		return nil
+	end
+
+	if type(record.multipliers) == "table" then
+		return record.multipliers
+	end
+
+	local petDef = PetDatabase.getPet(record.name)
+	return petDef and petDef.multipliers
 end
 
 local function isEventActive(effectName)
