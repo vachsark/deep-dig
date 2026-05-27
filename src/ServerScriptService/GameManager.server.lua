@@ -650,6 +650,7 @@ function addStandardHudFields(payload, data, player)
 			payload.equippedPet = equippedRecord.id
 			payload.petName = equippedRecord.name
 			payload.petRarity = equippedRecord.rarity
+			payload.petLevel = tonumber(equippedRecord.level) or 1
 			payload.petMultipliers = {
 				dig_speed = petMultipliers.dig_speed or 1,
 				loot_value = petMultipliers.loot_value or 1,

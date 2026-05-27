@@ -357,35 +357,68 @@ do
 		return "+" .. tostring(boost) .. "%"
 	end
 
+	local equippedPetChipState = {
+		equippedPet = nil,
+		petName = nil,
+		petRarity = nil,
+		petLevel = nil,
+		petMultipliers = nil,
+		petCount = 0,
+	}
+
 	function refreshEquippedPetChip(data)
 		if not data then
 			return
 		end
 
 		if data.equippedPet == false then
+			equippedPetChipState.equippedPet = nil
+			equippedPetChipState.petName = nil
+			equippedPetChipState.petRarity = nil
+			equippedPetChipState.petLevel = nil
+			equippedPetChipState.petMultipliers = nil
+			equippedPetChipState.petCount = tonumber(data.petCount) or 0
 			petChip.Visible = false
 			return
 		end
 
-		if data.equippedPet == nil and data.petName == nil and data.petMultipliers == nil then
-			return
+		if data.equippedPet ~= nil then
+			equippedPetChipState.equippedPet = data.equippedPet
+		end
+		if data.petName ~= nil then
+			equippedPetChipState.petName = data.petName
+		end
+		if data.petRarity ~= nil then
+			equippedPetChipState.petRarity = data.petRarity
+		end
+		if data.petLevel ~= nil then
+			equippedPetChipState.petLevel = data.petLevel
+		end
+		if data.petMultipliers ~= nil then
+			equippedPetChipState.petMultipliers = data.petMultipliers
+		end
+		if data.petCount ~= nil then
+			equippedPetChipState.petCount = tonumber(data.petCount) or 0
 		end
 
-		if type(data.petName) ~= "string" or type(data.petMultipliers) ~= "table" then
+		if type(equippedPetChipState.petName) ~= "string"
+			or type(equippedPetChipState.petMultipliers) ~= "table" then
 			petChip.Visible = false
 			return
 		end
 
-		local rarity = data.petRarity or "Common"
-		local count = tonumber(data.petCount) or 0
+		local rarity = equippedPetChipState.petRarity or "Common"
+		local level = tonumber(equippedPetChipState.petLevel) or 1
+		local count = tonumber(equippedPetChipState.petCount) or 0
 		local countSuffix = count > 1 and (" • " .. tostring(count) .. " pets") or ""
 		local rarityColor = PET_RARITY_COLORS[rarity] or Color3.fromRGB(235, 230, 245)
 
-		petNameLabel.Text = "🐾 " .. rarity .. " " .. data.petName .. countSuffix
+		petNameLabel.Text = "🐾 " .. rarity .. " " .. equippedPetChipState.petName
+			.. " Lv " .. tostring(level) .. countSuffix
 		petNameLabel.TextColor3 = rarityColor
-		petBonusLabel.Text = "Dig " .. formatBoost(data.petMultipliers.dig_speed)
-			.. "   Loot " .. formatBoost(data.petMultipliers.loot_value)
-			.. "   Luck " .. formatBoost(data.petMultipliers.luck)
+		petBonusLabel.Text = "Dig " .. formatBoost(equippedPetChipState.petMultipliers.dig_speed)
+			.. "   Loot " .. formatBoost(equippedPetChipState.petMultipliers.loot_value)
+			.. "   Luck " .. formatBoost(equippedPetChipState.petMultipliers.luck)
 		petChipStroke.Color = rarityColor
 		petChip.Visible = true
 	end

@@ -630,6 +630,7 @@ EquipPetEvent.OnServerEvent:Connect(function(player, petId)
 		equippedPet = petId,
 		petName = owned.name,
 		petRarity = owned.rarity,
+		petLevel = tonumber(owned.level) or 1,
 		petMultipliers = multipliers,
 		petCount = #data.pets,
 	})

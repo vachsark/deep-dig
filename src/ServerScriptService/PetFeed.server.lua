@@ -31,6 +31,7 @@ if not PetFeedResultEvent then
 end
 
 local NotifyEvent = Remotes:WaitForChild("Notify")
+local UpdateHUDEvent = Remotes:WaitForChild("UpdateHUD")
 
 -- ═══════════════════════════════════════════════════════════════════
 -- Tunables
@@ -211,6 +212,26 @@ FeedPetEvent.OnServerEvent:Connect(function(player, targetPetId, sacrificePetId)
 	-- uses `false` as the nil-safe sentinel (see PetSystem.ensurePetFields).
 	if data.equippedPet == sacrificePetId then
 		data.equippedPet = false
+	end
+
+	if data.equippedPet == targetPetId then
+		UpdateHUDEvent:FireClient(player, {
+			equippedPet = targetPetId,
+			petName = target.name,
+			petRarity = target.rarity,
+			petLevel = tonumber(target.level) or 1,
+			petMultipliers = target.multipliers,
+			petCount = #data.pets,
+		})
+	elseif data.equippedPet == false then
+		UpdateHUDEvent:FireClient(player, {
+			equippedPet = false,
+			petCount = #data.pets,
+		})
+	else
+		UpdateHUDEvent:FireClient(player, {
+			petCount = #data.pets,
+		})
 	end
 
 	local targetName = tostring(target.name)
