@@ -344,7 +344,7 @@ local function getPendingInvitePayload(player)
 	}
 end
 
-local function getCrewState(player)
+local function getCrewState(player, transient)
 	local viewerCrewId = player and playerCrewId[player.UserId]
 	local crew = viewerCrewId and crews[viewerCrewId] or nil
 	local progress = getCrewProgress(crew)
@@ -372,18 +372,24 @@ local function getCrewState(player)
 		mailboxItems = getMailboxPayload(player),
 	}
 
+	if type(transient) == "table" then
+		for key, value in pairs(transient) do
+			payload[key] = value
+		end
+	end
+
 	payload.memberCount = #payload.members
 	payload.mailboxCount = #payload.mailboxItems
 	return payload
 end
 
-local function sendState(player)
+local function sendState(player, transient)
 	if player and player.Parent == Players then
-		CrewUpdateEvent:FireClient(player, getCrewState(player))
+		CrewUpdateEvent:FireClient(player, getCrewState(player, transient))
 	end
 end
 
-local function broadcastCrewState(crew)
+local function broadcastCrewState(crew, transient)
 	if not crew then
 		return
 	end
@@ -391,7 +397,7 @@ local function broadcastCrewState(crew)
 	for userId in pairs(crew.members) do
 		local member = Players:GetPlayerByUserId(userId)
 		if member then
-			sendState(member)
+			sendState(member, transient)
 		end
 	end
 end
@@ -745,6 +751,11 @@ local function awardCrewCoopDigXP(player, amount)
 	crew.level = afterProgress.level
 
 	if afterProgress.level > beforeProgress.level then
+		local levelUp = {
+			level = afterProgress.level,
+			fragmentBonus = afterProgress.fragmentBonus,
+		}
+
 		for userId in pairs(crew.members) do
 			local member = Players:GetPlayerByUserId(userId)
 			if member then
@@ -755,6 +766,10 @@ local function awardCrewCoopDigXP(player, amount)
 				)
 			end
 		end
+
+		broadcastCrewState(crew, {
+			levelUp = levelUp,
+		})
 	end
 
 	refreshEveryone()

@@ -141,6 +141,11 @@ local SOUNDS = {
 		playbackSpeed = 1.34,
 		pitchRange = { 1.04, 1.1 },
 	},
+	crew_level_up = {
+		id = "rbxassetid://5852285683", -- bright shared crew milestone shimmer
+		volume = 0.82,
+		playbackSpeed = 0.98,
+	},
 	friend_boost = {
 		id = "rbxassetid://6837730320", -- compact friend speed boost chime
 		volume = 0.5,

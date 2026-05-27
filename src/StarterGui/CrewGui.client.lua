@@ -3,9 +3,12 @@
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local SoundService = game:GetService("SoundService")
+local TweenService = game:GetService("TweenService")
 
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
+local LOCAL_PLAY_SOUND_NAME = "DeepDigLocalPlaySound"
 
 local function waitForChildTimeout(parent, childName, timeoutSeconds)
 	if not parent then
@@ -63,6 +66,16 @@ local state = {
 }
 local currentInventory = {}
 local selectedMailboxRecipientUserId = nil
+local levelUpBurstSequence = 0
+local activeLevelUpBurst = nil
+local lastLevelUpKey = nil
+
+local LocalPlaySound = SoundService:FindFirstChild(LOCAL_PLAY_SOUND_NAME)
+if not LocalPlaySound then
+	LocalPlaySound = Instance.new("BindableEvent")
+	LocalPlaySound.Name = LOCAL_PLAY_SOUND_NAME
+	LocalPlaySound.Parent = SoundService
+end
 
 local function getRarityColor(rarity)
 	return RARITY_COLORS[rarity] or TEXT_MUTED
@@ -93,6 +106,17 @@ local function clearRenderedChildren(container)
 		then
 			child:Destroy()
 		end
+	end
+end
+
+local function clearLevelUpBurst(sequence)
+	if sequence and sequence ~= levelUpBurstSequence then
+		return
+	end
+
+	if activeLevelUpBurst then
+		activeLevelUpBurst:Destroy()
+		activeLevelUpBurst = nil
 	end
 end
 
@@ -131,6 +155,105 @@ pendingDot.BorderSizePixel = 0
 pendingDot.Visible = false
 pendingDot.Parent = toggleButton
 setCorner(pendingDot, 12)
+
+local function showLevelUpBurst(level, fragmentBonus)
+	levelUpBurstSequence = levelUpBurstSequence + 1
+	local sequence = levelUpBurstSequence
+	clearLevelUpBurst()
+
+	local burst = Instance.new("Frame")
+	burst.Name = "CrewLevelUpBurst"
+	burst.AnchorPoint = Vector2.new(1, 1)
+	burst.Position = UDim2.new(1, -20, 1, -158)
+	burst.Size = UDim2.fromOffset(214, 58)
+	burst.BackgroundColor3 = Color3.fromRGB(42, 34, 22)
+	burst.BackgroundTransparency = 1
+	burst.BorderSizePixel = 0
+	burst.ZIndex = 80
+	burst.Parent = screenGui
+	activeLevelUpBurst = burst
+	setCorner(burst, 8)
+
+	local stroke = setStroke(burst, ACCENT_GOLD, 1, 1)
+
+	local titleLabel = Instance.new("TextLabel")
+	titleLabel.Name = "Title"
+	titleLabel.Size = UDim2.new(1, -18, 0, 24)
+	titleLabel.Position = UDim2.fromOffset(9, 7)
+	titleLabel.BackgroundTransparency = 1
+	titleLabel.Text = "Crew Level Up"
+	titleLabel.TextColor3 = Color3.fromRGB(255, 234, 168)
+	titleLabel.TextTransparency = 1
+	titleLabel.TextSize = 15
+	titleLabel.Font = Enum.Font.GothamBlack
+	titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+	titleLabel.ZIndex = 81
+	titleLabel.Parent = burst
+
+	local detailLabel = Instance.new("TextLabel")
+	detailLabel.Name = "Detail"
+	detailLabel.Size = UDim2.new(1, -18, 0, 20)
+	detailLabel.Position = UDim2.fromOffset(9, 30)
+	detailLabel.BackgroundTransparency = 1
+	detailLabel.Text = "Level " .. tostring(level) .. " - +" .. tostring(fragmentBonus) .. " fragments"
+	detailLabel.TextColor3 = Color3.fromRGB(212, 255, 224)
+	detailLabel.TextTransparency = 1
+	detailLabel.TextSize = 12
+	detailLabel.Font = Enum.Font.GothamBold
+	detailLabel.TextXAlignment = Enum.TextXAlignment.Left
+	detailLabel.TextTruncate = Enum.TextTruncate.AtEnd
+	detailLabel.ZIndex = 81
+	detailLabel.Parent = burst
+
+	local scale = Instance.new("UIScale")
+	scale.Scale = 0.9
+	scale.Parent = burst
+
+	if LocalPlaySound and LocalPlaySound:IsA("BindableEvent") then
+		LocalPlaySound:Fire("crew_level_up")
+	end
+
+	TweenService:Create(burst, TweenInfo.new(0.14, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+		BackgroundTransparency = 0.08,
+		Position = UDim2.new(1, -20, 1, -166),
+	}):Play()
+	TweenService:Create(stroke, TweenInfo.new(0.14, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+		Transparency = 0.08,
+	}):Play()
+	TweenService:Create(titleLabel, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+		TextTransparency = 0,
+	}):Play()
+	TweenService:Create(detailLabel, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+		TextTransparency = 0,
+	}):Play()
+	TweenService:Create(scale, TweenInfo.new(0.2, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+		Scale = 1,
+	}):Play()
+
+	task.delay(1.15, function()
+		if sequence ~= levelUpBurstSequence or activeLevelUpBurst ~= burst then
+			return
+		end
+
+		TweenService:Create(burst, TweenInfo.new(0.26, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+			BackgroundTransparency = 1,
+			Position = UDim2.new(1, -20, 1, -174),
+		}):Play()
+		TweenService:Create(stroke, TweenInfo.new(0.22, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+			Transparency = 1,
+		}):Play()
+		TweenService:Create(titleLabel, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+			TextTransparency = 1,
+		}):Play()
+		TweenService:Create(detailLabel, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+			TextTransparency = 1,
+		}):Play()
+	end)
+
+	task.delay(1.5, function()
+		clearLevelUpBurst(sequence)
+	end)
+end
 
 local panel = Instance.new("Frame")
 panel.Name = "CrewPanel"
@@ -847,6 +970,16 @@ CrewUpdateEvent.OnClientEvent:Connect(function(payload)
 	if type(payload) == "table" then
 		if panel.Visible then
 			requestInventoryRefresh()
+		end
+		local levelUp = payload.levelUp
+		if type(levelUp) == "table" then
+			local level = tonumber(levelUp.level)
+			local fragmentBonus = tonumber(levelUp.fragmentBonus)
+			local levelUpKey = tostring(payload.crewId or "crew") .. ":" .. tostring(level) .. ":" .. tostring(payload.crewXP or 0)
+			if level and fragmentBonus and levelUpKey ~= lastLevelUpKey then
+				lastLevelUpKey = levelUpKey
+				showLevelUpBurst(math.floor(level), math.floor(fragmentBonus))
+			end
 		end
 		state = payload
 		if state.pendingInvite then
