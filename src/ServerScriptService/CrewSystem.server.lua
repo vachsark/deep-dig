@@ -690,7 +690,16 @@ CrewMailboxClaimEvent.OnServerEvent:Connect(function(player, mailboxId)
 
 	fireInventoryHud(player, data)
 	notify(player, "Claimed " .. clone.name .. " from your crew mailbox.", clone.rarity)
-	sendState(player)
+	sendState(player, {
+		mailboxClaimed = {
+			id = entry.id,
+			itemName = clone.name,
+			rarity = clone.rarity,
+			fromUserId = entry.fromUserId,
+			fromName = entry.fromName,
+			fromDisplayName = entry.fromDisplayName,
+		},
+	})
 end)
 
 GetCrewStateFunc.OnServerInvoke = function(player)

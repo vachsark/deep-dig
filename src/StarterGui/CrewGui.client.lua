@@ -69,6 +69,9 @@ local selectedMailboxRecipientUserId = nil
 local levelUpBurstSequence = 0
 local activeLevelUpBurst = nil
 local lastLevelUpKey = nil
+local mailboxClaimBurstSequence = 0
+local activeMailboxClaimBurst = nil
+local lastMailboxClaimKey = nil
 
 local LocalPlaySound = SoundService:FindFirstChild(LOCAL_PLAY_SOUND_NAME)
 if not LocalPlaySound then
@@ -117,6 +120,17 @@ local function clearLevelUpBurst(sequence)
 	if activeLevelUpBurst then
 		activeLevelUpBurst:Destroy()
 		activeLevelUpBurst = nil
+	end
+end
+
+local function clearMailboxClaimBurst(sequence)
+	if sequence and sequence ~= mailboxClaimBurstSequence then
+		return
+	end
+
+	if activeMailboxClaimBurst then
+		activeMailboxClaimBurst:Destroy()
+		activeMailboxClaimBurst = nil
 	end
 end
 
@@ -252,6 +266,107 @@ local function showLevelUpBurst(level, fragmentBonus)
 
 	task.delay(1.5, function()
 		clearLevelUpBurst(sequence)
+	end)
+end
+
+local function showMailboxClaimBurst(itemName, senderName, rarity)
+	mailboxClaimBurstSequence = mailboxClaimBurstSequence + 1
+	local sequence = mailboxClaimBurstSequence
+	clearMailboxClaimBurst()
+
+	local rarityColor = getRarityColor(rarity)
+	local burst = Instance.new("Frame")
+	burst.Name = "CrewMailboxClaimBurst"
+	burst.AnchorPoint = Vector2.new(1, 1)
+	burst.Position = UDim2.new(1, -20, 1, -224)
+	burst.Size = UDim2.fromOffset(236, 64)
+	burst.BackgroundColor3 = Color3.fromRGB(24, 34, 32)
+	burst.BackgroundTransparency = 1
+	burst.BorderSizePixel = 0
+	burst.ZIndex = 80
+	burst.Parent = screenGui
+	activeMailboxClaimBurst = burst
+	setCorner(burst, 8)
+
+	local stroke = setStroke(burst, rarityColor, 1, 1)
+
+	local titleLabel = Instance.new("TextLabel")
+	titleLabel.Name = "Title"
+	titleLabel.Size = UDim2.new(1, -18, 0, 22)
+	titleLabel.Position = UDim2.fromOffset(9, 7)
+	titleLabel.BackgroundTransparency = 1
+	titleLabel.Text = "Crew Mail Claimed"
+	titleLabel.TextColor3 = rarityColor
+	titleLabel.TextTransparency = 1
+	titleLabel.TextSize = 14
+	titleLabel.Font = Enum.Font.GothamBlack
+	titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+	titleLabel.TextTruncate = Enum.TextTruncate.AtEnd
+	titleLabel.ZIndex = 81
+	titleLabel.Parent = burst
+
+	local detailLabel = Instance.new("TextLabel")
+	detailLabel.Name = "Detail"
+	detailLabel.Size = UDim2.new(1, -18, 0, 26)
+	detailLabel.Position = UDim2.fromOffset(9, 29)
+	detailLabel.BackgroundTransparency = 1
+	detailLabel.Text = tostring(itemName) .. " from " .. tostring(senderName)
+	detailLabel.TextColor3 = TEXT_PRIMARY
+	detailLabel.TextTransparency = 1
+	detailLabel.TextSize = 12
+	detailLabel.Font = Enum.Font.GothamBold
+	detailLabel.TextXAlignment = Enum.TextXAlignment.Left
+	detailLabel.TextTruncate = Enum.TextTruncate.AtEnd
+	detailLabel.ZIndex = 81
+	detailLabel.Parent = burst
+
+	local scale = Instance.new("UIScale")
+	scale.Scale = 0.9
+	scale.Parent = burst
+
+	if LocalPlaySound and LocalPlaySound:IsA("BindableEvent") then
+		LocalPlaySound:Fire("crew_mail_claim")
+	end
+
+	TweenService:Create(burst, TweenInfo.new(0.14, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+		BackgroundTransparency = 0.06,
+		Position = UDim2.new(1, -20, 1, -232),
+	}):Play()
+	TweenService:Create(stroke, TweenInfo.new(0.14, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+		Transparency = 0.08,
+	}):Play()
+	TweenService:Create(titleLabel, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+		TextTransparency = 0,
+	}):Play()
+	TweenService:Create(detailLabel, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+		TextTransparency = 0,
+	}):Play()
+	TweenService:Create(scale, TweenInfo.new(0.2, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+		Scale = 1,
+	}):Play()
+
+	task.delay(1.2, function()
+		if sequence ~= mailboxClaimBurstSequence or activeMailboxClaimBurst ~= burst then
+			return
+		end
+
+		TweenService:Create(burst, TweenInfo.new(0.26, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+			BackgroundTransparency = 1,
+			Position = UDim2.new(1, -20, 1, -240),
+		}):Play()
+		TweenService:Create(stroke, TweenInfo.new(0.22, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+			Transparency = 1,
+		}):Play()
+		TweenService:Create(titleLabel, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+			TextTransparency = 1,
+		}):Play()
+		TweenService:Create(detailLabel, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+			TextTransparency = 1,
+		}):Play()
+	end)
+
+	task.delay(1.55, function()
+		clearMailboxClaimBurst(sequence)
 	end)
 end
 
@@ -979,6 +1094,17 @@ CrewUpdateEvent.OnClientEvent:Connect(function(payload)
 			if level and fragmentBonus and levelUpKey ~= lastLevelUpKey then
 				lastLevelUpKey = levelUpKey
 				showLevelUpBurst(math.floor(level), math.floor(fragmentBonus))
+			end
+		end
+		local mailboxClaimed = payload.mailboxClaimed
+		if type(mailboxClaimed) == "table" then
+			local itemName = tostring(mailboxClaimed.itemName or "Crew item")
+			local senderName = tostring(mailboxClaimed.fromDisplayName or mailboxClaimed.fromName or "Crew")
+			local rarity = tostring(mailboxClaimed.rarity or "Common")
+			local claimKey = tostring(mailboxClaimed.id or "mail") .. ":" .. itemName .. ":" .. senderName
+			if claimKey ~= lastMailboxClaimKey then
+				lastMailboxClaimKey = claimKey
+				showMailboxClaimBurst(itemName, senderName, rarity)
 			end
 		end
 		state = payload
