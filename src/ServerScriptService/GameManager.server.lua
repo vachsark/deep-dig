@@ -51,6 +51,10 @@ local BlockBrokenEvent = Instance.new("BindableEvent")
 BlockBrokenEvent.Name = "BlockBroken"
 BlockBrokenEvent.Parent = ServerEvents
 
+local TriggerWorldEvent = Instance.new("BindableEvent")
+TriggerWorldEvent.Name = "TriggerWorldEvent"
+TriggerWorldEvent.Parent = ServerEvents
+
 -- Fired per player after their persisted data finishes loading.
 -- Consumers (DailyStreak, Gamepasses, Leaderboard, Rebirth) wait on this
 -- instead of sleeping a fixed `task.wait(N)` and hoping GameManager beat
@@ -743,6 +747,25 @@ local function isEventActive(effectName)
 	return endTick and tick() < endTick
 end
 
+local function activateWorldEvent(event)
+	activeEvents[event.effect] = tick() + event.duration
+
+	-- SOUND HOOK: alarm horn when a world event triggers.
+	if PlaySound then
+		PlaySound:FireAllClients("event_alarm")
+	end
+
+	EventTriggeredEvent:FireAllClients(event.name, event.message, event.duration, event.effect)
+end
+
+TriggerWorldEvent.Event:Connect(function(event)
+	if type(event) ~= "table" or not event.effect then
+		return
+	end
+
+	activateWorldEvent(event)
+end)
+
 -- echo_blocks world event: re-implements ItemDatabase.rollItem locally so we can
 -- double the rarity weight on Legendary / Mythic for this single roll, without
 -- mutating the shared RARITY table. Mirrors ItemDatabase.rollItem() semantics
@@ -923,15 +946,7 @@ local function triggerRandomEvent(player)
 	if math.random() > chance then return end
 
 	local event = Config.EVENTS[math.random(#Config.EVENTS)]
-	activeEvents[event.effect] = tick() + event.duration
-
-	-- SOUND HOOK: alarm horn when a world event triggers (handled client-side via EventTriggeredEvent)
-	if PlaySound then
-		PlaySound:FireAllClients("event_alarm")
-	end
-
-	-- Notify all players
-	EventTriggeredEvent:FireAllClients(event.name, event.message, event.duration, event.effect)
+	activateWorldEvent(event)
 end
 
 BlockBrokenEvent.Event:Connect(function(player, blockPosition)

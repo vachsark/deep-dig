@@ -24,10 +24,11 @@ local Config = require(ReplicatedStorage:WaitForChild("Config"))
 local ItemDatabase = require(ReplicatedStorage:WaitForChild("ItemDatabase"))
 
 local Remotes = ReplicatedStorage:WaitForChild("Remotes")
+local ServerEvents = ReplicatedStorage:WaitForChild("ServerEvents")
 local NotifyEvent = Remotes:WaitForChild("Notify")
 local UpdateHUDEvent = Remotes:WaitForChild("UpdateHUD")
 local ItemFoundEvent = Remotes:WaitForChild("ItemFound")
-local EventTriggeredEvent = Remotes:WaitForChild("EventTriggered")
+local TriggerWorldEvent = ServerEvents:WaitForChild("TriggerWorldEvent")
 
 -- ═══════════════════════════════════════════════════════════════════
 -- Authorization
@@ -166,7 +167,7 @@ commands.event = function(player, args)
 		if e.effect == effect then match = e; break end
 	end
 	if not match then return notify(player, "unknown effect: " .. effect) end
-	EventTriggeredEvent:FireAllClients(match.name, match.message, match.duration)
+	TriggerWorldEvent:Fire(match)
 	notify(player, "fired " .. match.name, "Epic")
 end
 
