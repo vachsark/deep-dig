@@ -3691,6 +3691,120 @@ upCorner.CornerRadius = UDim.new(0, 8)
 upCorner.Parent = upgradeButton
 
 local currentToolTier = 1
+local updateUpgradeAffordance = function() end
+
+do
+	local upgradeStroke = Instance.new("UIStroke")
+	upgradeStroke.Color = Color3.fromRGB(85, 130, 245)
+	upgradeStroke.Thickness = 1
+	upgradeStroke.Transparency = 0.55
+	upgradeStroke.Parent = upgradeButton
+
+	local upgradeAffordance = {
+		currentCoins = 0,
+		currentNextToolCost = nil,
+		atMaxLevel = false,
+		ready = false,
+		sequence = 0,
+		tween = nil,
+		strokeTween = nil,
+		normalColor = Color3.fromRGB(40, 80, 200),
+		normalStrokeColor = Color3.fromRGB(85, 130, 245),
+		readyColor = Color3.fromRGB(225, 145, 35),
+		readyPulseColor = Color3.fromRGB(255, 190, 65),
+		readyStrokeColor = Color3.fromRGB(255, 220, 115),
+		maxColor = Color3.fromRGB(80, 80, 80),
+		maxStrokeColor = Color3.fromRGB(120, 120, 120),
+	}
+
+	local function stopUpgradeAffordanceTweens()
+		if upgradeAffordance.tween then
+			upgradeAffordance.tween:Cancel()
+			upgradeAffordance.tween = nil
+		end
+		if upgradeAffordance.strokeTween then
+			upgradeAffordance.strokeTween:Cancel()
+			upgradeAffordance.strokeTween = nil
+		end
+	end
+
+	local function scheduleUpgradeReadyPulse(sequence)
+		task.delay(0.65, function()
+			if sequence ~= upgradeAffordance.sequence or not upgradeAffordance.ready or upgradeAffordance.atMaxLevel then
+				return
+			end
+
+			stopUpgradeAffordanceTweens()
+			upgradeButton.BackgroundColor3 = upgradeAffordance.readyPulseColor
+			upgradeStroke.Color = upgradeAffordance.readyStrokeColor
+			upgradeStroke.Transparency = 0.02
+
+			upgradeAffordance.tween = TweenService:Create(
+				upgradeButton,
+				TweenInfo.new(0.42, Enum.EasingStyle.Sine, Enum.EasingDirection.Out),
+				{ BackgroundColor3 = upgradeAffordance.readyColor }
+			)
+			upgradeAffordance.strokeTween = TweenService:Create(
+				upgradeStroke,
+				TweenInfo.new(0.42, Enum.EasingStyle.Sine, Enum.EasingDirection.Out),
+				{ Transparency = 0.12 }
+			)
+
+			upgradeAffordance.tween:Play()
+			upgradeAffordance.strokeTween:Play()
+			upgradeAffordance.tween.Completed:Connect(function(playbackState)
+				if playbackState ~= Enum.PlaybackState.Completed
+					or sequence ~= upgradeAffordance.sequence
+					or not upgradeAffordance.ready then
+					return
+				end
+				scheduleUpgradeReadyPulse(sequence)
+			end)
+		end)
+	end
+
+	function updateUpgradeAffordance(coins, nextToolCost, atMaxLevel)
+		if coins ~= nil then
+			upgradeAffordance.currentCoins = coins
+		end
+		if nextToolCost ~= nil then
+			upgradeAffordance.currentNextToolCost = nextToolCost
+		end
+		if atMaxLevel ~= nil then
+			upgradeAffordance.atMaxLevel = atMaxLevel
+			if atMaxLevel then
+				upgradeAffordance.currentNextToolCost = nil
+			end
+		end
+
+		upgradeAffordance.sequence = upgradeAffordance.sequence + 1
+		local sequence = upgradeAffordance.sequence
+		stopUpgradeAffordanceTweens()
+
+		if upgradeAffordance.atMaxLevel then
+			upgradeAffordance.ready = false
+			upgradeButton.BackgroundColor3 = upgradeAffordance.maxColor
+			upgradeStroke.Color = upgradeAffordance.maxStrokeColor
+			upgradeStroke.Transparency = 0.45
+			return
+		end
+
+		local canAfford = upgradeAffordance.currentNextToolCost ~= nil
+			and upgradeAffordance.currentCoins >= upgradeAffordance.currentNextToolCost
+		upgradeAffordance.ready = canAfford
+
+		if canAfford then
+			upgradeButton.BackgroundColor3 = upgradeAffordance.readyColor
+			upgradeStroke.Color = upgradeAffordance.readyStrokeColor
+			upgradeStroke.Transparency = 0.12
+			scheduleUpgradeReadyPulse(sequence)
+		else
+			upgradeButton.BackgroundColor3 = upgradeAffordance.normalColor
+			upgradeStroke.Color = upgradeAffordance.normalStrokeColor
+			upgradeStroke.Transparency = 0.55
+		end
+	end
+end
 
 upgradeButton.MouseButton1Click:Connect(function()
 	Remotes.BuyTool:FireServer(currentToolTier + 1)
@@ -4327,6 +4441,11 @@ end
 local ingestResurfaceFields
 
 Remotes.UpdateHUD.OnClientEvent:Connect(function(data)
+	local upgradeAffordanceChanged = false
+	local affordanceCoins = nil
+	local affordanceNextToolCost = nil
+	local affordanceAtMaxLevel = nil
+
 	if data.coins then
 		local newCoins = math.floor(data.coins)
 		coinsLabel.Text = "🪙 " .. tostring(newCoins)
@@ -4335,6 +4454,8 @@ Remotes.UpdateHUD.OnClientEvent:Connect(function(data)
 			pulseCoinLabel(newCoins > previousCoinValue and "gain" or "loss")
 		end
 		previousCoinValue = newCoins
+		affordanceCoins = newCoins
+		upgradeAffordanceChanged = true
 	end
 	if data.depth then
 		local tierText = data.tierName or "Surface"
@@ -4363,11 +4484,18 @@ Remotes.UpdateHUD.OnClientEvent:Connect(function(data)
 		end
 		previousFragmentValue = newFragments
 	end
-	if data.nextToolCost and data.nextToolName then
+	if data.nextToolCost ~= nil and data.nextToolName then
 		upgradeButton.Text = "⬆️ " .. data.nextToolName .. " ($" .. data.nextToolCost .. ")"
+		affordanceNextToolCost = tonumber(data.nextToolCost)
+		affordanceAtMaxLevel = false
+		upgradeAffordanceChanged = true
 	elseif data.nextToolCost == nil and data.toolTier then
 		upgradeButton.Text = "⬆️ MAX LEVEL"
-		upgradeButton.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
+		affordanceAtMaxLevel = true
+		upgradeAffordanceChanged = true
+	end
+	if upgradeAffordanceChanged then
+		updateUpgradeAffordance(affordanceCoins, affordanceNextToolCost, affordanceAtMaxLevel)
 	end
 	if data.ownedGamepasses then
 		updatePassBadges(data.ownedGamepasses)
@@ -4646,8 +4774,14 @@ task.spawn(function()
 			task.delay(2, showTutorial)
 		end
 
-		if data.nextToolCost and data.nextToolName then
+		if data.nextToolCost ~= nil and data.nextToolName then
 			upgradeButton.Text = "⬆️ " .. data.nextToolName .. " ($" .. data.nextToolCost .. ")"
+			updateUpgradeAffordance(previousCoinValue, tonumber(data.nextToolCost), false)
+		elseif data.nextToolCost == nil and data.toolTier then
+			upgradeButton.Text = "⬆️ MAX LEVEL"
+			updateUpgradeAffordance(previousCoinValue, nil, true)
+		else
+			updateUpgradeAffordance(previousCoinValue, nil, nil)
 		end
 
 		if data.ownedGamepasses then
