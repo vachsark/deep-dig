@@ -29,6 +29,7 @@ local BAR_HEIGHT = 36
 local HIT_COLOR = Color3.fromRGB(255, 245, 160)
 local COIN_REWARD_COLOR = Color3.fromRGB(255, 214, 92)
 local FRAGMENT_REWARD_COLOR = Color3.fromRGB(124, 230, 255)
+local STREAK_REWARD_COLOR = Color3.fromRGB(255, 145, 85)
 local ENEMY_SPAWN_COLOR = Color3.fromRGB(198, 132, 62)
 local DEFEAT_COLOR = Color3.fromRGB(255, 95, 70)
 local MINIBOSS_DEFEAT_COLOR = Color3.fromRGB(255, 214, 92)
@@ -1371,10 +1372,16 @@ local function showRewardBurst(model, reward)
 
 	local coins = tonumber(reward.coins) or 0
 	local fragments = tonumber(reward.fragments) or 0
+	local streakCount = tonumber(reward.streakCount) or 1
+	local streakBonusCoins = tonumber(reward.streakBonusCoins) or 0
 	local item = reward.item
 	local isMiniboss = reward.isMiniboss == true
 	local hasItem = typeof(item) == "table" and item.name ~= nil
+	local hasStreakBonus = streakCount >= 2 and streakBonusCoins > 0
 	local lineCount = 2
+	if hasStreakBonus then
+		lineCount = lineCount + 1
+	end
 	if hasItem then
 		lineCount = lineCount + 1
 	end
@@ -1439,6 +1446,17 @@ local function showRewardBurst(model, reward)
 		Color3.fromRGB(8, 45, 62)
 	)
 	table.insert(fadeTargets, { label = fragmentLabel, stroke = fragmentStroke })
+
+	if hasStreakBonus then
+		local streakLabel, streakStroke = addRewardLabel(
+			container,
+			string.format("x%d streak +%d bonus", streakCount, math.floor(streakBonusCoins + 0.5)),
+			STREAK_REWARD_COLOR,
+			isMiniboss and 17 or 14,
+			Color3.fromRGB(70, 24, 10)
+		)
+		table.insert(fadeTargets, { label = streakLabel, stroke = streakStroke })
+	end
 
 	if hasItem then
 		local itemColor = item.color

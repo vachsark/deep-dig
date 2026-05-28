@@ -58,10 +58,15 @@ local WALK_RADIUS = 12
 local IDLE_WANDER_INTERVAL = 3
 local FIRST_ENEMY_DEPTH = 11
 local SPAWN_WINDUP_DURATION = 1.2
+local KILL_STREAK_WINDOW = 20
+local KILL_STREAK_BONUS_PER_KILL = 0.1
+local KILL_STREAK_MAX_BONUS = 0.5
 
 local liveEnemies = {}
 local enemiesByPlayer = {}
 local nextAttackAtByUserId = {}
+local killStreaksByUserId = {}
+local deathConnectionsByUserId = {}
 local sharedGlobals = getfenv()._G
 
 local function getSharedData(player)
@@ -162,10 +167,37 @@ local function addItemReward(player, data, tierName)
 	return nil
 end
 
-local function notifyEnemyReward(player, enemyName, enemy, itemReward)
+local function getEnemyKillStreakReward(player, baseCoins)
+	local userId = player.UserId
+	local now = os.clock()
+	local streak = killStreaksByUserId[userId]
+	local streakCount = 1
+
+	if streak and now <= streak.expiresAt then
+		streakCount = streak.count + 1
+	end
+
+	killStreaksByUserId[userId] = {
+		count = streakCount,
+		expiresAt = now + KILL_STREAK_WINDOW,
+	}
+
+	local bonusMultiplier = math.min((streakCount - 1) * KILL_STREAK_BONUS_PER_KILL, KILL_STREAK_MAX_BONUS)
+	local bonusCoins = math.floor((baseCoins * bonusMultiplier) + 0.5)
+	return streakCount, bonusCoins
+end
+
+local function clearEnemyKillStreak(player)
+	killStreaksByUserId[player.UserId] = nil
+end
+
+local function notifyEnemyReward(player, enemyName, enemy, coinReward, streakCount, streakBonusCoins, itemReward)
 	local message = "Defeated " .. enemyName
-		.. ": +" .. enemy.coinDrop .. " coins"
+		.. ": +" .. coinReward .. " coins"
 		.. ", +" .. enemy.fragmentDrop .. " fragments"
+	if streakCount >= 2 and streakBonusCoins > 0 then
+		message = message .. " (x" .. streakCount .. " streak +" .. streakBonusCoins .. ")"
+	end
 	if itemReward then
 		message = message .. ", found " .. itemReward.name
 	end
@@ -213,11 +245,13 @@ local function payEnemyReward(record)
 	end
 
 	local enemy = record.enemy
-	data.coins = (data.coins or 0) + enemy.coinDrop
+	local streakCount, streakBonusCoins = getEnemyKillStreakReward(player, enemy.coinDrop)
+	local coinReward = enemy.coinDrop + streakBonusCoins
+	data.coins = (data.coins or 0) + coinReward
 	data.fragments = (data.fragments or 0) + enemy.fragmentDrop
-	data.totalEarned = (data.totalEarned or 0) + enemy.coinDrop
+	data.totalEarned = (data.totalEarned or 0) + coinReward
 
-	fireQuestProgress(player, "coins_earned", { amount = enemy.coinDrop })
+	fireQuestProgress(player, "coins_earned", { amount = coinReward })
 	fireQuestProgress(player, "kill_enemies", { amount = 1 })
 	EnemyKilledBindable:Fire(player, enemy)
 
@@ -231,13 +265,18 @@ local function payEnemyReward(record)
 		player,
 		record.model:GetAttribute("EnemyName") or enemy.name,
 		enemy,
+		coinReward,
+		streakCount,
+		streakBonusCoins,
 		itemReward
 	)
 
 	local rewardSummary = {
-		coins = enemy.coinDrop,
+		coins = coinReward,
 		fragments = enemy.fragmentDrop,
 		isMiniboss = enemy.isMiniboss == true,
+		streakCount = streakCount,
+		streakBonusCoins = streakBonusCoins,
 	}
 	if itemReward then
 		rewardSummary.item = {
@@ -865,6 +904,34 @@ local function startSpawnLoop(player)
 	end)
 end
 
+local function watchPlayerDeath(player)
+	local function attachDeathClear(character)
+		local previousConnection = deathConnectionsByUserId[player.UserId]
+		if previousConnection then
+			previousConnection:Disconnect()
+		end
+
+		local humanoid = character:WaitForChild("Humanoid", 10)
+		if humanoid then
+			deathConnectionsByUserId[player.UserId] = humanoid.Died:Connect(function()
+				clearEnemyKillStreak(player)
+			end)
+		else
+			deathConnectionsByUserId[player.UserId] = nil
+		end
+	end
+
+	player.CharacterAdded:Connect(attachDeathClear)
+	if player.Character then
+		task.spawn(attachDeathClear, player.Character)
+	end
+end
+
+local function onPlayerAdded(player)
+	watchPlayerDeath(player)
+	startSpawnLoop(player)
+end
+
 local function staggerEnemy(record, playerRoot, enemyRoot)
 	record.staggerToken = (record.staggerToken or 0) + 1
 	record.staggeredUntil = os.clock() + STAGGER_DURATION
@@ -957,14 +1024,20 @@ EnemyHitEvent.OnServerEvent:Connect(function(player, enemyModel)
 	fireEnemyCombatFeedback(player, "hit", record.model, damage)
 end)
 
-Players.PlayerAdded:Connect(startSpawnLoop)
+Players.PlayerAdded:Connect(onPlayerAdded)
 
 for _, player in ipairs(Players:GetPlayers()) do
-	startSpawnLoop(player)
+	onPlayerAdded(player)
 end
 
 Players.PlayerRemoving:Connect(function(player)
 	nextAttackAtByUserId[player.UserId] = nil
+	clearEnemyKillStreak(player)
+	local deathConnection = deathConnectionsByUserId[player.UserId]
+	if deathConnection then
+		deathConnection:Disconnect()
+	end
+	deathConnectionsByUserId[player.UserId] = nil
 
 	local owned = enemiesByPlayer[player]
 	if owned then
