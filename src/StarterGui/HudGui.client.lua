@@ -3272,6 +3272,26 @@ local offlineIncomeClaimCorner = Instance.new("UICorner")
 offlineIncomeClaimCorner.CornerRadius = UDim.new(0, 8)
 offlineIncomeClaimCorner.Parent = offlineIncomeClaim
 
+(function(button)
+	button.Name = "ForemanPass"
+	button.Size = UDim2.new(0, 150, 0, 34)
+	button.Position = UDim2.new(0.5, -75, 1, -44)
+	button.BackgroundColor3 = Color3.fromRGB(95, 205, 160)
+	button.BorderSizePixel = 0
+	button.Text = "Foreman's Pass"
+	button.TextColor3 = Color3.fromRGB(8, 35, 24)
+	button.TextSize = 14
+	button.Font = Enum.Font.GothamBlack
+	button.Visible = false
+	button.ZIndex = 77
+	button.Parent = offlineIncomePanel
+
+	(function(corner)
+		corner.CornerRadius = UDim.new(0, 8)
+		corner.Parent = button
+	end)(Instance.new("UICorner"))
+end)(Instance.new("TextButton"))
+
 local showOfflineIncomePopup
 
 do
@@ -3279,7 +3299,30 @@ do
 		sequence = 0,
 		lastKey = nil,
 		tweens = {},
+		foremanUpsellActive = false,
+		foremanUpsellAvailable = false,
 	}
+	offlineIncomeState.foremanUpsell = offlineIncomePanel:WaitForChild("ForemanPass")
+
+	offlineIncomeState.formatDuration = function(seconds)
+		seconds = math.max(0, math.floor(seconds or 0))
+
+		local hours = math.floor(seconds / 3600)
+		local minutes = math.floor((seconds % 3600) / 60)
+
+		if hours > 0 and minutes > 0 then
+			return hours .. "h " .. minutes .. "m"
+		end
+
+		if hours > 0 then
+			return hours .. "h"
+		end
+
+		return minutes .. "m"
+	end
+
+	offlineIncomeState.normalCapDuration = offlineIncomeState.formatDuration(Config.OFFLINE_INCOME_DEFAULT_CAP_SECONDS)
+	offlineIncomeState.foremanCapDuration = offlineIncomeState.formatDuration(Config.OFFLINE_INCOME_FOREMAN_CAP_SECONDS)
 
 	local function clearOfflineIncomeTweens()
 		for _, tween in ipairs(offlineIncomeState.tweens) do
@@ -3317,6 +3360,12 @@ do
 		tweenOfflineIncome(offlineIncomeReward, 0.18, { TextTransparency = 1 }, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
 		tweenOfflineIncome(offlineIncomeBody, 0.18, { TextTransparency = 1 }, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
 		tweenOfflineIncome(offlineIncomeCap, 0.18, { TextTransparency = 1 }, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+		if offlineIncomeState.foremanUpsell.Visible then
+			tweenOfflineIncome(offlineIncomeState.foremanUpsell, 0.18, {
+				BackgroundTransparency = 1,
+				TextTransparency = 1,
+			}, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+		end
 		tweenOfflineIncome(offlineIncomeClaim, 0.18, {
 			BackgroundTransparency = 1,
 			TextTransparency = 1,
@@ -3338,6 +3387,8 @@ do
 		local countedDuration = summary.countedDuration or "0m"
 		local capDuration = summary.capDuration or "8h"
 		local popupKey = tostring(reward) .. "|" .. tostring(countedDuration) .. "|" .. tostring(capDuration) .. "|" .. tostring(summary.hitCap == true)
+		local showForemanUpsell = summary.hitCap == true and tostring(capDuration) == offlineIncomeState.normalCapDuration
+		local foremanPassAvailable = Config.isGamepassIdAvailable(Config.GAMEPASS_FOREMAN_ID)
 		if popupKey == offlineIncomeState.lastKey then
 			return
 		end
@@ -3345,18 +3396,49 @@ do
 		offlineIncomeState.lastKey = popupKey
 		offlineIncomeState.sequence = offlineIncomeState.sequence + 1
 		local sequence = offlineIncomeState.sequence
+		offlineIncomeState.foremanUpsellActive = showForemanUpsell
+		offlineIncomeState.foremanUpsellAvailable = foremanPassAvailable
 		clearOfflineIncomeTweens()
 
 		offlineIncomeReward.Text = "+" .. tostring(reward) .. " coins"
-		offlineIncomeBody.Text = "Offline time counted: " .. countedDuration
-		if summary.hitCap == true then
-			offlineIncomeCap.Text = "You hit the " .. capDuration .. " offline cap."
+		offlineIncomeClaim.Text = "Collect"
+		offlineIncomeClaim.Size = UDim2.new(0, 150, 0, 34)
+		offlineIncomeClaim.Position = UDim2.new(0.5, -75, 1, -44)
+		offlineIncomeClaim.BackgroundColor3 = Color3.fromRGB(255, 200, 50)
+		offlineIncomeClaim.TextColor3 = Color3.fromRGB(40, 20, 0)
+		offlineIncomeState.foremanUpsell.Visible = false
+		offlineIncomeState.foremanUpsell.Active = false
+		offlineIncomeState.foremanUpsell.AutoButtonColor = false
+		offlineIncomeState.foremanUpsell.BackgroundColor3 = Color3.fromRGB(95, 205, 160)
+		offlineIncomeState.foremanUpsell.TextColor3 = Color3.fromRGB(8, 35, 24)
+		offlineIncomeState.foremanUpsell.Text = "Foreman's Pass"
+
+		if showForemanUpsell then
+			offlineIncomeBody.Text = "You hit the " .. offlineIncomeState.normalCapDuration .. " offline cap. Foreman's Pass extends offline earnings to " .. offlineIncomeState.foremanCapDuration .. "."
+			offlineIncomeCap.Text = "Offline time counted: " .. countedDuration .. " of " .. offlineIncomeState.normalCapDuration
+			offlineIncomeClaim.Size = UDim2.new(0, 130, 0, 34)
+			offlineIncomeClaim.Position = UDim2.new(0.5, -140, 1, -44)
+			offlineIncomeState.foremanUpsell.Position = UDim2.new(0.5, -5, 1, -44)
+			offlineIncomeState.foremanUpsell.Visible = true
+			if foremanPassAvailable then
+				offlineIncomeState.foremanUpsell.Active = true
+				offlineIncomeState.foremanUpsell.AutoButtonColor = true
+			else
+				offlineIncomeState.foremanUpsell.Text = Config.UNAVAILABLE_GAMEPASS_LABEL or "Coming Soon"
+				offlineIncomeState.foremanUpsell.BackgroundColor3 = Color3.fromRGB(80, 76, 70)
+				offlineIncomeState.foremanUpsell.TextColor3 = Color3.fromRGB(190, 184, 170)
+			end
 		else
+			offlineIncomeBody.Text = "Offline time counted: " .. countedDuration
+		end
+		if summary.hitCap == true and not showForemanUpsell then
+			offlineIncomeCap.Text = "You hit the " .. capDuration .. " offline cap."
+		elseif not showForemanUpsell then
 			offlineIncomeCap.Text = "Cap window: " .. capDuration .. " (not reached)."
 		end
 
 		offlineIncomePanel.Visible = true
-		offlineIncomePanel.Size = UDim2.new(0, 370, 0, 182)
+		offlineIncomePanel.Size = showForemanUpsell and UDim2.new(0, 400, 0, 196) or UDim2.new(0, 370, 0, 182)
 		offlineIncomePanel.Position = UDim2.new(0.5, 0, 0.53, 0)
 		offlineIncomePanel.BackgroundTransparency = 1
 		offlineIncomeStroke.Transparency = 1
@@ -3366,9 +3448,11 @@ do
 		offlineIncomeCap.TextTransparency = 1
 		offlineIncomeClaim.BackgroundTransparency = 1
 		offlineIncomeClaim.TextTransparency = 1
+		offlineIncomeState.foremanUpsell.BackgroundTransparency = 1
+		offlineIncomeState.foremanUpsell.TextTransparency = 1
 
 		tweenOfflineIncome(offlineIncomePanel, 0.18, {
-			Size = UDim2.new(0, 390, 0, 190),
+			Size = showForemanUpsell and UDim2.new(0, 420, 0, 204) or UDim2.new(0, 390, 0, 190),
 			Position = UDim2.new(0.5, 0, 0.5, 0),
 			BackgroundTransparency = 0.04,
 		}, Enum.EasingStyle.Back)
@@ -3381,6 +3465,12 @@ do
 			BackgroundTransparency = 0,
 			TextTransparency = 0,
 		})
+		if showForemanUpsell then
+			tweenOfflineIncome(offlineIncomeState.foremanUpsell, 0.2, {
+				BackgroundTransparency = 0,
+				TextTransparency = 0,
+			})
+		end
 
 		if LocalPlaySound and LocalPlaySound:IsA("BindableEvent") then
 			LocalPlaySound:Fire("sell_coins")
@@ -3397,6 +3487,15 @@ do
 
 	offlineIncomeClaim.MouseButton1Click:Connect(function()
 		hideOfflineIncomePopup()
+	end)
+
+	offlineIncomeState.foremanUpsell.MouseButton1Click:Connect(function()
+		if not offlineIncomeState.foremanUpsellActive or not offlineIncomeState.foremanUpsellAvailable then
+			return
+		end
+		if Remotes:FindFirstChild("PromptGamepass") then
+			Remotes.PromptGamepass:FireServer(Config.GAMEPASS_FOREMAN_ID)
+		end
 	end)
 end
 
