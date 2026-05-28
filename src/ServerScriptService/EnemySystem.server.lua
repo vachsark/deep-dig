@@ -61,6 +61,7 @@ local SPAWN_WINDUP_DURATION = 1.2
 local KILL_STREAK_WINDOW = 20
 local KILL_STREAK_BONUS_PER_KILL = 0.1
 local KILL_STREAK_MAX_BONUS = 0.5
+local COMBAT_GRACE_ATTRIBUTE = "DeepDig_CombatGraceUntil"
 
 local liveEnemies = {}
 local enemiesByPlayer = {}
@@ -392,6 +393,11 @@ local function getTouchAttackRange(record)
 	return (largestEnemyAxis * 0.5) + TOUCH_ATTACK_RANGE_TOLERANCE
 end
 
+local function hasActiveCombatGrace(player)
+	local graceUntil = player:GetAttribute(COMBAT_GRACE_ATTRIBUTE)
+	return type(graceUntil) == "number" and os.clock() < graceUntil
+end
+
 local function isEnemyEmerging(record)
 	if not record then
 		return false
@@ -436,6 +442,9 @@ local function applyPendingTouchAttack(record, player, userId)
 	if not humanoid or not playerRoot then
 		return
 	end
+	if hasActiveCombatGrace(player) then
+		return
+	end
 
 	if (playerRoot.Position - record.root.Position).Magnitude > getTouchAttackRange(record) then
 		return
@@ -466,6 +475,9 @@ local function handleTouched(record, hit)
 
 	local _, humanoid = getAliveCharacterParts(player)
 	if not humanoid then
+		return
+	end
+	if hasActiveCombatGrace(player) then
 		return
 	end
 

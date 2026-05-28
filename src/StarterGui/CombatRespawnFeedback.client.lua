@@ -27,6 +27,7 @@ local CAMERA_BINDING_NAME = "DeepDigCombatRespawnBump"
 local CAMERA_BUMP_DURATION = 0.34
 local CAMERA_POSITION_STRENGTH = 0.11
 local CAMERA_ROTATION_STRENGTH = math.rad(0.34)
+local DEFAULT_GRACE_DURATION = 0
 
 local effectSequence = 0
 local activeGui = nil
@@ -107,7 +108,8 @@ local function makeLabel(parent, name, text, position, size, textSize, color)
 	return label
 end
 
-local function playResurfaceFeedback()
+local function playResurfaceFeedback(graceDuration)
+	graceDuration = math.max(tonumber(graceDuration) or DEFAULT_GRACE_DURATION, 0)
 	effectSequence = effectSequence + 1
 	local sequence = effectSequence
 
@@ -161,6 +163,15 @@ local function playResurfaceFeedback()
 	redWash.ZIndex = 11
 	redWash.Parent = screenGui
 
+	local protectionGlow = Instance.new("Frame")
+	protectionGlow.Name = "ProtectionGlow"
+	protectionGlow.Size = UDim2.fromScale(1, 1)
+	protectionGlow.BackgroundColor3 = Color3.fromRGB(80, 220, 255)
+	protectionGlow.BackgroundTransparency = 1
+	protectionGlow.BorderSizePixel = 0
+	protectionGlow.ZIndex = 10
+	protectionGlow.Parent = screenGui
+
 	local title = makeLabel(
 		screenGui,
 		"Title",
@@ -182,6 +193,69 @@ local function playResurfaceFeedback()
 	)
 	subtitle.Font = Enum.Font.GothamBold
 
+	local protectionPanel = Instance.new("Frame")
+	protectionPanel.Name = "ProtectionPanel"
+	protectionPanel.AnchorPoint = Vector2.new(0.5, 0.5)
+	protectionPanel.Position = UDim2.fromScale(0.5, 0.56)
+	protectionPanel.Size = UDim2.fromOffset(250, 46)
+	protectionPanel.BackgroundColor3 = Color3.fromRGB(17, 37, 43)
+	protectionPanel.BackgroundTransparency = 1
+	protectionPanel.BorderSizePixel = 0
+	protectionPanel.ZIndex = 12
+	protectionPanel.Visible = graceDuration > 0
+	protectionPanel.Parent = screenGui
+
+	local protectionStroke = Instance.new("UIStroke")
+	protectionStroke.Name = "ProtectionStroke"
+	protectionStroke.Color = Color3.fromRGB(128, 238, 255)
+	protectionStroke.Transparency = 1
+	protectionStroke.Thickness = 2
+	protectionStroke.Parent = protectionPanel
+
+	local protectionLabel = makeLabel(
+		protectionPanel,
+		"ProtectionLabel",
+		"PROTECTED",
+		UDim2.fromScale(0.5, 0.36),
+		UDim2.fromOffset(220, 20),
+		16,
+		Color3.fromRGB(220, 252, 255)
+	)
+	protectionLabel.ZIndex = 13
+	protectionLabel.Font = Enum.Font.GothamBlack
+
+	local countdownLabel = makeLabel(
+		protectionPanel,
+		"CountdownLabel",
+		"",
+		UDim2.fromScale(0.5, 0.7),
+		UDim2.fromOffset(220, 16),
+		13,
+		Color3.fromRGB(142, 232, 255)
+	)
+	countdownLabel.ZIndex = 13
+	countdownLabel.Font = Enum.Font.GothamBold
+
+	local barBack = Instance.new("Frame")
+	barBack.Name = "CountdownBack"
+	barBack.AnchorPoint = Vector2.new(0.5, 1)
+	barBack.Position = UDim2.fromScale(0.5, 1)
+	barBack.Size = UDim2.new(1, -18, 0, 3)
+	barBack.BackgroundColor3 = Color3.fromRGB(35, 72, 78)
+	barBack.BackgroundTransparency = 1
+	barBack.BorderSizePixel = 0
+	barBack.ZIndex = 13
+	barBack.Parent = protectionPanel
+
+	local barFill = Instance.new("Frame")
+	barFill.Name = "CountdownFill"
+	barFill.Size = UDim2.fromScale(1, 1)
+	barFill.BackgroundColor3 = Color3.fromRGB(128, 238, 255)
+	barFill.BackgroundTransparency = 1
+	barFill.BorderSizePixel = 0
+	barFill.ZIndex = 14
+	barFill.Parent = barBack
+
 	local scale = Instance.new("UIScale")
 	scale.Scale = 0.96
 	scale.Parent = title
@@ -194,9 +268,47 @@ local function playResurfaceFeedback()
 
 	TweenService:Create(overlay, fadeInInfo, { BackgroundTransparency = 0.32 }):Play()
 	TweenService:Create(redWash, fadeInInfo, { BackgroundTransparency = 0.72 }):Play()
+	TweenService:Create(protectionGlow, fadeInInfo, { BackgroundTransparency = graceDuration > 0 and 0.86 or 1 }):Play()
 	TweenService:Create(title, fadeInInfo, { TextTransparency = 0 }):Play()
 	TweenService:Create(subtitle, fadeInInfo, { TextTransparency = 0.08 }):Play()
 	TweenService:Create(scale, settleInfo, { Scale = 1 }):Play()
+
+	if graceDuration > 0 then
+		TweenService:Create(protectionPanel, fadeInInfo, { BackgroundTransparency = 0.18 }):Play()
+		TweenService:Create(protectionStroke, fadeInInfo, { Transparency = 0.15 }):Play()
+		TweenService:Create(protectionLabel, fadeInInfo, { TextTransparency = 0 }):Play()
+		TweenService:Create(countdownLabel, fadeInInfo, { TextTransparency = 0.02 }):Play()
+		TweenService:Create(barBack, fadeInInfo, { BackgroundTransparency = 0.2 }):Play()
+		TweenService:Create(barFill, fadeInInfo, { BackgroundTransparency = 0 }):Play()
+
+		local graceStartedAt = os.clock()
+		task.spawn(function()
+			while sequence == effectSequence and not cleaned do
+				local remaining = math.max(graceDuration - (os.clock() - graceStartedAt), 0)
+				countdownLabel.Text = string.format("%.1fs shield", remaining)
+				barFill.Size = UDim2.fromScale(graceDuration > 0 and remaining / graceDuration or 0, 1)
+
+				if remaining <= 0 then
+					break
+				end
+				task.wait(0.05)
+			end
+
+			if sequence ~= effectSequence or cleaned then
+				return
+			end
+
+			countdownLabel.Text = "Shield ended"
+			barFill.Size = UDim2.fromScale(0, 1)
+			TweenService:Create(protectionGlow, fadeOutInfo, { BackgroundTransparency = 1 }):Play()
+			TweenService:Create(protectionPanel, fadeOutInfo, { BackgroundTransparency = 1 }):Play()
+			TweenService:Create(protectionStroke, fadeOutInfo, { Transparency = 1 }):Play()
+			TweenService:Create(protectionLabel, fadeOutInfo, { TextTransparency = 1 }):Play()
+			TweenService:Create(countdownLabel, fadeOutInfo, { TextTransparency = 1 }):Play()
+			TweenService:Create(barBack, fadeOutInfo, { BackgroundTransparency = 1 }):Play()
+			TweenService:Create(barFill, fadeOutInfo, { BackgroundTransparency = 1 }):Play()
+		end)
+	end
 
 	task.delay(0.56, function()
 		if sequence ~= effectSequence or cleaned then
@@ -205,11 +317,14 @@ local function playResurfaceFeedback()
 
 		TweenService:Create(overlay, fadeOutInfo, { BackgroundTransparency = 1 }):Play()
 		TweenService:Create(redWash, fadeOutInfo, { BackgroundTransparency = 1 }):Play()
+		if graceDuration <= 0 then
+			TweenService:Create(protectionGlow, fadeOutInfo, { BackgroundTransparency = 1 }):Play()
+		end
 		TweenService:Create(title, fadeOutInfo, { TextTransparency = 1 }):Play()
 		TweenService:Create(subtitle, fadeOutInfo, { TextTransparency = 1 }):Play()
 	end)
 
-	task.delay(0.94, function()
+	task.delay(math.max(0.94, graceDuration + 0.38), function()
 		if sequence ~= effectSequence then
 			return
 		end
@@ -223,5 +338,5 @@ CombatRespawnFeedback.OnClientEvent:Connect(function(payload)
 		return
 	end
 
-	playResurfaceFeedback()
+	playResurfaceFeedback(payload.graceDuration)
 end)

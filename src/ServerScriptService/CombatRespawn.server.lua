@@ -15,6 +15,8 @@ end
 
 local ENEMY_DAMAGE_WINDOW = 6
 local RESPAWN_WINDOW = 20
+local COMBAT_GRACE_DURATION = 3
+local COMBAT_GRACE_ATTRIBUTE = "DeepDig_CombatGraceUntil"
 local SURFACE_OFFSET = Vector3.new(0, 5, 0)
 local pendingCombatRespawnAtByUserId = {}
 
@@ -58,8 +60,18 @@ local function surfaceCharacter(player, character)
 
 	pendingCombatRespawnAtByUserId[player.UserId] = nil
 	character:PivotTo(getSurfaceCFrame())
+
+	local graceUntil = os.clock() + COMBAT_GRACE_DURATION
+	player:SetAttribute(COMBAT_GRACE_ATTRIBUTE, graceUntil)
+	task.delay(COMBAT_GRACE_DURATION, function()
+		if player.Parent == Players and player:GetAttribute(COMBAT_GRACE_ATTRIBUTE) == graceUntil then
+			player:SetAttribute(COMBAT_GRACE_ATTRIBUTE, nil)
+		end
+	end)
+
 	CombatRespawnFeedback:FireClient(player, {
 		type = "enemy_knockout_resurface",
+		graceDuration = COMBAT_GRACE_DURATION,
 	})
 	NotifyEvent:FireClient(player, "Knocked out - resurfaced safely.", "Common")
 end
@@ -103,4 +115,5 @@ end
 
 Players.PlayerRemoving:Connect(function(player)
 	pendingCombatRespawnAtByUserId[player.UserId] = nil
+	player:SetAttribute(COMBAT_GRACE_ATTRIBUTE, nil)
 end)
