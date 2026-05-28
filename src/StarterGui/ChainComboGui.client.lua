@@ -17,6 +17,7 @@ local ChainComboUpdate = Remotes:WaitForChild("ChainComboUpdate", 10)
 if not ChainComboUpdate then return end
 
 local SHOW_THRESHOLD = 5 -- match ChainCombo.server.lua's first tier
+local URGENCY_WINDOW = 0.75
 
 local screenGui = Instance.new("ScreenGui")
 screenGui.Name = "DeepDigChainCombo"
@@ -37,6 +38,7 @@ frame.BackgroundTransparency = 0.15
 frame.BorderSizePixel = 0
 frame.Visible = false
 frame.Parent = screenGui
+local FRAME_BASE_POSITION = frame.Position
 
 local corner = Instance.new("UICorner")
 corner.CornerRadius = UDim.new(0, 10)
@@ -89,6 +91,8 @@ barFill.Size = UDim2.new(1, 0, 1, 0)
 barFill.BackgroundColor3 = Color3.fromRGB(255, 200, 60)
 barFill.BorderSizePixel = 0
 barFill.Parent = barBg
+local BAR_FILL_BASE_COLOR = barFill.BackgroundColor3
+local BAR_FILL_URGENCY_COLOR = Color3.fromRGB(255, 70, 70)
 
 local barFillCorner = Instance.new("UICorner")
 barFillCorner.CornerRadius = UDim.new(1, 0)
@@ -100,6 +104,20 @@ local state = {
 	expiresAt = 0,
 	window = 3,
 }
+
+local urgencyActive = false
+
+local function setUrgency(active)
+	if urgencyActive == active then return end
+	urgencyActive = active
+
+	if active then
+		barFill.BackgroundColor3 = BAR_FILL_URGENCY_COLOR
+	else
+		barFill.BackgroundColor3 = BAR_FILL_BASE_COLOR
+		frame.Position = FRAME_BASE_POSITION
+	end
+end
 
 local function refreshLabels()
 	streakLabel.Text = "x" .. state.streak
@@ -132,6 +150,7 @@ ChainComboUpdate.OnClientEvent:Connect(function(streak, mult, secondsLeft, windo
 	state.mult = mult or 1.0
 	state.window = window or state.window
 	state.expiresAt = os.clock() + (secondsLeft or 0)
+	setUrgency(false)
 
 	if state.streak >= SHOW_THRESHOLD then
 		local wasHidden = not frame.Visible
@@ -161,16 +180,30 @@ ChainComboUpdate.OnClientEvent:Connect(function(streak, mult, secondsLeft, windo
 		end
 	else
 		-- Below threshold (or 0): hide
+		setUrgency(false)
 		frame.Visible = false
 	end
 end)
 
 RunService.RenderStepped:Connect(function()
-	if not frame.Visible then return end
+	if not frame.Visible then
+		setUrgency(false)
+		return
+	end
+
 	local timeLeft = math.max(0, state.expiresAt - os.clock())
 	local pct = math.clamp(timeLeft / state.window, 0, 1)
 	barFill.Size = UDim2.new(pct, 0, 1, 0)
+
+	local shouldWarn = timeLeft > 0 and timeLeft < URGENCY_WINDOW
+	setUrgency(shouldWarn)
+	if urgencyActive then
+		local shakeX = math.sin(os.clock() * 46) * 3
+		frame.Position = FRAME_BASE_POSITION + UDim2.new(0, shakeX, 0, 0)
+	end
+
 	if timeLeft <= 0 then
+		setUrgency(false)
 		frame.Visible = false
 	end
 end)
