@@ -556,6 +556,221 @@ seasonBadgeDetail.Font = Enum.Font.GothamBold
 seasonBadgeDetail.TextXAlignment = Enum.TextXAlignment.Left
 seasonBadgeDetail.Parent = seasonBadge
 
+DeepDigActiveEventHud = {
+	token = 0,
+	fadeTween = nil,
+	styles = {
+		["2x_rare"] = {
+			accent = Color3.fromRGB(115, 175, 255),
+			background = Color3.fromRGB(22, 38, 66),
+			title = "Fossil Layer",
+			detail = "2x rare finds",
+		},
+		bonus_loot = {
+			accent = Color3.fromRGB(130, 230, 180),
+			background = Color3.fromRGB(20, 55, 42),
+			title = "Cave System",
+			detail = "Bonus loot",
+		},
+		gold_rush = {
+			accent = Color3.fromRGB(255, 200, 70),
+			background = Color3.fromRGB(72, 48, 18),
+			title = "Gold Vein",
+			detail = "3x sell value",
+		},
+		lucky_hour = {
+			accent = Color3.fromRGB(120, 235, 95),
+			background = Color3.fromRGB(28, 62, 34),
+			title = "Lucky Hour",
+			detail = "Loot luck boosted",
+		},
+		echo_blocks = {
+			accent = Color3.fromRGB(190, 145, 255),
+			background = Color3.fromRGB(44, 34, 66),
+			title = "Echoes from Below",
+			detail = "Legendary chance up",
+		},
+		earthquake = {
+			accent = Color3.fromRGB(255, 120, 75),
+			background = Color3.fromRGB(72, 34, 24),
+			title = "Earthquake",
+			detail = "Bonus rumble coins",
+		},
+		instant_dig = {
+			accent = Color3.fromRGB(255, 145, 90),
+			background = Color3.fromRGB(70, 38, 26),
+			title = "Earthquake",
+			detail = "Layers crumbling",
+		},
+		halloween_loot = {
+			accent = SEASON_BADGE_STYLES.halloween_loot.stroke,
+			background = SEASON_BADGE_STYLES.halloween_loot.background,
+			title = SEASON_BADGE_STYLES.halloween_loot.title,
+			detail = SEASON_BADGE_STYLES.halloween_loot.detail,
+		},
+		winter_loot = {
+			accent = SEASON_BADGE_STYLES.winter_loot.stroke,
+			background = SEASON_BADGE_STYLES.winter_loot.background,
+			title = SEASON_BADGE_STYLES.winter_loot.title,
+			detail = SEASON_BADGE_STYLES.winter_loot.detail,
+		},
+		spring_loot = {
+			accent = SEASON_BADGE_STYLES.spring_loot.stroke,
+			background = SEASON_BADGE_STYLES.spring_loot.background,
+			title = SEASON_BADGE_STYLES.spring_loot.title,
+			detail = SEASON_BADGE_STYLES.spring_loot.detail,
+		},
+		summer_loot = {
+			accent = SEASON_BADGE_STYLES.summer_loot.stroke,
+			background = SEASON_BADGE_STYLES.summer_loot.background,
+			title = SEASON_BADGE_STYLES.summer_loot.title,
+			detail = SEASON_BADGE_STYLES.summer_loot.detail,
+		},
+		fallback = {
+			accent = Color3.fromRGB(220, 220, 230),
+			background = Color3.fromRGB(34, 36, 46),
+			title = "World Event",
+			detail = "Temporary buff",
+		},
+	},
+}
+
+do
+	local activeEventHud = DeepDigActiveEventHud
+
+	activeEventHud.frame = Instance.new("Frame")
+	activeEventHud.frame.Name = "ActiveEventPill"
+	activeEventHud.frame.Size = UDim2.new(0, 270, 0, 38)
+	activeEventHud.frame.Position = UDim2.new(1, -290, 0, 58)
+	activeEventHud.frame.BackgroundColor3 = activeEventHud.styles.fallback.background
+	activeEventHud.frame.BackgroundTransparency = 0.08
+	activeEventHud.frame.BorderSizePixel = 0
+	activeEventHud.frame.Visible = false
+	activeEventHud.frame.Parent = screenGui
+
+	activeEventHud.corner = Instance.new("UICorner")
+	activeEventHud.corner.CornerRadius = UDim.new(0, 7)
+	activeEventHud.corner.Parent = activeEventHud.frame
+
+	activeEventHud.stroke = Instance.new("UIStroke")
+	activeEventHud.stroke.Thickness = 2
+	activeEventHud.stroke.Color = activeEventHud.styles.fallback.accent
+	activeEventHud.stroke.Transparency = 0.15
+	activeEventHud.stroke.Parent = activeEventHud.frame
+
+	activeEventHud.title = Instance.new("TextLabel")
+	activeEventHud.title.Name = "Title"
+	activeEventHud.title.Size = UDim2.new(1, -72, 0, 18)
+	activeEventHud.title.Position = UDim2.new(0, 11, 0, 4)
+	activeEventHud.title.BackgroundTransparency = 1
+	activeEventHud.title.Text = ""
+	activeEventHud.title.TextColor3 = Color3.fromRGB(255, 255, 255)
+	activeEventHud.title.TextSize = 13
+	activeEventHud.title.Font = Enum.Font.GothamBlack
+	activeEventHud.title.TextXAlignment = Enum.TextXAlignment.Left
+	activeEventHud.title.TextTruncate = Enum.TextTruncate.AtEnd
+	activeEventHud.title.Parent = activeEventHud.frame
+
+	activeEventHud.detail = Instance.new("TextLabel")
+	activeEventHud.detail.Name = "Detail"
+	activeEventHud.detail.Size = UDim2.new(1, -72, 0, 15)
+	activeEventHud.detail.Position = UDim2.new(0, 11, 0, 21)
+	activeEventHud.detail.BackgroundTransparency = 1
+	activeEventHud.detail.Text = ""
+	activeEventHud.detail.TextColor3 = Color3.fromRGB(220, 225, 235)
+	activeEventHud.detail.TextSize = 11
+	activeEventHud.detail.Font = Enum.Font.GothamBold
+	activeEventHud.detail.TextXAlignment = Enum.TextXAlignment.Left
+	activeEventHud.detail.TextTruncate = Enum.TextTruncate.AtEnd
+	activeEventHud.detail.Parent = activeEventHud.frame
+
+	activeEventHud.timer = Instance.new("TextLabel")
+	activeEventHud.timer.Name = "Timer"
+	activeEventHud.timer.Size = UDim2.new(0, 52, 0, 28)
+	activeEventHud.timer.Position = UDim2.new(1, -60, 0, 5)
+	activeEventHud.timer.BackgroundTransparency = 1
+	activeEventHud.timer.Text = "0s"
+	activeEventHud.timer.TextColor3 = activeEventHud.styles.fallback.accent
+	activeEventHud.timer.TextSize = 16
+	activeEventHud.timer.Font = Enum.Font.GothamBlack
+	activeEventHud.timer.TextXAlignment = Enum.TextXAlignment.Right
+	activeEventHud.timer.Parent = activeEventHud.frame
+
+	local function restoreActiveEventPillTransparency()
+		activeEventHud.frame.BackgroundTransparency = 0.08
+		activeEventHud.stroke.Transparency = 0.15
+		activeEventHud.title.TextTransparency = 0
+		activeEventHud.detail.TextTransparency = 0
+		activeEventHud.timer.TextTransparency = 0
+	end
+
+	local function fadeActiveEventPill(token)
+		if token ~= activeEventHud.token then
+			return
+		end
+
+		activeEventHud.fadeTween = TweenService:Create(
+			activeEventHud.frame,
+			TweenInfo.new(0.35, Enum.EasingStyle.Quad, Enum.EasingDirection.In),
+			{ BackgroundTransparency = 1 }
+		)
+		local strokeFade = TweenService:Create(activeEventHud.stroke, TweenInfo.new(0.35), { Transparency = 1 })
+		local titleFade = TweenService:Create(activeEventHud.title, TweenInfo.new(0.35), { TextTransparency = 1 })
+		local detailFade = TweenService:Create(activeEventHud.detail, TweenInfo.new(0.35), { TextTransparency = 1 })
+		local timerFade = TweenService:Create(activeEventHud.timer, TweenInfo.new(0.35), { TextTransparency = 1 })
+
+		activeEventHud.fadeTween:Play()
+		strokeFade:Play()
+		titleFade:Play()
+		detailFade:Play()
+		timerFade:Play()
+		activeEventHud.fadeTween.Completed:Connect(function()
+			if token ~= activeEventHud.token then
+				return
+			end
+			activeEventHud.frame.Visible = false
+			restoreActiveEventPillTransparency()
+		end)
+	end
+
+	function activeEventHud.show(eventName, message, duration, effectId)
+		activeEventHud.token = activeEventHud.token + 1
+		local token = activeEventHud.token
+		local style = activeEventHud.styles[effectId] or activeEventHud.styles.fallback
+		local remainingSeconds = math.max(0, math.floor(tonumber(duration) or 0))
+
+		if activeEventHud.fadeTween then
+			activeEventHud.fadeTween:Cancel()
+			activeEventHud.fadeTween = nil
+		end
+
+		restoreActiveEventPillTransparency()
+		activeEventHud.frame.BackgroundColor3 = style.background
+		activeEventHud.stroke.Color = style.accent
+		activeEventHud.timer.TextColor3 = style.accent
+		activeEventHud.title.Text = tostring(eventName or style.title)
+		activeEventHud.detail.Text = style.detail or tostring(message or "Temporary buff")
+		activeEventHud.timer.Text = tostring(remainingSeconds) .. "s"
+		activeEventHud.frame.Visible = true
+
+		task.spawn(function()
+			local endsAt = os.clock() + remainingSeconds
+			while token == activeEventHud.token do
+				remainingSeconds = math.max(0, math.ceil(endsAt - os.clock()))
+				activeEventHud.timer.Text = tostring(remainingSeconds) .. "s"
+
+				if remainingSeconds <= 0 then
+					break
+				end
+
+				task.wait(0.25)
+			end
+
+			fadeActiveEventPill(token)
+		end)
+	end
+end
+
 local halloweenAmbienceLayer = Instance.new("Frame")
 halloweenAmbienceLayer.Name = "HalloweenAmbience"
 halloweenAmbienceLayer.Size = UDim2.new(1, 0, 1, 0)
@@ -4543,6 +4758,8 @@ end)
 
 Remotes.EventTriggered.OnClientEvent:Connect(function(eventName, message, duration, effectId)
 	local seasonBadgeUpdated = updateSeasonBadge(effectId)
+	DeepDigActiveEventHud.show(eventName, message, duration, effectId)
+
 	if seasonBadgeUpdated and LocalPlaySound and LocalPlaySound:IsA("BindableEvent") then
 		LocalPlaySound:Fire("event_alarm")
 	end
