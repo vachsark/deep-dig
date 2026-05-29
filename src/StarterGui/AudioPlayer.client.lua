@@ -135,6 +135,12 @@ local SOUNDS = {
 		playbackSpeed = 1.26,
 		pitchRange = { 1.02, 1.08 },
 	},
+	quest_ready = {
+		id = "rbxassetid://4612375287", -- compact ready sparkle
+		volume = 0.54,
+		playbackSpeed = 1.18,
+		pitchRange = { 1.0, 1.06 },
+	},
 	crew_bonus = {
 		id = "rbxassetid://6837730320", -- compact co-op fragment bonus chime
 		volume = 0.52,

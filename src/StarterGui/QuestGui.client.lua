@@ -298,6 +298,33 @@ toggleStroke.Thickness = 1
 toggleStroke.Transparency = 0.2
 toggleStroke.Parent = toggleButton
 
+local questReadyBurst = Instance.new("TextLabel")
+questReadyBurst.Name = "QuestReadyBurst"
+questReadyBurst.AnchorPoint = Vector2.new(0.5, 0.5)
+questReadyBurst.Size = UDim2.fromOffset(146, 24)
+questReadyBurst.Position = UDim2.new(1, -93, 1, -88)
+questReadyBurst.BackgroundColor3 = COLOR_ACCENT
+questReadyBurst.BackgroundTransparency = 1
+questReadyBurst.BorderSizePixel = 0
+questReadyBurst.Text = "Quest Ready"
+questReadyBurst.TextColor3 = Color3.fromRGB(38, 28, 0)
+questReadyBurst.TextTransparency = 1
+questReadyBurst.TextSize = 13
+questReadyBurst.Font = Enum.Font.GothamBlack
+questReadyBurst.ZIndex = 22
+questReadyBurst.Visible = false
+questReadyBurst.Parent = screenGui
+
+local questReadyBurstCorner = Instance.new("UICorner")
+questReadyBurstCorner.CornerRadius = UDim.new(0, 7)
+questReadyBurstCorner.Parent = questReadyBurst
+
+local questReadyBurstStroke = Instance.new("UIStroke")
+questReadyBurstStroke.Color = Color3.fromRGB(255, 240, 150)
+questReadyBurstStroke.Thickness = 1
+questReadyBurstStroke.Transparency = 1
+questReadyBurstStroke.Parent = questReadyBurst
+
 local localPlaySound = SoundService:FindFirstChild(LOCAL_PLAY_SOUND_NAME)
 if not localPlaySound then
 	localPlaySound = Instance.new("BindableEvent")
@@ -374,6 +401,8 @@ rewardBurstAmount.Parent = rewardBurst
 
 local rewardBurstTweens = {}
 local rewardBurstSequence = 0
+local questReadyBurstTweens = {}
+local questReadyBurstSequence = 0
 
 local function updateToggleAppearance()
 	if panelOpen then
@@ -438,9 +467,33 @@ local function tweenRewardBurst(instance, duration, goal, easingStyle, easingDir
 	return tween
 end
 
+local function clearQuestReadyBurstTweens()
+	for _, tween in ipairs(questReadyBurstTweens) do
+		tween:Cancel()
+	end
+	questReadyBurstTweens = {}
+end
+
+local function tweenQuestReadyBurst(instance, duration, goal, easingStyle, easingDirection)
+	local tween = TweenService:Create(
+		instance,
+		TweenInfo.new(duration, easingStyle or Enum.EasingStyle.Quad, easingDirection or Enum.EasingDirection.Out),
+		goal
+	)
+	table.insert(questReadyBurstTweens, tween)
+	tween:Play()
+	return tween
+end
+
 local function playQuestClaimSound()
 	if localPlaySound and localPlaySound:IsA("BindableEvent") then
 		localPlaySound:Fire("quest_claim")
+	end
+end
+
+local function playQuestReadySound()
+	if localPlaySound and localPlaySound:IsA("BindableEvent") then
+		localPlaySound:Fire("quest_ready")
 	end
 end
 
@@ -483,6 +536,41 @@ local function pulseToggle()
 	})
 end
 
+local function showQuestReadyBurst()
+	questReadyBurstSequence = questReadyBurstSequence + 1
+	local sequence = questReadyBurstSequence
+	clearQuestReadyBurstTweens()
+
+	questReadyBurst.Visible = true
+	questReadyBurst.Position = UDim2.new(1, -93, 1, -88)
+	questReadyBurst.BackgroundTransparency = 0.04
+	questReadyBurst.TextTransparency = 0
+	questReadyBurstStroke.Transparency = 0.12
+
+	tweenQuestReadyBurst(questReadyBurst, 0.18, {
+		Position = UDim2.new(1, -93, 1, -96),
+		BackgroundTransparency = 0,
+	}, Enum.EasingStyle.Back)
+
+	task.delay(0.92, function()
+		if sequence ~= questReadyBurstSequence or not questReadyBurst.Parent then
+			return
+		end
+
+		tweenQuestReadyBurst(questReadyBurst, 0.24, {
+			Position = UDim2.new(1, -93, 1, -106),
+			BackgroundTransparency = 1,
+		}, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+		tweenQuestReadyBurst(questReadyBurstStroke, 0.2, { Transparency = 1 })
+		local textTween = tweenQuestReadyBurst(questReadyBurst, 0.2, { TextTransparency = 1 })
+		textTween.Completed:Once(function()
+			if sequence == questReadyBurstSequence then
+				questReadyBurst.Visible = false
+			end
+		end)
+	end)
+end
+
 local function updateQuestToggleSummary(status)
 	local normalized = normalizeStatus(status)
 	if not normalized then
@@ -499,6 +587,8 @@ local function updateQuestToggleSummary(status)
 
 	if currentReadyCount > previousReadyCount and not panelOpen then
 		pulseToggle()
+		playQuestReadySound()
+		showQuestReadyBurst()
 	end
 
 	return normalized
