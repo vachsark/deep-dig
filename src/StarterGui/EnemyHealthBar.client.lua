@@ -6,6 +6,17 @@ local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local SoundService = game:GetService("SoundService")
 local TweenService = game:GetService("TweenService")
+local HapticService = nil
+
+do
+	local ok, service = pcall(function()
+		return game:GetService("HapticService")
+	end)
+
+	if ok then
+		HapticService = service
+	end
+end
 
 local player = Players.LocalPlayer
 local Remotes = ReplicatedStorage:WaitForChild("Remotes")
@@ -83,6 +94,9 @@ local BOSS_BAR_HEIGHT = 52
 local ENEMY_THREAT_WIDTH = 112
 local ENEMY_THREAT_HEIGHT = 34
 local ENEMY_THREAT_EDGE_PADDING = 38
+local HAPTIC_INPUT_TYPE = Enum.UserInputType.Gamepad1
+local HAPTIC_SMALL_MOTOR = Enum.VibrationMotor.Small
+local HAPTIC_LARGE_MOTOR = Enum.VibrationMotor.Large
 
 local trackedEnemies = {}
 local trackedEnemyOrder = {}
@@ -119,6 +133,10 @@ local enemyThreatGui = nil
 local enemyThreatFrame = nil
 local enemyThreatArrow = nil
 local enemyThreatDistanceLabel = nil
+local hapticSupportChecked = false
+local hapticSupported = false
+local hapticMotorSupport = {}
+local hapticSequence = 0
 
 local LocalPlaySound = SoundService:FindFirstChild(LOCAL_PLAY_SOUND_NAME)
 if not LocalPlaySound then
@@ -161,6 +179,70 @@ local function disconnectAll(connections)
 			connection:Disconnect()
 		end
 	end
+end
+
+local function canUseHaptics()
+	if hapticSupportChecked then
+		return hapticSupported
+	end
+
+	hapticSupportChecked = true
+	if not HapticService then
+		return false
+	end
+
+	local ok, supported = pcall(function()
+		return HapticService:IsVibrationSupported(HAPTIC_INPUT_TYPE)
+	end)
+	hapticSupported = ok and supported == true
+	return hapticSupported
+end
+
+local function canUseHapticMotor(motor)
+	if not canUseHaptics() then
+		return false
+	end
+
+	if hapticMotorSupport[motor] ~= nil then
+		return hapticMotorSupport[motor]
+	end
+
+	local ok, supported = pcall(function()
+		return HapticService:IsMotorSupported(HAPTIC_INPUT_TYPE, motor)
+	end)
+	hapticMotorSupport[motor] = ok and supported == true
+	return hapticMotorSupport[motor]
+end
+
+local function setHapticMotor(motor, strength)
+	if not canUseHapticMotor(motor) then
+		return
+	end
+
+	pcall(function()
+		HapticService:SetMotor(HAPTIC_INPUT_TYPE, motor, strength)
+	end)
+end
+
+local function clearHapticBump(sequence)
+	if sequence and sequence ~= hapticSequence then
+		return
+	end
+
+	setHapticMotor(HAPTIC_SMALL_MOTOR, 0)
+	setHapticMotor(HAPTIC_LARGE_MOTOR, 0)
+end
+
+local function playHapticBump(smallStrength, largeStrength, duration)
+	hapticSequence = hapticSequence + 1
+	local sequence = hapticSequence
+
+	setHapticMotor(HAPTIC_SMALL_MOTOR, smallStrength)
+	setHapticMotor(HAPTIC_LARGE_MOTOR, largeStrength)
+
+	task.delay(duration, function()
+		clearHapticBump(sequence)
+	end)
 end
 
 local function ensureEnemyThreatIndicator()
@@ -1008,6 +1090,7 @@ local function playPlayerHitFeedback(damage)
 		LocalPlaySound:Fire("enemy_hit")
 	end
 
+	playHapticBump(0.08, 0.12, 0.1)
 	playPlayerHitFlash()
 	showPlayerHitReadout(damage)
 	playPlayerHitJolt()
@@ -2402,6 +2485,18 @@ EnemyCombatFeedback.OnClientEvent:Connect(function(payload)
 		else
 			LocalPlaySound:Fire(feedbackType == "defeated" and "enemy_defeated" or "enemy_hit")
 		end
+	end
+
+	if feedbackType == "hit" then
+		playHapticBump(0.07, 0.04, 0.08)
+	elseif feedbackType == "defeated" then
+		playHapticBump(0.12, 0.18, 0.16)
+	elseif feedbackType == "miniboss_spawn" then
+		playHapticBump(0.16, 0.24, 0.2)
+	elseif feedbackType == "miniboss_enrage" then
+		playHapticBump(0.2, 0.3, 0.18)
+	elseif feedbackType == "miniboss_defeated" then
+		playHapticBump(0.24, 0.36, 0.28)
 	end
 
 	if feedbackType == "hit" then

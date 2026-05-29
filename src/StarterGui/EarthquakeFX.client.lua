@@ -7,6 +7,17 @@ local RunService = game:GetService("RunService")
 local SoundService = game:GetService("SoundService")
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
+local HapticService = nil
+
+do
+	local ok, service = pcall(function()
+		return game:GetService("HapticService")
+	end)
+
+	if ok then
+		HapticService = service
+	end
+end
 
 local player = Players.LocalPlayer
 local Remotes = ReplicatedStorage:WaitForChild("Remotes", 5)
@@ -28,6 +39,13 @@ local SHAKE_STEP = 0.05
 local EVENT_PULSE_DURATION = 0.45
 local EVENT_PULSE_MAX_OFFSET = 0.18
 local EVENT_PULSE_STEP = 0.035
+local HAPTIC_INPUT_TYPE = Enum.UserInputType.Gamepad1
+local HAPTIC_SMALL_MOTOR = Enum.VibrationMotor.Small
+local HAPTIC_LARGE_MOTOR = Enum.VibrationMotor.Large
+local EARTHQUAKE_HAPTIC_INTERVAL = 0.36
+local EARTHQUAKE_HAPTIC_DURATION = 0.18
+local EARTHQUAKE_HAPTIC_SMALL_STRENGTH = 0.12
+local EARTHQUAKE_HAPTIC_LARGE_STRENGTH = 0.24
 
 local EVENT_PULSE_SETTINGS = {
 	["2x_rare"] = {
@@ -96,6 +114,10 @@ local dustEmitter = nil
 local eventPulseGui = nil
 local eventPulseFrame = nil
 local eventPulseTween = nil
+local hapticSupportChecked = false
+local hapticSupported = false
+local hapticMotorSupport = {}
+local hapticSequence = 0
 
 local function isEarthquakeTrigger(eventName, message, effectId)
 	local function matches(text)
@@ -129,6 +151,75 @@ local function getIsLowEndDevice()
 	}
 
 	return lowEndPlatforms[platform.Name] == true
+end
+
+local function canUseHaptics()
+	if hapticSupportChecked then
+		return hapticSupported
+	end
+
+	hapticSupportChecked = true
+	if not HapticService then
+		return false
+	end
+
+	local ok, supported = pcall(function()
+		return HapticService:IsVibrationSupported(HAPTIC_INPUT_TYPE)
+	end)
+	hapticSupported = ok and supported == true
+	return hapticSupported
+end
+
+local function canUseHapticMotor(motor)
+	if not canUseHaptics() then
+		return false
+	end
+
+	if hapticMotorSupport[motor] ~= nil then
+		return hapticMotorSupport[motor]
+	end
+
+	local ok, supported = pcall(function()
+		return HapticService:IsMotorSupported(HAPTIC_INPUT_TYPE, motor)
+	end)
+	hapticMotorSupport[motor] = ok and supported == true
+	return hapticMotorSupport[motor]
+end
+
+local function setHapticMotor(motor, strength)
+	if not canUseHapticMotor(motor) then
+		return
+	end
+
+	pcall(function()
+		HapticService:SetMotor(HAPTIC_INPUT_TYPE, motor, strength)
+	end)
+end
+
+local function clearHapticPulse(sequence)
+	if sequence and sequence ~= hapticSequence then
+		return
+	end
+
+	setHapticMotor(HAPTIC_SMALL_MOTOR, 0)
+	setHapticMotor(HAPTIC_LARGE_MOTOR, 0)
+end
+
+local function playHapticPulse(smallStrength, largeStrength, duration)
+	hapticSequence = hapticSequence + 1
+	local sequence = hapticSequence
+
+	setHapticMotor(HAPTIC_SMALL_MOTOR, smallStrength)
+	setHapticMotor(HAPTIC_LARGE_MOTOR, largeStrength)
+
+	task.delay(duration, function()
+		clearHapticPulse(sequence)
+	end)
+end
+
+local function stopHaptics()
+	hapticSequence = hapticSequence + 1
+	clearHapticPulse()
 end
 
 local function randomShakeOffset()
@@ -267,6 +358,7 @@ local function cleanup(session)
 
 	active = false
 	effectEndTime = 0
+	stopHaptics()
 
 	local camera = workspace.CurrentCamera
 	if camera and lastAppliedShakeOffset.Magnitude > 0 then
@@ -442,6 +534,23 @@ local function startShakeLoop(session)
 	end)
 end
 
+local function startHapticLoop(session)
+	task.spawn(function()
+		while active and session == effectSession and os.clock() < effectEndTime do
+			playHapticPulse(
+				EARTHQUAKE_HAPTIC_SMALL_STRENGTH,
+				EARTHQUAKE_HAPTIC_LARGE_STRENGTH,
+				EARTHQUAKE_HAPTIC_DURATION
+			)
+			task.wait(EARTHQUAKE_HAPTIC_INTERVAL)
+		end
+
+		if session == effectSession then
+			stopHaptics()
+		end
+	end)
+end
+
 local function beginEarthquake(duration)
 	local now = os.clock()
 	local effectiveDuration = math.min(tonumber(duration) or 30, MAX_DURATION)
@@ -466,6 +575,7 @@ local function beginEarthquake(duration)
 
 	startVignettePulse(effectSession)
 	startShakeLoop(effectSession)
+	startHapticLoop(effectSession)
 end
 
 local function startEventPulseLoop(session)
