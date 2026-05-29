@@ -559,6 +559,12 @@ seasonBadgeDetail.Parent = seasonBadge
 DeepDigActiveEventHud = {
 	token = 0,
 	fadeTween = nil,
+	seasonalEffects = {
+		halloween_loot = true,
+		winter_loot = true,
+		spring_loot = true,
+		summer_loot = true,
+	},
 	styles = {
 		["2x_rare"] = {
 			accent = Color3.fromRGB(115, 175, 255),
@@ -738,6 +744,7 @@ do
 		local token = activeEventHud.token
 		local style = activeEventHud.styles[effectId] or activeEventHud.styles.fallback
 		local remainingSeconds = math.max(0, math.floor(tonumber(duration) or 0))
+		local isSeasonalEffect = activeEventHud.seasonalEffects[effectId] == true
 
 		if activeEventHud.fadeTween then
 			activeEventHud.fadeTween:Cancel()
@@ -750,8 +757,13 @@ do
 		activeEventHud.timer.TextColor3 = style.accent
 		activeEventHud.title.Text = tostring(eventName or style.title)
 		activeEventHud.detail.Text = style.detail or tostring(message or "Temporary buff")
-		activeEventHud.timer.Text = tostring(remainingSeconds) .. "s"
+		activeEventHud.timer.TextSize = isSeasonalEffect and 12 or 16
+		activeEventHud.timer.Text = isSeasonalEffect and "All month" or tostring(remainingSeconds) .. "s"
 		activeEventHud.frame.Visible = true
+
+		if isSeasonalEffect then
+			return
+		end
 
 		task.spawn(function()
 			local endsAt = os.clock() + remainingSeconds
