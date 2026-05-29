@@ -7,6 +7,8 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Remotes = ReplicatedStorage:WaitForChild("Remotes")
 local NotifyEvent = Remotes:WaitForChild("Notify")
 local UpdateHUDEvent = Remotes:WaitForChild("UpdateHUD")
+local ServerEvents = ReplicatedStorage:WaitForChild("ServerEvents")
+local PlayerDataReady = ServerEvents:WaitForChild("PlayerDataReady")
 local OfflineIncomeRewardEvent = Remotes:FindFirstChild("OfflineIncomeReward")
 if not OfflineIncomeRewardEvent then
 	OfflineIncomeRewardEvent = Instance.new("RemoteEvent")
@@ -35,15 +37,29 @@ local function getData(player)
 	return cache[player.UserId]
 end
 
-local function loadDataWithRetry(player)
-	task.wait(2)
-
+local function awaitPlayerData(player, timeoutSeconds)
 	local data = getData(player)
 	if data then
 		return data
 	end
 
-	task.wait(2)
+	local readyForThisPlayer = false
+	local connection
+	connection = PlayerDataReady.Event:Connect(function(p)
+		if p == player then
+			readyForThisPlayer = true
+		end
+	end)
+
+	local elapsed = 0
+	local step = 0.1
+	local cap = timeoutSeconds or 30
+	while not readyForThisPlayer and elapsed < cap and player.Parent do
+		task.wait(step)
+		elapsed = elapsed + step
+	end
+
+	connection:Disconnect()
 	return getData(player)
 end
 
@@ -76,8 +92,9 @@ local function grantOfflineIncome(player)
 	if processedPlayers[player.UserId] then return end
 	processedPlayers[player.UserId] = true
 
-	local data = loadDataWithRetry(player)
+	local data = awaitPlayerData(player, 30)
 	if not data then
+		processedPlayers[player.UserId] = nil
 		return
 	end
 
