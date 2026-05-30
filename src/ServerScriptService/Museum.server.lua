@@ -8,6 +8,7 @@
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local TweenService = game:GetService("TweenService")
 
 local Config = require(ReplicatedStorage:WaitForChild("Config"))
 local ItemDatabase = require(ReplicatedStorage:WaitForChild("ItemDatabase"))
@@ -75,6 +76,16 @@ end
 local function getSeasonalExclusiveColor(exclusive)
 	local rarityData = ItemDatabase.RARITY[exclusive.rarity]
 	return exclusive.tint or (rarityData and rarityData.color) or RARITY_COLORS[exclusive.rarity] or RARITY_COLORS.Common
+end
+
+local function getSeasonalExclusiveById(seasonId)
+	for _, exclusive in ipairs(ItemDatabase.SEASONAL_EXCLUSIVES or {}) do
+		if exclusive.id == seasonId then
+			return exclusive
+		end
+	end
+
+	return nil
 end
 
 local function getPlayerData(player)
@@ -202,6 +213,82 @@ local function setSeasonalVaultState(placeholder, exclusive, unlocked)
 	end
 end
 
+local function pulseSeasonalVaultUnlock(placeholder, exclusive)
+	if not placeholder then
+		return
+	end
+
+	local rarityColor = getSeasonalExclusiveColor(exclusive)
+	local pedestalColor = placeholder.Color
+	local pedestalMaterial = placeholder.Material
+	local relic = placeholder:FindFirstChild("SeasonalRelic")
+	local relicColor = relic and relic.Color or nil
+	local relicMaterial = relic and relic.Material or nil
+	local relicTransparency = relic and relic.Transparency or nil
+	local pulseColor = rarityColor:Lerp(Color3.fromRGB(255, 255, 255), 0.45)
+
+	local light = Instance.new("PointLight")
+	light.Name = "SeasonalUnlockPulse"
+	light.Color = rarityColor
+	light.Brightness = 0
+	light.Range = 14
+	light.Parent = relic or placeholder
+
+	local quickPulse = TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+	local settlePulse = TweenInfo.new(0.45, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+
+	placeholder.Material = Enum.Material.Neon
+	TweenService:Create(placeholder, quickPulse, { Color = pulseColor }):Play()
+	TweenService:Create(light, quickPulse, { Brightness = 4, Range = 22 }):Play()
+
+	if relic then
+		relic.Material = Enum.Material.Neon
+		relic.Transparency = 0
+		TweenService:Create(relic, quickPulse, {
+			Color = pulseColor,
+			Size = DISPLAY_ITEM_SIZE + Vector3.new(0.5, 0.5, 0.5),
+		}):Play()
+	end
+
+	task.delay(0.2, function()
+		if not placeholder.Parent then
+			if light then
+				light:Destroy()
+			end
+			return
+		end
+
+		TweenService:Create(placeholder, settlePulse, { Color = pedestalColor }):Play()
+		TweenService:Create(light, settlePulse, { Brightness = 0, Range = 8 }):Play()
+
+		if relic and relic.Parent then
+			TweenService:Create(relic, settlePulse, {
+				Color = relicColor,
+				Size = DISPLAY_ITEM_SIZE,
+				Transparency = relicTransparency,
+			}):Play()
+		end
+	end)
+
+	task.delay(0.7, function()
+		if placeholder and placeholder.Parent then
+			placeholder.Color = pedestalColor
+			placeholder.Material = pedestalMaterial
+		end
+
+		if relic and relic.Parent then
+			relic.Color = relicColor
+			relic.Material = relicMaterial
+			relic.Transparency = relicTransparency
+			relic.Size = DISPLAY_ITEM_SIZE
+		end
+
+		if light then
+			light:Destroy()
+		end
+	end)
+end
+
 local function updateSeasonalVault(museum, data)
 	if not museum or type(data) ~= "table" or type(data.collections) ~= "table" then
 		return
@@ -230,6 +317,43 @@ local function isSeasonalExclusiveName(itemName)
 		or isHalloweenGhostFossilVariant(itemName)
 		or isSummerObsidianToolVariant(itemName)
 		or isWinterFrozenArtifactVariant(itemName)
+end
+
+local function getSeasonalExclusiveForItem(item)
+	if not item then
+		return nil
+	end
+
+	if item.seasonId then
+		local exclusive = getSeasonalExclusiveById(item.seasonId)
+		if exclusive then
+			return exclusive
+		end
+	end
+
+	for _, exclusive in ipairs(ItemDatabase.SEASONAL_EXCLUSIVES or {}) do
+		if exclusive.displayName == item.name then
+			return exclusive
+		end
+	end
+
+	if isSpringDinoEggVariant(item.name) then
+		return getSeasonalExclusiveById("spring")
+	end
+
+	if isHalloweenGhostFossilVariant(item.name) then
+		return getSeasonalExclusiveById("halloween")
+	end
+
+	if isSummerObsidianToolVariant(item.name) then
+		return getSeasonalExclusiveById("summer")
+	end
+
+	if isWinterFrozenArtifactVariant(item.name) then
+		return getSeasonalExclusiveById("winter")
+	end
+
+	return nil
 end
 
 local function createMuseumForPlayer(player)
@@ -623,8 +747,19 @@ PlayerDataReady.Event:Connect(function(player)
 end)
 
 ItemFoundBindable.Event:Connect(function(player, item)
-	if item and isSeasonalExclusiveName(item.name) then
-		updateSeasonalVault(playerMuseums[player.UserId], getPlayerData(player))
+	local exclusive = getSeasonalExclusiveForItem(item)
+	if exclusive and isSeasonalExclusiveName(item.name) then
+		local museum = playerMuseums[player.UserId]
+		local data = getPlayerData(player)
+		local placeholder = museum and museum.seasonalVaults and museum.seasonalVaults[exclusive.id]
+		local wasLocked = placeholder and placeholder:GetAttribute("Locked") == true
+		local nowUnlocked = data and hasCollectedSeasonalExclusive(data.collections, exclusive)
+
+		updateSeasonalVault(museum, data)
+
+		if wasLocked and nowUnlocked then
+			pulseSeasonalVaultUnlock(placeholder, exclusive)
+		end
 	end
 end)
 
