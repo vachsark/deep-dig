@@ -39,6 +39,9 @@ local SHAKE_STEP = 0.05
 local EVENT_PULSE_DURATION = 0.45
 local EVENT_PULSE_MAX_OFFSET = 0.18
 local EVENT_PULSE_STEP = 0.035
+local EVENT_PULSE_RING_START_SIZE = 0.52
+local EVENT_PULSE_RING_END_SIZE = 1.22
+local EVENT_PULSE_RING_THICKNESS = 8
 local HAPTIC_INPUT_TYPE = Enum.UserInputType.Gamepad1
 local HAPTIC_SMALL_MOTOR = Enum.VibrationMotor.Small
 local HAPTIC_LARGE_MOTOR = Enum.VibrationMotor.Large
@@ -113,7 +116,11 @@ local dustPart = nil
 local dustEmitter = nil
 local eventPulseGui = nil
 local eventPulseFrame = nil
+local eventPulseRing = nil
+local eventPulseRingStroke = nil
 local eventPulseTween = nil
+local eventPulseRingTween = nil
+local eventPulseRingStrokeTween = nil
 local hapticSupportChecked = false
 local hapticSupported = false
 local hapticMotorSupport = {}
@@ -299,6 +306,27 @@ local function ensureEventPulseUi()
 	eventPulseFrame.BorderSizePixel = 0
 	eventPulseFrame.ZIndex = 110
 	eventPulseFrame.Parent = eventPulseGui
+
+	eventPulseRing = Instance.new("Frame")
+	eventPulseRing.Name = "ImpactRing"
+	eventPulseRing.Size = UDim2.fromScale(EVENT_PULSE_RING_START_SIZE, EVENT_PULSE_RING_START_SIZE)
+	eventPulseRing.Position = UDim2.fromScale(0.5, 0.5)
+	eventPulseRing.AnchorPoint = Vector2.new(0.5, 0.5)
+	eventPulseRing.BackgroundTransparency = 1
+	eventPulseRing.BorderSizePixel = 0
+	eventPulseRing.ZIndex = 111
+	eventPulseRing.Parent = eventPulseGui
+
+	local corner = Instance.new("UICorner")
+	corner.CornerRadius = UDim.new(1, 0)
+	corner.Parent = eventPulseRing
+
+	eventPulseRingStroke = Instance.new("UIStroke")
+	eventPulseRingStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+	eventPulseRingStroke.LineJoinMode = Enum.LineJoinMode.Round
+	eventPulseRingStroke.Thickness = EVENT_PULSE_RING_THICKNESS
+	eventPulseRingStroke.Transparency = 1
+	eventPulseRingStroke.Parent = eventPulseRing
 end
 
 local function getDustRate()
@@ -421,11 +449,59 @@ local function cleanupEventPulse(session)
 		eventPulseTween = nil
 	end
 
+	if eventPulseRingTween then
+		eventPulseRingTween:Cancel()
+		eventPulseRingTween = nil
+	end
+
+	if eventPulseRingStrokeTween then
+		eventPulseRingStrokeTween:Cancel()
+		eventPulseRingStrokeTween = nil
+	end
+
 	if eventPulseGui then
 		eventPulseGui:Destroy()
 		eventPulseGui = nil
 		eventPulseFrame = nil
+		eventPulseRing = nil
+		eventPulseRingStroke = nil
 	end
+end
+
+local function startEventImpactRing(settings)
+	if not eventPulseRing or not eventPulseRingStroke then
+		return
+	end
+
+	if eventPulseRingTween then
+		eventPulseRingTween:Cancel()
+	end
+
+	if eventPulseRingStrokeTween then
+		eventPulseRingStrokeTween:Cancel()
+	end
+
+	eventPulseRing.Size = UDim2.fromScale(EVENT_PULSE_RING_START_SIZE, EVENT_PULSE_RING_START_SIZE)
+	eventPulseRingStroke.Color = settings.color
+	eventPulseRingStroke.Thickness = EVENT_PULSE_RING_THICKNESS
+	eventPulseRingStroke.Transparency = math.max(settings.peakTransparency - 0.22, 0.18)
+
+	eventPulseRingTween = TweenService:Create(
+		eventPulseRing,
+		TweenInfo.new(EVENT_PULSE_DURATION, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+		{ Size = UDim2.fromScale(EVENT_PULSE_RING_END_SIZE, EVENT_PULSE_RING_END_SIZE) }
+	)
+	eventPulseRingStrokeTween = TweenService:Create(
+		eventPulseRingStroke,
+		TweenInfo.new(EVENT_PULSE_DURATION, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+		{
+			Thickness = 1,
+			Transparency = 1,
+		}
+	)
+
+	eventPulseRingTween:Play()
+	eventPulseRingStrokeTween:Play()
 end
 
 local function ensureRenderBinding()
@@ -628,6 +704,8 @@ local function beginEventPulse(effectId)
 		eventPulseFrame.BackgroundTransparency = settings.peakTransparency
 		eventPulseTween:Play()
 	end
+
+	startEventImpactRing(settings)
 
 	startEventPulseLoop(eventPulseSession)
 end
