@@ -3433,6 +3433,176 @@ function DeepDigShowAutoCollectedBurst(payload)
 	end)
 end
 
+DeepDigArtifactDetectorUi = {}
+DeepDigArtifactDetectorUi.panel = Instance.new("Frame")
+DeepDigArtifactDetectorUi.panel.Name = "ArtifactDetectorPulse"
+DeepDigArtifactDetectorUi.panel.AnchorPoint = Vector2.new(0.5, 0)
+DeepDigArtifactDetectorUi.panel.Size = UDim2.fromOffset(286, 64)
+DeepDigArtifactDetectorUi.panel.Position = UDim2.fromScale(0.5, 0.105)
+DeepDigArtifactDetectorUi.panel.BackgroundColor3 = Color3.fromRGB(8, 28, 38)
+DeepDigArtifactDetectorUi.panel.BackgroundTransparency = 1
+DeepDigArtifactDetectorUi.panel.BorderSizePixel = 0
+DeepDigArtifactDetectorUi.panel.ClipsDescendants = true
+DeepDigArtifactDetectorUi.panel.Visible = false
+DeepDigArtifactDetectorUi.panel.ZIndex = 74
+DeepDigArtifactDetectorUi.panel.Parent = screenGui
+
+DeepDigArtifactDetectorUi.corner = Instance.new("UICorner")
+DeepDigArtifactDetectorUi.corner.CornerRadius = UDim.new(0, 8)
+DeepDigArtifactDetectorUi.corner.Parent = DeepDigArtifactDetectorUi.panel
+
+DeepDigArtifactDetectorUi.stroke = Instance.new("UIStroke")
+DeepDigArtifactDetectorUi.stroke.Color = Color3.fromRGB(70, 235, 215)
+DeepDigArtifactDetectorUi.stroke.Thickness = 1.5
+DeepDigArtifactDetectorUi.stroke.Transparency = 1
+DeepDigArtifactDetectorUi.stroke.Parent = DeepDigArtifactDetectorUi.panel
+
+DeepDigArtifactDetectorUi.sweep = Instance.new("Frame")
+DeepDigArtifactDetectorUi.sweep.Name = "Sweep"
+DeepDigArtifactDetectorUi.sweep.Size = UDim2.new(0, 34, 1, 0)
+DeepDigArtifactDetectorUi.sweep.Position = UDim2.new(0, -42, 0, 0)
+DeepDigArtifactDetectorUi.sweep.BackgroundColor3 = Color3.fromRGB(120, 255, 235)
+DeepDigArtifactDetectorUi.sweep.BackgroundTransparency = 0.35
+DeepDigArtifactDetectorUi.sweep.BorderSizePixel = 0
+DeepDigArtifactDetectorUi.sweep.ZIndex = 75
+DeepDigArtifactDetectorUi.sweep.Parent = DeepDigArtifactDetectorUi.panel
+
+DeepDigArtifactDetectorUi.sweepGradient = Instance.new("UIGradient")
+DeepDigArtifactDetectorUi.sweepGradient.Transparency = NumberSequence.new({
+	NumberSequenceKeypoint.new(0, 1),
+	NumberSequenceKeypoint.new(0.45, 0.25),
+	NumberSequenceKeypoint.new(1, 1),
+})
+DeepDigArtifactDetectorUi.sweepGradient.Parent = DeepDigArtifactDetectorUi.sweep
+
+DeepDigArtifactDetectorUi.title = Instance.new("TextLabel")
+DeepDigArtifactDetectorUi.title.Name = "Title"
+DeepDigArtifactDetectorUi.title.Size = UDim2.new(1, -24, 0, 20)
+DeepDigArtifactDetectorUi.title.Position = UDim2.fromOffset(12, 8)
+DeepDigArtifactDetectorUi.title.BackgroundTransparency = 1
+DeepDigArtifactDetectorUi.title.Text = "DETECTOR PING"
+DeepDigArtifactDetectorUi.title.TextColor3 = Color3.fromRGB(110, 255, 232)
+DeepDigArtifactDetectorUi.title.TextTransparency = 1
+DeepDigArtifactDetectorUi.title.TextSize = 14
+DeepDigArtifactDetectorUi.title.Font = Enum.Font.GothamBlack
+DeepDigArtifactDetectorUi.title.TextXAlignment = Enum.TextXAlignment.Center
+DeepDigArtifactDetectorUi.title.ZIndex = 76
+DeepDigArtifactDetectorUi.title.Parent = DeepDigArtifactDetectorUi.panel
+
+DeepDigArtifactDetectorUi.item = Instance.new("TextLabel")
+DeepDigArtifactDetectorUi.item.Name = "Item"
+DeepDigArtifactDetectorUi.item.Size = UDim2.new(1, -24, 0, 24)
+DeepDigArtifactDetectorUi.item.Position = UDim2.fromOffset(12, 31)
+DeepDigArtifactDetectorUi.item.BackgroundTransparency = 1
+DeepDigArtifactDetectorUi.item.Text = "Rare artifact"
+DeepDigArtifactDetectorUi.item.TextColor3 = Color3.fromRGB(225, 255, 248)
+DeepDigArtifactDetectorUi.item.TextTransparency = 1
+DeepDigArtifactDetectorUi.item.TextSize = 16
+DeepDigArtifactDetectorUi.item.Font = Enum.Font.GothamBold
+DeepDigArtifactDetectorUi.item.TextWrapped = true
+DeepDigArtifactDetectorUi.item.TextXAlignment = Enum.TextXAlignment.Center
+DeepDigArtifactDetectorUi.item.ZIndex = 76
+DeepDigArtifactDetectorUi.item.Parent = DeepDigArtifactDetectorUi.panel
+
+DeepDigArtifactDetectorSequence = 0
+DeepDigArtifactDetectorTweens = {}
+
+function DeepDigClearArtifactDetectorTweens()
+	for _, tween in ipairs(DeepDigArtifactDetectorTweens) do
+		tween:Cancel()
+	end
+	DeepDigArtifactDetectorTweens = {}
+end
+
+function DeepDigTweenArtifactDetector(instance, duration, goal, easingStyle, easingDirection)
+	local tween = TweenService:Create(
+		instance,
+		TweenInfo.new(duration, easingStyle or Enum.EasingStyle.Quad, easingDirection or Enum.EasingDirection.Out),
+		goal
+	)
+	table.insert(DeepDigArtifactDetectorTweens, tween)
+	tween:Play()
+	return tween
+end
+
+function DeepDigShowArtifactDetectorPulse(payload)
+	if type(payload) ~= "table" then
+		return
+	end
+
+	local itemName = tostring(payload.name or "Rare artifact")
+	local rarity = tostring(payload.rarity or "Rare")
+	local rarityColor = RARITY_COLORS[rarity] or Color3.fromRGB(110, 255, 232)
+
+	DeepDigArtifactDetectorSequence = DeepDigArtifactDetectorSequence + 1
+	local sequence = DeepDigArtifactDetectorSequence
+	DeepDigClearArtifactDetectorTweens()
+
+	DeepDigArtifactDetectorUi.panel.Visible = true
+	DeepDigArtifactDetectorUi.panel.Size = UDim2.fromOffset(286, 64)
+	DeepDigArtifactDetectorUi.panel.Position = UDim2.fromScale(0.5, 0.105)
+	DeepDigArtifactDetectorUi.panel.BackgroundTransparency = 0.16
+	DeepDigArtifactDetectorUi.stroke.Color = rarityColor
+	DeepDigArtifactDetectorUi.stroke.Transparency = 0.08
+	DeepDigArtifactDetectorUi.sweep.Position = UDim2.new(0, -42, 0, 0)
+	DeepDigArtifactDetectorUi.sweep.BackgroundTransparency = 0.28
+	DeepDigArtifactDetectorUi.title.TextTransparency = 0
+	DeepDigArtifactDetectorUi.item.TextTransparency = 0
+	DeepDigArtifactDetectorUi.item.TextColor3 = rarityColor
+	DeepDigArtifactDetectorUi.item.Text = itemName .. " - " .. rarity
+
+	if LocalPlaySound and LocalPlaySound:IsA("BindableEvent") then
+		LocalPlaySound:Fire("artifact_detector_ping")
+	end
+
+	DeepDigTweenArtifactDetector(DeepDigArtifactDetectorUi.panel, 0.12, {
+		Size = UDim2.fromOffset(304, 68),
+		Position = UDim2.fromScale(0.5, 0.112),
+		BackgroundTransparency = 0.06,
+	}, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
+	DeepDigTweenArtifactDetector(DeepDigArtifactDetectorUi.sweep, 0.42, {
+		Position = UDim2.new(1, 8, 0, 0),
+	}, Enum.EasingStyle.Sine, Enum.EasingDirection.Out)
+	DeepDigTweenArtifactDetector(DeepDigArtifactDetectorUi.stroke, 0.22, {
+		Thickness = 2.5,
+	}, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+
+	task.delay(0.58, function()
+		if sequence ~= DeepDigArtifactDetectorSequence then
+			return
+		end
+
+		DeepDigTweenArtifactDetector(DeepDigArtifactDetectorUi.panel, 0.2, {
+			Size = UDim2.fromOffset(286, 64),
+			BackgroundTransparency = 0.16,
+		}, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+		DeepDigTweenArtifactDetector(DeepDigArtifactDetectorUi.stroke, 0.2, {
+			Thickness = 1.5,
+		}, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+	end)
+
+	task.delay(1.2, function()
+		if sequence ~= DeepDigArtifactDetectorSequence then
+			return
+		end
+
+		DeepDigTweenArtifactDetector(DeepDigArtifactDetectorUi.panel, 0.22, {
+			Position = UDim2.fromScale(0.5, 0.095),
+			BackgroundTransparency = 1,
+		}, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+		DeepDigTweenArtifactDetector(DeepDigArtifactDetectorUi.stroke, 0.18, { Transparency = 1 }, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+		DeepDigTweenArtifactDetector(DeepDigArtifactDetectorUi.sweep, 0.18, { BackgroundTransparency = 1 }, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+		DeepDigTweenArtifactDetector(DeepDigArtifactDetectorUi.title, 0.18, { TextTransparency = 1 }, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+		local itemFade = DeepDigTweenArtifactDetector(DeepDigArtifactDetectorUi.item, 0.18, { TextTransparency = 1 }, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+		itemFade.Completed:Connect(function()
+			if sequence ~= DeepDigArtifactDetectorSequence then
+				return
+			end
+			DeepDigArtifactDetectorUi.panel.Visible = false
+		end)
+	end)
+end
+
 local offlineIncomePanel = Instance.new("Frame")
 offlineIncomePanel.Name = "OfflineIncomeReward"
 offlineIncomePanel.AnchorPoint = Vector2.new(0.5, 0.5)
@@ -4766,6 +4936,9 @@ Remotes.UpdateHUD.OnClientEvent:Connect(function(data)
 	end
 	if data.autoCollected then
 		DeepDigShowAutoCollectedBurst(data.autoCollected)
+	end
+	if data.artifactDetected then
+		DeepDigShowArtifactDetectorPulse(data.artifactDetected)
 	end
 
 	refreshStreakRevivePrompt(data)

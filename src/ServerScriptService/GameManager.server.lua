@@ -1057,6 +1057,7 @@ BlockBrokenEvent.Event:Connect(function(player, blockPosition)
 	if isNewPlayer then dropChance = 1.0 end
 
 	local autoCollectedPayload = nil
+	local artifactDetectedPayload = nil
 
 	if math.random() < dropChance then
 		-- FTUE: First-ever find is always Common or Uncommon.
@@ -1084,6 +1085,10 @@ BlockBrokenEvent.Event:Connect(function(player, blockPosition)
 				local detectorItem = rollRarePlusItem(tierName)
 				if detectorItem then
 					item = detectorItem
+					artifactDetectedPayload = {
+						name = item.name,
+						rarity = item.rarity,
+					}
 					NotifyEvent:FireClient(player, "Artifact Detector pinged: " .. item.name .. "!", item.rarity)
 				end
 			end
@@ -1233,6 +1238,7 @@ BlockBrokenEvent.Event:Connect(function(player, blockPosition)
 		totalEarned = data.totalEarned,
 		rebirths = data.rebirths or 0,
 		autoCollected = autoCollectedPayload,
+		artifactDetected = artifactDetectedPayload,
 		-- spring_loot bumps fragments per-block; keep the HUD coherent.
 		fragments = data.fragments,
 	}

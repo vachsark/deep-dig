@@ -170,6 +170,12 @@ local SOUNDS = {
 		playbackSpeed = 1.38,
 		pitchRange = { 1.0, 1.06 },
 	},
+	artifact_detector_ping = {
+		id = "rbxassetid://4612375287", -- tight scanner-style sparkle ping
+		volume = 0.62,
+		playbackSpeed = 1.42,
+		pitchRange = { 1.0, 1.08 },
+	},
 	streak_milestone = {
 		id = "rbxassetid://5852285683", -- stronger milestone shimmer
 		volume = 0.9,
