@@ -47,6 +47,8 @@ local ACCENT_GREEN = Color3.fromRGB(80, 220, 140)
 local ACCENT_BLUE = Color3.fromRGB(80, 160, 255)
 local ACCENT_RED = Color3.fromRGB(235, 95, 95)
 local ACCENT_GOLD = Color3.fromRGB(255, 200, 70)
+local CREW_MARKER_GUI_NAME = "DeepDigCrewMarker"
+local CREW_MARKER_HIGHLIGHT_NAME = "DeepDigCrewHighlight"
 
 local RARITY_COLORS = {
 	Common = Color3.fromRGB(180, 180, 180),
@@ -72,6 +74,8 @@ local lastLevelUpKey = nil
 local mailboxClaimBurstSequence = 0
 local activeMailboxClaimBurst = nil
 local lastMailboxClaimKey = nil
+local activeCrewMembersByUserId = {}
+local crewMarkerConnections = {}
 
 local LocalPlaySound = SoundService:FindFirstChild(LOCAL_PLAY_SOUND_NAME)
 if not LocalPlaySound then
@@ -131,6 +135,181 @@ local function clearMailboxClaimBurst(sequence)
 	if activeMailboxClaimBurst then
 		activeMailboxClaimBurst:Destroy()
 		activeMailboxClaimBurst = nil
+	end
+end
+
+local function destroyCrewMarkerInstances(character)
+	if not character then
+		return
+	end
+
+	local highlight = character:FindFirstChild(CREW_MARKER_HIGHLIGHT_NAME)
+	if highlight then
+		highlight:Destroy()
+	end
+
+	local head = character:FindFirstChild("Head")
+	local root = character:FindFirstChild("HumanoidRootPart")
+	local markerParent = head or root
+	if markerParent then
+		local marker = markerParent:FindFirstChild(CREW_MARKER_GUI_NAME)
+		if marker then
+			marker:Destroy()
+		end
+	end
+
+	if head and root then
+		local rootMarker = root:FindFirstChild(CREW_MARKER_GUI_NAME)
+		if rootMarker then
+			rootMarker:Destroy()
+		end
+	end
+end
+
+local function clearCrewMarker(userId, shouldDisconnect)
+	local crewmate = Players:GetPlayerByUserId(userId)
+	if crewmate then
+		destroyCrewMarkerInstances(crewmate.Character)
+	end
+
+	if shouldDisconnect and crewMarkerConnections[userId] then
+		crewMarkerConnections[userId]:Disconnect()
+		crewMarkerConnections[userId] = nil
+	end
+
+	activeCrewMembersByUserId[userId] = nil
+end
+
+local function getCrewMarkerText(member)
+	local displayName = tostring(member.displayName or member.name or "Crewmate")
+	local level = tonumber(state.crewLevel) or 1
+	return displayName, "Crew Lv " .. tostring(math.floor(level))
+end
+
+local function applyCrewMarker(crewmate, member)
+	if not crewmate or crewmate == player then
+		return
+	end
+
+	local character = crewmate.Character
+	if not character then
+		return
+	end
+
+	local adornPart = character:FindFirstChild("Head") or character:FindFirstChild("HumanoidRootPart")
+	if not adornPart then
+		return
+	end
+
+	destroyCrewMarkerInstances(character)
+
+	local highlight = Instance.new("Highlight")
+	highlight.Name = CREW_MARKER_HIGHLIGHT_NAME
+	highlight.Adornee = character
+	highlight.FillColor = ACCENT_GREEN
+	highlight.FillTransparency = 0.9
+	highlight.OutlineColor = ACCENT_GREEN
+	highlight.OutlineTransparency = 0.42
+	highlight.DepthMode = Enum.HighlightDepthMode.Occluded
+	highlight.Parent = character
+
+	local markerGui = Instance.new("BillboardGui")
+	markerGui.Name = CREW_MARKER_GUI_NAME
+	markerGui.Adornee = adornPart
+	markerGui.AlwaysOnTop = false
+	markerGui.LightInfluence = 0.2
+	markerGui.MaxDistance = 125
+	markerGui.Size = UDim2.fromOffset(98, 34)
+	markerGui.StudsOffsetWorldSpace = Vector3.new(0, 2.9, 0)
+	markerGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+	markerGui.Parent = adornPart
+
+	local frame = Instance.new("Frame")
+	frame.Name = "Tag"
+	frame.Size = UDim2.fromScale(1, 1)
+	frame.BackgroundColor3 = Color3.fromRGB(16, 24, 20)
+	frame.BackgroundTransparency = 0.18
+	frame.BorderSizePixel = 0
+	frame.Parent = markerGui
+	setCorner(frame, 6)
+	setStroke(frame, ACCENT_GREEN, 1, 0.38)
+
+	local displayName, levelText = getCrewMarkerText(member)
+
+	local nameLabel = Instance.new("TextLabel")
+	nameLabel.Name = "Name"
+	nameLabel.Size = UDim2.new(1, -10, 0, 17)
+	nameLabel.Position = UDim2.fromOffset(5, 2)
+	nameLabel.BackgroundTransparency = 1
+	nameLabel.Text = displayName
+	nameLabel.TextColor3 = TEXT_PRIMARY
+	nameLabel.TextSize = 10
+	nameLabel.Font = Enum.Font.GothamBold
+	nameLabel.TextXAlignment = Enum.TextXAlignment.Center
+	nameLabel.TextTruncate = Enum.TextTruncate.AtEnd
+	nameLabel.Parent = frame
+
+	local tagLabel = Instance.new("TextLabel")
+	tagLabel.Name = "CrewTag"
+	tagLabel.Size = UDim2.new(1, -10, 0, 13)
+	tagLabel.Position = UDim2.fromOffset(5, 18)
+	tagLabel.BackgroundTransparency = 1
+	tagLabel.Text = levelText
+	tagLabel.TextColor3 = Color3.fromRGB(178, 255, 206)
+	tagLabel.TextSize = 9
+	tagLabel.Font = Enum.Font.GothamMedium
+	tagLabel.TextXAlignment = Enum.TextXAlignment.Center
+	tagLabel.TextTruncate = Enum.TextTruncate.AtEnd
+	tagLabel.Parent = frame
+end
+
+local function ensureCrewMarkerConnection(crewmate)
+	if crewMarkerConnections[crewmate.UserId] then
+		return
+	end
+
+	crewMarkerConnections[crewmate.UserId] = crewmate.CharacterAdded:Connect(function()
+		task.wait(0.25)
+		local member = activeCrewMembersByUserId[crewmate.UserId]
+		if member then
+			applyCrewMarker(crewmate, member)
+		end
+	end)
+end
+
+local function refreshCrewMarkers(members)
+	local wanted = {}
+	local staleUserIds = {}
+
+	if state.inCrew then
+		for _, member in ipairs(members) do
+			local userId = tonumber(member.userId)
+			if userId and userId ~= player.UserId then
+				local crewmate = Players:GetPlayerByUserId(userId)
+				if crewmate then
+					wanted[userId] = member
+					activeCrewMembersByUserId[userId] = member
+					ensureCrewMarkerConnection(crewmate)
+					applyCrewMarker(crewmate, member)
+				end
+			end
+		end
+	end
+
+	for userId in pairs(activeCrewMembersByUserId) do
+		if not wanted[userId] then
+			table.insert(staleUserIds, userId)
+		end
+	end
+
+	for userId in pairs(crewMarkerConnections) do
+		if not wanted[userId] then
+			table.insert(staleUserIds, userId)
+		end
+	end
+
+	for _, userId in ipairs(staleUserIds) do
+		clearCrewMarker(userId, true)
 	end
 end
 
@@ -937,6 +1116,8 @@ render = function()
 	local xpInLevel = state.crewXPInLevel or 0
 	local xpForNextLevel = state.crewXPForNextLevel or 0
 
+	refreshCrewMarkers(members)
+
 	pendingDot.Visible = pendingInvite ~= nil or mailboxCount > 0
 	if state.inCrew then
 		toggleButton.Text = mailboxCount > 0 and ("Crew " .. tostring(#members) .. "/" .. tostring(maxSize) .. " Mail " .. tostring(mailboxCount)) or ("Crew " .. tostring(#members) .. "/" .. tostring(maxSize))
@@ -1121,7 +1302,8 @@ Players.PlayerAdded:Connect(function()
 	end
 end)
 
-Players.PlayerRemoving:Connect(function()
+Players.PlayerRemoving:Connect(function(leavingPlayer)
+	clearCrewMarker(leavingPlayer.UserId, true)
 	task.delay(0.2, requestState)
 end)
 
