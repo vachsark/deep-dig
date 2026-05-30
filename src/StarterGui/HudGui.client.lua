@@ -1865,8 +1865,34 @@ local RARITY_COLORS = {
 }
 
 local LEGENDARY_FIND_FLASH_RARITIES = {
-	Legendary = true,
-	Mythic = true,
+	Legendary = {
+		overlayColor = Color3.fromRGB(255, 218, 82),
+		peakTransparency = 0.18,
+		flashInDuration = 0.08,
+		flashOutDuration = 0.34,
+		pulseColor = Color3.fromRGB(255, 238, 146),
+		glintColor = Color3.fromRGB(255, 248, 210),
+		pulseSize = 155,
+		horizontalGlintWidth = 190,
+		verticalGlintHeight = 80,
+		pulseDuration = 0.36,
+		glintExpandDuration = 0.18,
+		glintFadeDuration = 0.26,
+	},
+	Mythic = {
+		overlayColor = Color3.fromRGB(255, 34, 64),
+		peakTransparency = 0.07,
+		flashInDuration = 0.06,
+		flashOutDuration = 0.44,
+		pulseColor = Color3.fromRGB(255, 246, 246),
+		glintColor = Color3.fromRGB(255, 255, 255),
+		pulseSize = 220,
+		horizontalGlintWidth = 260,
+		verticalGlintHeight = 120,
+		pulseDuration = 0.44,
+		glintExpandDuration = 0.20,
+		glintFadeDuration = 0.34,
+	},
 }
 
 local updateDepthTone
@@ -2208,7 +2234,8 @@ local findFlashSequence = 0
 local findFlashInTween = nil
 local findFlashOutTween = nil
 
-local function playLegendaryFindFlash()
+local function playLegendaryFindFlash(rarity)
+	local flashProfile = LEGENDARY_FIND_FLASH_RARITIES[rarity] or LEGENDARY_FIND_FLASH_RARITIES.Legendary
 	findFlashSequence = findFlashSequence + 1
 	local sequence = findFlashSequence
 
@@ -2225,7 +2252,7 @@ local function playLegendaryFindFlash()
 	end
 
 	findFlashOverlay.BackgroundTransparency = 1
-	findFlashOverlay.BackgroundColor3 = Color3.fromRGB(255, 218, 82)
+	findFlashOverlay.BackgroundColor3 = flashProfile.overlayColor
 
 	local glint = Instance.new("Frame")
 	glint.Name = "Glint"
@@ -2252,7 +2279,7 @@ local function playLegendaryFindFlash()
 	pulseCorner.Parent = pulse
 
 	local pulseStroke = Instance.new("UIStroke")
-	pulseStroke.Color = Color3.fromRGB(255, 238, 146)
+	pulseStroke.Color = flashProfile.pulseColor
 	pulseStroke.Transparency = 0.05
 	pulseStroke.Thickness = 3
 	pulseStroke.Parent = pulse
@@ -2262,7 +2289,7 @@ local function playLegendaryFindFlash()
 	horizontalGlint.Size = UDim2.new(0, 14, 0, 5)
 	horizontalGlint.AnchorPoint = Vector2.new(0.5, 0.5)
 	horizontalGlint.Position = UDim2.new(0.5, 0, 0.5, 0)
-	horizontalGlint.BackgroundColor3 = Color3.fromRGB(255, 248, 210)
+	horizontalGlint.BackgroundColor3 = flashProfile.glintColor
 	horizontalGlint.BackgroundTransparency = 0.05
 	horizontalGlint.BorderSizePixel = 0
 	horizontalGlint.ZIndex = 93
@@ -2273,34 +2300,34 @@ local function playLegendaryFindFlash()
 	verticalGlint.Size = UDim2.new(0, 5, 0, 14)
 	verticalGlint.AnchorPoint = Vector2.new(0.5, 0.5)
 	verticalGlint.Position = UDim2.new(0.5, 0, 0.5, 0)
-	verticalGlint.BackgroundColor3 = Color3.fromRGB(255, 248, 210)
+	verticalGlint.BackgroundColor3 = flashProfile.glintColor
 	verticalGlint.BackgroundTransparency = 0.05
 	verticalGlint.BorderSizePixel = 0
 	verticalGlint.ZIndex = 93
 	verticalGlint.Parent = glint
 
-	findFlashInTween = TweenService:Create(findFlashOverlay, TweenInfo.new(0.08, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-		BackgroundTransparency = 0.18,
+	findFlashInTween = TweenService:Create(findFlashOverlay, TweenInfo.new(flashProfile.flashInDuration, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+		BackgroundTransparency = flashProfile.peakTransparency,
 	})
 	findFlashInTween:Play()
 
-	TweenService:Create(pulse, TweenInfo.new(0.36, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-		Size = UDim2.new(0, 155, 0, 155),
+	TweenService:Create(pulse, TweenInfo.new(flashProfile.pulseDuration, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+		Size = UDim2.new(0, flashProfile.pulseSize, 0, flashProfile.pulseSize),
 	}):Play()
-	TweenService:Create(pulseStroke, TweenInfo.new(0.36, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+	TweenService:Create(pulseStroke, TweenInfo.new(flashProfile.pulseDuration, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
 		Transparency = 1,
 		Thickness = 1,
 	}):Play()
-	TweenService:Create(horizontalGlint, TweenInfo.new(0.18, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
-		Size = UDim2.new(0, 190, 0, 6),
+	TweenService:Create(horizontalGlint, TweenInfo.new(flashProfile.glintExpandDuration, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+		Size = UDim2.new(0, flashProfile.horizontalGlintWidth, 0, 6),
 	}):Play()
-	TweenService:Create(verticalGlint, TweenInfo.new(0.18, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
-		Size = UDim2.new(0, 6, 0, 80),
+	TweenService:Create(verticalGlint, TweenInfo.new(flashProfile.glintExpandDuration, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+		Size = UDim2.new(0, 6, 0, flashProfile.verticalGlintHeight),
 	}):Play()
-	TweenService:Create(horizontalGlint, TweenInfo.new(0.26, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+	TweenService:Create(horizontalGlint, TweenInfo.new(flashProfile.glintFadeDuration, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
 		BackgroundTransparency = 1,
 	}):Play()
-	TweenService:Create(verticalGlint, TweenInfo.new(0.26, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+	TweenService:Create(verticalGlint, TweenInfo.new(flashProfile.glintFadeDuration, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
 		BackgroundTransparency = 1,
 	}):Play()
 
@@ -2309,7 +2336,7 @@ local function playLegendaryFindFlash()
 			return
 		end
 
-		findFlashOutTween = TweenService:Create(findFlashOverlay, TweenInfo.new(0.34, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+		findFlashOutTween = TweenService:Create(findFlashOverlay, TweenInfo.new(flashProfile.flashOutDuration, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
 			BackgroundTransparency = 1,
 		})
 		findFlashOutTween:Play()
@@ -4758,7 +4785,7 @@ end
 
 Remotes.ItemFound.OnClientEvent:Connect(function(item)
 	if item and LEGENDARY_FIND_FLASH_RARITIES[item.rarity] then
-		playLegendaryFindFlash()
+		playLegendaryFindFlash(item.rarity)
 	end
 
 	if item and LIGHTING_PULSE_PROFILES[item.rarity] then
