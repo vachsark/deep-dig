@@ -868,11 +868,15 @@ local crewBonusNotifiedAt = {}
 local function hasNearbyCrewmate(player)
 	local fn = _G.DeepDig_hasNearbyCrewmate
 	if type(fn) ~= "function" then
-		return false
+		return false, nil
 	end
 
-	local success, hasCrewmate = pcall(fn, player, Config.CREW_COOP_RADIUS)
-	return success and hasCrewmate == true
+	local success, hasCrewmate, crewmate = pcall(fn, player, Config.CREW_COOP_RADIUS)
+	if success and hasCrewmate == true then
+		return true, crewmate
+	end
+
+	return false, nil
 end
 
 local function awardCrewCoopDigXP(player)
@@ -966,11 +970,19 @@ BlockBrokenEvent.Event:Connect(function(player, blockPosition)
 	end
 
 	local crewDigBonus = 0
-	if hasNearbyCrewmate(player) then
+	local crewDigPartnerName = nil
+	local nearCrewmate, crewDigPartner = hasNearbyCrewmate(player)
+	if nearCrewmate then
 		local crewFragmentBonus = awardCrewCoopDigXP(player)
 		data.fragments = (data.fragments or 0) + crewFragmentBonus
 		if crewFragmentBonus > 0 then
 			crewDigBonus = crewFragmentBonus
+			if typeof(crewDigPartner) == "Instance" and crewDigPartner:IsA("Player") then
+				crewDigPartnerName = crewDigPartner.DisplayName
+				if type(crewDigPartnerName) ~= "string" or crewDigPartnerName == "" then
+					crewDigPartnerName = crewDigPartner.Name
+				end
+			end
 			notifyCrewDigBonus(player, crewFragmentBonus)
 		end
 	end
@@ -1244,6 +1256,9 @@ BlockBrokenEvent.Event:Connect(function(player, blockPosition)
 	}
 	if crewDigBonus > 0 then
 		hudPayload.crewDigBonus = crewDigBonus
+		if crewDigPartnerName then
+			hudPayload.crewDigPartnerName = crewDigPartnerName
+		end
 	end
 	UpdateHUDEvent:FireClient(player, addStandardHudFields(hudPayload, data, player))
 end)

@@ -46,10 +46,11 @@ local function clearActiveGui(sequence)
 	end
 end
 
-local function playCrewBonusBurst(amount)
+local function playCrewBonusBurst(amount, partnerName)
 	feedbackSequence = feedbackSequence + 1
 	local sequence = feedbackSequence
 	clearActiveGui()
+	local hasPartnerName = type(partnerName) == "string" and partnerName ~= ""
 
 	local screenGui = Instance.new("ScreenGui")
 	screenGui.Name = "CrewBonusFeedback"
@@ -63,7 +64,7 @@ local function playCrewBonusBurst(amount)
 	frame.Name = "Burst"
 	frame.AnchorPoint = Vector2.new(0.5, 0.5)
 	frame.Position = UDim2.fromScale(0.5, 0.73)
-	frame.Size = UDim2.fromOffset(242, 38)
+	frame.Size = UDim2.fromOffset(252, hasPartnerName and 56 or 38)
 	frame.BackgroundColor3 = Color3.fromRGB(33, 30, 41)
 	frame.BackgroundTransparency = 1
 	frame.BorderSizePixel = 0
@@ -83,8 +84,8 @@ local function playCrewBonusBurst(amount)
 	local label = Instance.new("TextLabel")
 	label.Name = "AmountLabel"
 	label.AnchorPoint = Vector2.new(0.5, 0.5)
-	label.Position = UDim2.fromScale(0.5, 0.5)
-	label.Size = UDim2.new(1, -18, 1, 0)
+	label.Position = UDim2.fromScale(0.5, hasPartnerName and 0.36 or 0.5)
+	label.Size = UDim2.new(1, -18, 0, hasPartnerName and 24 or 38)
 	label.BackgroundTransparency = 1
 	label.Text = "+" .. tostring(amount) .. " Crew Fragments"
 	label.TextColor3 = Color3.fromRGB(230, 255, 239)
@@ -95,6 +96,26 @@ local function playCrewBonusBurst(amount)
 	label.TextYAlignment = Enum.TextYAlignment.Center
 	label.ZIndex = 21
 	label.Parent = frame
+
+	local partnerLabel = nil
+	if hasPartnerName then
+		partnerLabel = Instance.new("TextLabel")
+		partnerLabel.Name = "PartnerLabel"
+		partnerLabel.AnchorPoint = Vector2.new(0.5, 0.5)
+		partnerLabel.Position = UDim2.fromScale(0.5, 0.72)
+		partnerLabel.Size = UDim2.new(1, -20, 0, 18)
+		partnerLabel.BackgroundTransparency = 1
+		partnerLabel.Text = "with " .. partnerName
+		partnerLabel.TextColor3 = Color3.fromRGB(166, 238, 202)
+		partnerLabel.TextTransparency = 1
+		partnerLabel.TextSize = 13
+		partnerLabel.Font = Enum.Font.GothamSemibold
+		partnerLabel.TextXAlignment = Enum.TextXAlignment.Center
+		partnerLabel.TextYAlignment = Enum.TextYAlignment.Center
+		partnerLabel.TextTruncate = Enum.TextTruncate.AtEnd
+		partnerLabel.ZIndex = 21
+		partnerLabel.Parent = frame
+	end
 
 	local scale = Instance.new("UIScale")
 	scale.Scale = 0.88
@@ -112,6 +133,11 @@ local function playCrewBonusBurst(amount)
 	TweenService:Create(label, TweenInfo.new(0.1, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
 		TextTransparency = 0,
 	}):Play()
+	if partnerLabel then
+		TweenService:Create(partnerLabel, TweenInfo.new(0.1, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+			TextTransparency = 0,
+		}):Play()
+	end
 	TweenService:Create(scale, TweenInfo.new(0.2, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
 		Scale = 1,
 	}):Play()
@@ -131,6 +157,11 @@ local function playCrewBonusBurst(amount)
 		TweenService:Create(label, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
 			TextTransparency = 1,
 		}):Play()
+		if partnerLabel then
+			TweenService:Create(partnerLabel, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+				TextTransparency = 1,
+			}):Play()
+		end
 	end)
 
 	task.delay(BURST_LIFETIME_SECONDS, function()
@@ -148,5 +179,5 @@ UpdateHUDEvent.OnClientEvent:Connect(function(payload)
 		return
 	end
 
-	playCrewBonusBurst(math.floor(bonus))
+	playCrewBonusBurst(math.floor(bonus), payload.crewDigPartnerName)
 end)
