@@ -35,6 +35,7 @@ local UpdateHUDEvent = Remotes:WaitForChild("UpdateHUD")
 local BASE_COST = 1000000 -- 1M coins total earned to first resurface
 local COST_SCALE = 1.08   -- Each resurface costs 8% more
 local MULTIPLIER_PER_RESURFACE = 0.5 -- +0.5x per resurface (1x → 1.5x → 2x → ...)
+local REBIRTH_BOOST_MULTIPLIER_PER_RESURFACE = 1.0 -- +1.0x per resurface with Rebirth Boost
 local MIN_DEPTH_TIER = 6  -- Must have reached tier 6 (Unknown)
 local MAX_RESURFACES = 50 -- Soft cap
 
@@ -59,8 +60,29 @@ local function getResurfaceCost(currentResurfaces)
 	return math.floor(BASE_COST * (COST_SCALE ^ currentResurfaces))
 end
 
-local function getMultiplier(resurfaces)
-	return 1 + (resurfaces * MULTIPLIER_PER_RESURFACE)
+local function hasOwnedGamepass(data, passId, passKey)
+	local ownedGamepasses = data and data.ownedGamepasses
+	if not ownedGamepasses then
+		return false
+	end
+
+	return ownedGamepasses[passId] == true or (passKey and ownedGamepasses[passKey] == true)
+end
+
+local function getMultiplierPerResurface(data)
+	if hasOwnedGamepass(
+		data,
+		Config.GAMEPASS_REBIRTH_BOOST_ID,
+		Config.GAMEPASS_REBIRTH_BOOST
+	) then
+		return REBIRTH_BOOST_MULTIPLIER_PER_RESURFACE
+	end
+
+	return MULTIPLIER_PER_RESURFACE
+end
+
+local function getMultiplier(resurfaces, data)
+	return 1 + (resurfaces * getMultiplierPerResurface(data))
 end
 
 -- ═══════════════════════════════════════════════════════════════════
@@ -168,7 +190,7 @@ ResurfaceEvent.OnServerEvent:Connect(function(player)
 		resetCombo(player)
 	end
 
-	local multiplier = getMultiplier(data.rebirths)
+	local multiplier = getMultiplier(data.rebirths, data)
 
 	NotifyEvent:FireClient(player,
 		string.format("⭐ Resurface #%d — permanent +%.1fx coin multiplier active.", data.rebirths, multiplier - 1),
