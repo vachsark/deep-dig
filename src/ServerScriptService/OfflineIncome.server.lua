@@ -4,6 +4,7 @@
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
+local Config = require(ReplicatedStorage:WaitForChild("Config"))
 local Remotes = ReplicatedStorage:WaitForChild("Remotes")
 local NotifyEvent = Remotes:WaitForChild("Notify")
 local UpdateHUDEvent = Remotes:WaitForChild("UpdateHUD")
@@ -15,19 +16,6 @@ if not OfflineIncomeRewardEvent then
 	OfflineIncomeRewardEvent.Name = "OfflineIncomeReward"
 	OfflineIncomeRewardEvent.Parent = Remotes
 end
-
-local FOREMAN_PASS_ID = 4
-local DEFAULT_OFFLINE_SECONDS_CAP = 8 * 3600
-local FOREMAN_OFFLINE_SECONDS_CAP = 24 * 3600
-
-local OFFLINE_RATES = {
-	[1] = 30,   -- Rusty Shovel
-	[2] = 80,   -- Iron Pickaxe
-	[3] = 200,  -- Steel Drill
-	[4] = 500,  -- Dynamite Kit
-	[5] = 1200, -- Laser Cutter
-	[6] = 3000, -- Quantum Excavator
-}
 
 local processedPlayers = {}
 
@@ -63,12 +51,21 @@ local function awaitPlayerData(player, timeoutSeconds)
 	return getData(player)
 end
 
-local function getOfflineSecondsCap(data)
-	if data and data.ownedGamepasses and data.ownedGamepasses[FOREMAN_PASS_ID] then
-		return FOREMAN_OFFLINE_SECONDS_CAP
+local function hasOwnedGamepass(data, passId, passKey)
+	local ownedGamepasses = data and data.ownedGamepasses
+	if not ownedGamepasses then
+		return false
 	end
 
-	return DEFAULT_OFFLINE_SECONDS_CAP
+	return ownedGamepasses[passId] == true or (passKey and ownedGamepasses[passKey] == true)
+end
+
+local function getOfflineSecondsCap(data)
+	if hasOwnedGamepass(data, Config.GAMEPASS_FOREMAN_ID, Config.GAMEPASS_FOREMAN) then
+		return Config.OFFLINE_INCOME_FOREMAN_CAP_SECONDS
+	end
+
+	return Config.OFFLINE_INCOME_DEFAULT_CAP_SECONDS
 end
 
 local function formatOfflineDuration(seconds)
@@ -110,8 +107,10 @@ local function grantOfflineIncome(player)
 
 	local offlineSecondsCap = getOfflineSecondsCap(data)
 	local elapsed = math.clamp(os.time() - previousLastSeenAt, 0, offlineSecondsCap)
-	local coinsPerHour = OFFLINE_RATES[data.toolTier] or 0
-	local reward = math.floor(coinsPerHour * elapsed / 3600)
+	local tool = Config.TOOLS[data.toolTier] or Config.TOOLS[1]
+	local toolDamage = tool and tool.damage or 1
+	local coinsPerMinute = toolDamage * Config.OFFLINE_INCOME_COINS_PER_DAMAGE_PER_MINUTE
+	local reward = math.floor((elapsed / 60) * coinsPerMinute)
 	local processedAt = os.time()
 
 	if reward < 1 then
@@ -119,8 +118,8 @@ local function grantOfflineIncome(player)
 		return
 	end
 
-	data.coins = data.coins + reward
-	data.totalEarned = data.totalEarned + reward
+	data.coins = (data.coins or 0) + reward
+	data.totalEarned = (data.totalEarned or 0) + reward
 	data.lastSeenAt = processedAt
 
 	if not player.Parent then
