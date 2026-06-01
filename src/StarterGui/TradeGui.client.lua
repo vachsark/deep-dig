@@ -8,6 +8,7 @@
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local SoundService = game:GetService("SoundService")
 local TweenService = game:GetService("TweenService")
 
 local player = Players.LocalPlayer
@@ -62,6 +63,7 @@ local ACCENT_RED = Color3.fromRGB(240, 90, 90)
 local ACCENT_BLUE = Color3.fromRGB(80, 160, 255)
 
 local MAX_OFFER_ITEMS = 20
+local LOCAL_PLAY_SOUND_NAME = "DeepDigLocalPlaySound"
 
 local function setCorner(parent, radius)
 	local corner = Instance.new("UICorner")
@@ -168,6 +170,13 @@ screenGui.ResetOnSpawn = false
 screenGui.DisplayOrder = 60
 screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 screenGui.Parent = playerGui
+
+local localPlaySound = SoundService:FindFirstChild(LOCAL_PLAY_SOUND_NAME)
+if not localPlaySound then
+	localPlaySound = Instance.new("BindableEvent")
+	localPlaySound.Name = LOCAL_PLAY_SOUND_NAME
+	localPlaySound.Parent = SoundService
+end
 
 local tradeHint = Instance.new("TextLabel")
 tradeHint.Name = "TradeHint"
@@ -576,6 +585,57 @@ noticeLayout.Padding = UDim.new(0, 6)
 noticeLayout.SortOrder = Enum.SortOrder.LayoutOrder
 noticeLayout.Parent = noticeFrame
 
+local tradeCompleteBurst = Instance.new("Frame")
+tradeCompleteBurst.Name = "TradeCompleteBurst"
+tradeCompleteBurst.AnchorPoint = Vector2.new(0.5, 0.5)
+tradeCompleteBurst.Size = UDim2.fromOffset(312, 92)
+tradeCompleteBurst.Position = UDim2.fromScale(0.5, 0.36)
+tradeCompleteBurst.BackgroundColor3 = Color3.fromRGB(24, 38, 34)
+tradeCompleteBurst.BackgroundTransparency = 1
+tradeCompleteBurst.BorderSizePixel = 0
+tradeCompleteBurst.Visible = false
+tradeCompleteBurst.ZIndex = 90
+tradeCompleteBurst.Parent = screenGui
+setCorner(tradeCompleteBurst, 10)
+
+local tradeCompleteBurstStroke = setStroke(tradeCompleteBurst, ACCENT_GREEN, 2, 1)
+
+local tradeCompleteTitle = Instance.new("TextLabel")
+tradeCompleteTitle.Name = "Title"
+tradeCompleteTitle.Size = UDim2.new(1, -28, 0, 30)
+tradeCompleteTitle.Position = UDim2.fromOffset(14, 16)
+tradeCompleteTitle.BackgroundTransparency = 1
+tradeCompleteTitle.Text = "Trade Complete"
+tradeCompleteTitle.TextColor3 = ACCENT_GREEN
+tradeCompleteTitle.TextTransparency = 1
+tradeCompleteTitle.TextSize = 22
+tradeCompleteTitle.Font = Enum.Font.GothamBlack
+tradeCompleteTitle.TextXAlignment = Enum.TextXAlignment.Center
+tradeCompleteTitle.ZIndex = 91
+tradeCompleteTitle.Parent = tradeCompleteBurst
+
+local tradeCompleteDetail = Instance.new("TextLabel")
+tradeCompleteDetail.Name = "Detail"
+tradeCompleteDetail.Size = UDim2.new(1, -32, 0, 24)
+tradeCompleteDetail.Position = UDim2.fromOffset(16, 52)
+tradeCompleteDetail.BackgroundTransparency = 1
+tradeCompleteDetail.Text = "Swap finished"
+tradeCompleteDetail.TextColor3 = TEXT_PRIMARY
+tradeCompleteDetail.TextTransparency = 1
+tradeCompleteDetail.TextSize = 15
+tradeCompleteDetail.Font = Enum.Font.GothamBold
+tradeCompleteDetail.TextWrapped = true
+tradeCompleteDetail.TextXAlignment = Enum.TextXAlignment.Center
+tradeCompleteDetail.ZIndex = 91
+tradeCompleteDetail.Parent = tradeCompleteBurst
+
+local tradeCompleteScale = Instance.new("UIScale")
+tradeCompleteScale.Scale = 1
+tradeCompleteScale.Parent = tradeCompleteBurst
+
+local tradeCompleteTweens = {}
+local tradeCompleteSequence = 0
+
 local function showNotice(text, rarity)
 	local label = Instance.new("TextLabel")
 	label.Size = UDim2.new(1, 0, 0, 28)
@@ -603,6 +663,77 @@ local function showNotice(text, rarity)
 		tween.Completed:Connect(function()
 			if label.Parent then
 				label:Destroy()
+			end
+		end)
+	end)
+end
+
+local function clearTradeCompleteTweens()
+	for _, tween in ipairs(tradeCompleteTweens) do
+		tween:Cancel()
+	end
+	tradeCompleteTweens = {}
+end
+
+local function tweenTradeComplete(instance, duration, goal, easingStyle, easingDirection)
+	local tween = TweenService:Create(
+		instance,
+		TweenInfo.new(duration, easingStyle or Enum.EasingStyle.Quad, easingDirection or Enum.EasingDirection.Out),
+		goal
+	)
+	table.insert(tradeCompleteTweens, tween)
+	tween:Play()
+	return tween
+end
+
+local function playTradeCompleteSound()
+	if localPlaySound and localPlaySound:IsA("BindableEvent") then
+		localPlaySound:Fire("trade_complete")
+	end
+end
+
+local function showTradeCompleteBurst(partnerName)
+	tradeCompleteSequence = tradeCompleteSequence + 1
+	local sequence = tradeCompleteSequence
+	clearTradeCompleteTweens()
+	playTradeCompleteSound()
+
+	local cleanPartnerName = type(partnerName) == "string" and partnerName or ""
+	tradeCompleteDetail.Text = cleanPartnerName ~= "" and ("Swap with " .. cleanPartnerName .. " finished") or "Trade Complete"
+
+	tradeCompleteBurst.Visible = true
+	tradeCompleteBurst.Size = UDim2.fromOffset(286, 84)
+	tradeCompleteBurst.Position = UDim2.fromScale(0.5, 0.38)
+	tradeCompleteBurst.BackgroundTransparency = 0.18
+	tradeCompleteBurstStroke.Transparency = 0
+	tradeCompleteTitle.TextTransparency = 1
+	tradeCompleteDetail.TextTransparency = 1
+	tradeCompleteScale.Scale = 0.92
+
+	tweenTradeComplete(tradeCompleteBurst, 0.18, {
+		Size = UDim2.fromOffset(312, 92),
+		Position = UDim2.fromScale(0.5, 0.36),
+		BackgroundTransparency = 0.08,
+	}, Enum.EasingStyle.Back)
+	tweenTradeComplete(tradeCompleteScale, 0.2, { Scale = 1 }, Enum.EasingStyle.Back)
+	tweenTradeComplete(tradeCompleteTitle, 0.14, { TextTransparency = 0 })
+	tweenTradeComplete(tradeCompleteDetail, 0.18, { TextTransparency = 0.04 })
+
+	task.delay(1.35, function()
+		if sequence ~= tradeCompleteSequence or not tradeCompleteBurst.Parent then
+			return
+		end
+
+		tweenTradeComplete(tradeCompleteBurst, 0.24, {
+			Position = UDim2.fromScale(0.5, 0.33),
+			BackgroundTransparency = 1,
+		}, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+		tweenTradeComplete(tradeCompleteBurstStroke, 0.2, { Transparency = 1 })
+		tweenTradeComplete(tradeCompleteTitle, 0.18, { TextTransparency = 1 })
+		local detailTween = tweenTradeComplete(tradeCompleteDetail, 0.18, { TextTransparency = 1 })
+		detailTween.Completed:Once(function()
+			if sequence == tradeCompleteSequence then
+				tradeCompleteBurst.Visible = false
 			end
 		end)
 	end)
@@ -1107,7 +1238,9 @@ local function handleTradeUI(action, payload)
 		if type(payload) ~= "table" or payload.tradeId ~= activeTradeId then
 			return
 		end
+		local completedPartnerName = activePartnerName
 		resetTradeWindow()
+		showTradeCompleteBurst(completedPartnerName)
 		return
 	end
 

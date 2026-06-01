@@ -50,6 +50,12 @@ local SOUNDS = {
 		id = "rbxassetid://6837730320", -- coin clink jingle
 		volume = 0.8,
 	},
+	trade_complete = {
+		id = "rbxassetid://6837730320", -- compact positive swap-complete chime
+		volume = 0.62,
+		playbackSpeed = 1.18,
+		pitchRange = { 1.0, 1.06 },
+	},
 	upgrade_whoosh = {
 		id = "rbxassetid://9114011668", -- ascending whoosh
 		volume = 0.8,
