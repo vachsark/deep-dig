@@ -164,6 +164,18 @@ local SOUNDS = {
 		playbackSpeed = 1.32,
 		pitchRange = { 1.0, 1.08 },
 	},
+	crew_mail_send = {
+		id = "rbxassetid://6837730320", -- compact crew mailbox send chime
+		volume = 0.5,
+		playbackSpeed = 1.42,
+		pitchRange = { 1.0, 1.06 },
+	},
+	crew_mail_receive = {
+		id = "rbxassetid://6837730320", -- compact crew mailbox receive chime
+		volume = 0.58,
+		playbackSpeed = 1.22,
+		pitchRange = { 0.98, 1.04 },
+	},
 	friend_boost = {
 		id = "rbxassetid://6837730320", -- compact friend speed boost chime
 		volume = 0.5,

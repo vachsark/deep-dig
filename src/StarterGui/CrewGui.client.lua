@@ -74,6 +74,12 @@ local lastLevelUpKey = nil
 local mailboxClaimBurstSequence = 0
 local activeMailboxClaimBurst = nil
 local lastMailboxClaimKey = nil
+local mailboxSentBurstSequence = 0
+local activeMailboxSentBurst = nil
+local lastMailboxSentKey = nil
+local mailboxReceivedBurstSequence = 0
+local activeMailboxReceivedBurst = nil
+local lastMailboxReceivedKey = nil
 local activeCrewMembersByUserId = {}
 local crewMarkerConnections = {}
 
@@ -135,6 +141,28 @@ local function clearMailboxClaimBurst(sequence)
 	if activeMailboxClaimBurst then
 		activeMailboxClaimBurst:Destroy()
 		activeMailboxClaimBurst = nil
+	end
+end
+
+local function clearMailboxSentBurst(sequence)
+	if sequence and sequence ~= mailboxSentBurstSequence then
+		return
+	end
+
+	if activeMailboxSentBurst then
+		activeMailboxSentBurst:Destroy()
+		activeMailboxSentBurst = nil
+	end
+end
+
+local function clearMailboxReceivedBurst(sequence)
+	if sequence and sequence ~= mailboxReceivedBurstSequence then
+		return
+	end
+
+	if activeMailboxReceivedBurst then
+		activeMailboxReceivedBurst:Destroy()
+		activeMailboxReceivedBurst = nil
 	end
 end
 
@@ -546,6 +574,208 @@ local function showMailboxClaimBurst(itemName, senderName, rarity)
 
 	task.delay(1.55, function()
 		clearMailboxClaimBurst(sequence)
+	end)
+end
+
+local function showMailboxSentBurst(itemName, recipientName, rarity)
+	mailboxSentBurstSequence = mailboxSentBurstSequence + 1
+	local sequence = mailboxSentBurstSequence
+	clearMailboxSentBurst()
+
+	local rarityColor = getRarityColor(rarity)
+	local burst = Instance.new("Frame")
+	burst.Name = "CrewMailboxSentBurst"
+	burst.AnchorPoint = Vector2.new(1, 1)
+	burst.Position = UDim2.new(1, -20, 1, -294)
+	burst.Size = UDim2.fromOffset(236, 64)
+	burst.BackgroundColor3 = Color3.fromRGB(31, 31, 42)
+	burst.BackgroundTransparency = 1
+	burst.BorderSizePixel = 0
+	burst.ZIndex = 80
+	burst.Parent = screenGui
+	activeMailboxSentBurst = burst
+	setCorner(burst, 8)
+
+	local stroke = setStroke(burst, rarityColor, 1, 1)
+
+	local titleLabel = Instance.new("TextLabel")
+	titleLabel.Name = "Title"
+	titleLabel.Size = UDim2.new(1, -18, 0, 22)
+	titleLabel.Position = UDim2.fromOffset(9, 7)
+	titleLabel.BackgroundTransparency = 1
+	titleLabel.Text = "Crew Mail Sent"
+	titleLabel.TextColor3 = rarityColor
+	titleLabel.TextTransparency = 1
+	titleLabel.TextSize = 14
+	titleLabel.Font = Enum.Font.GothamBlack
+	titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+	titleLabel.TextTruncate = Enum.TextTruncate.AtEnd
+	titleLabel.ZIndex = 81
+	titleLabel.Parent = burst
+
+	local detailLabel = Instance.new("TextLabel")
+	detailLabel.Name = "Detail"
+	detailLabel.Size = UDim2.new(1, -18, 0, 26)
+	detailLabel.Position = UDim2.fromOffset(9, 29)
+	detailLabel.BackgroundTransparency = 1
+	detailLabel.Text = tostring(itemName) .. " to " .. tostring(recipientName)
+	detailLabel.TextColor3 = TEXT_PRIMARY
+	detailLabel.TextTransparency = 1
+	detailLabel.TextSize = 12
+	detailLabel.Font = Enum.Font.GothamBold
+	detailLabel.TextXAlignment = Enum.TextXAlignment.Left
+	detailLabel.TextTruncate = Enum.TextTruncate.AtEnd
+	detailLabel.ZIndex = 81
+	detailLabel.Parent = burst
+
+	local scale = Instance.new("UIScale")
+	scale.Scale = 0.9
+	scale.Parent = burst
+
+	if LocalPlaySound and LocalPlaySound:IsA("BindableEvent") then
+		LocalPlaySound:Fire("crew_mail_send")
+	end
+
+	TweenService:Create(burst, TweenInfo.new(0.14, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+		BackgroundTransparency = 0.06,
+		Position = UDim2.new(1, -20, 1, -302),
+	}):Play()
+	TweenService:Create(stroke, TweenInfo.new(0.14, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+		Transparency = 0.08,
+	}):Play()
+	TweenService:Create(titleLabel, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+		TextTransparency = 0,
+	}):Play()
+	TweenService:Create(detailLabel, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+		TextTransparency = 0,
+	}):Play()
+	TweenService:Create(scale, TweenInfo.new(0.2, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+		Scale = 1,
+	}):Play()
+
+	task.delay(1.2, function()
+		if sequence ~= mailboxSentBurstSequence or activeMailboxSentBurst ~= burst then
+			return
+		end
+
+		TweenService:Create(burst, TweenInfo.new(0.26, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+			BackgroundTransparency = 1,
+			Position = UDim2.new(1, -20, 1, -310),
+		}):Play()
+		TweenService:Create(stroke, TweenInfo.new(0.22, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+			Transparency = 1,
+		}):Play()
+		TweenService:Create(titleLabel, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+			TextTransparency = 1,
+		}):Play()
+		TweenService:Create(detailLabel, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+			TextTransparency = 1,
+		}):Play()
+	end)
+
+	task.delay(1.55, function()
+		clearMailboxSentBurst(sequence)
+	end)
+end
+
+local function showMailboxReceivedBurst(itemName, senderName, rarity)
+	mailboxReceivedBurstSequence = mailboxReceivedBurstSequence + 1
+	local sequence = mailboxReceivedBurstSequence
+	clearMailboxReceivedBurst()
+
+	local rarityColor = getRarityColor(rarity)
+	local burst = Instance.new("Frame")
+	burst.Name = "CrewMailboxReceivedBurst"
+	burst.AnchorPoint = Vector2.new(1, 1)
+	burst.Position = UDim2.new(1, -20, 1, -364)
+	burst.Size = UDim2.fromOffset(236, 64)
+	burst.BackgroundColor3 = Color3.fromRGB(27, 38, 35)
+	burst.BackgroundTransparency = 1
+	burst.BorderSizePixel = 0
+	burst.ZIndex = 80
+	burst.Parent = screenGui
+	activeMailboxReceivedBurst = burst
+	setCorner(burst, 8)
+
+	local stroke = setStroke(burst, rarityColor, 1, 1)
+
+	local titleLabel = Instance.new("TextLabel")
+	titleLabel.Name = "Title"
+	titleLabel.Size = UDim2.new(1, -18, 0, 22)
+	titleLabel.Position = UDim2.fromOffset(9, 7)
+	titleLabel.BackgroundTransparency = 1
+	titleLabel.Text = "Crew Mail Received"
+	titleLabel.TextColor3 = rarityColor
+	titleLabel.TextTransparency = 1
+	titleLabel.TextSize = 14
+	titleLabel.Font = Enum.Font.GothamBlack
+	titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+	titleLabel.TextTruncate = Enum.TextTruncate.AtEnd
+	titleLabel.ZIndex = 81
+	titleLabel.Parent = burst
+
+	local detailLabel = Instance.new("TextLabel")
+	detailLabel.Name = "Detail"
+	detailLabel.Size = UDim2.new(1, -18, 0, 26)
+	detailLabel.Position = UDim2.fromOffset(9, 29)
+	detailLabel.BackgroundTransparency = 1
+	detailLabel.Text = tostring(itemName) .. " from " .. tostring(senderName)
+	detailLabel.TextColor3 = TEXT_PRIMARY
+	detailLabel.TextTransparency = 1
+	detailLabel.TextSize = 12
+	detailLabel.Font = Enum.Font.GothamBold
+	detailLabel.TextXAlignment = Enum.TextXAlignment.Left
+	detailLabel.TextTruncate = Enum.TextTruncate.AtEnd
+	detailLabel.ZIndex = 81
+	detailLabel.Parent = burst
+
+	local scale = Instance.new("UIScale")
+	scale.Scale = 0.9
+	scale.Parent = burst
+
+	if LocalPlaySound and LocalPlaySound:IsA("BindableEvent") then
+		LocalPlaySound:Fire("crew_mail_receive")
+	end
+
+	TweenService:Create(burst, TweenInfo.new(0.14, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+		BackgroundTransparency = 0.06,
+		Position = UDim2.new(1, -20, 1, -372),
+	}):Play()
+	TweenService:Create(stroke, TweenInfo.new(0.14, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+		Transparency = 0.08,
+	}):Play()
+	TweenService:Create(titleLabel, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+		TextTransparency = 0,
+	}):Play()
+	TweenService:Create(detailLabel, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+		TextTransparency = 0,
+	}):Play()
+	TweenService:Create(scale, TweenInfo.new(0.2, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+		Scale = 1,
+	}):Play()
+
+	task.delay(1.2, function()
+		if sequence ~= mailboxReceivedBurstSequence or activeMailboxReceivedBurst ~= burst then
+			return
+		end
+
+		TweenService:Create(burst, TweenInfo.new(0.26, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+			BackgroundTransparency = 1,
+			Position = UDim2.new(1, -20, 1, -380),
+		}):Play()
+		TweenService:Create(stroke, TweenInfo.new(0.22, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+			Transparency = 1,
+		}):Play()
+		TweenService:Create(titleLabel, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+			TextTransparency = 1,
+		}):Play()
+		TweenService:Create(detailLabel, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+			TextTransparency = 1,
+		}):Play()
+	end)
+
+	task.delay(1.55, function()
+		clearMailboxReceivedBurst(sequence)
 	end)
 end
 
@@ -1286,6 +1516,28 @@ CrewUpdateEvent.OnClientEvent:Connect(function(payload)
 			if claimKey ~= lastMailboxClaimKey then
 				lastMailboxClaimKey = claimKey
 				showMailboxClaimBurst(itemName, senderName, rarity)
+			end
+		end
+		local mailboxSent = payload.mailboxSent
+		if type(mailboxSent) == "table" then
+			local itemName = tostring(mailboxSent.itemName or "Crew item")
+			local recipientName = tostring(mailboxSent.toDisplayName or mailboxSent.toName or "Crew")
+			local rarity = tostring(mailboxSent.rarity or "Common")
+			local sentKey = tostring(mailboxSent.id or "mail") .. ":" .. itemName .. ":" .. recipientName
+			if sentKey ~= lastMailboxSentKey then
+				lastMailboxSentKey = sentKey
+				showMailboxSentBurst(itemName, recipientName, rarity)
+			end
+		end
+		local mailboxReceived = payload.mailboxReceived
+		if type(mailboxReceived) == "table" then
+			local itemName = tostring(mailboxReceived.itemName or "Crew item")
+			local senderName = tostring(mailboxReceived.fromDisplayName or mailboxReceived.fromName or "Crew")
+			local rarity = tostring(mailboxReceived.rarity or "Common")
+			local receivedKey = tostring(mailboxReceived.id or "mail") .. ":" .. itemName .. ":" .. senderName
+			if receivedKey ~= lastMailboxReceivedKey then
+				lastMailboxReceivedKey = receivedKey
+				showMailboxReceivedBurst(itemName, senderName, rarity)
 			end
 		end
 		state = payload

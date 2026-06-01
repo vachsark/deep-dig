@@ -633,8 +633,26 @@ CrewMailboxSendEvent.OnServerEvent:Connect(function(player, recipientUserId, ite
 	fireInventoryHud(player, data)
 	notify(player, "Sent " .. clone.name .. " to " .. recipient.DisplayName .. ".", clone.rarity)
 	notify(recipient, player.DisplayName .. " sent you " .. clone.name .. ".", clone.rarity)
-	sendState(player)
-	sendState(recipient)
+	sendState(player, {
+		mailboxSent = {
+			id = nextMailboxId,
+			itemName = clone.name,
+			rarity = clone.rarity,
+			toUserId = recipient.UserId,
+			toName = recipient.Name,
+			toDisplayName = recipient.DisplayName,
+		},
+	})
+	sendState(recipient, {
+		mailboxReceived = {
+			id = nextMailboxId,
+			itemName = clone.name,
+			rarity = clone.rarity,
+			fromUserId = player.UserId,
+			fromName = player.Name,
+			fromDisplayName = player.DisplayName,
+		},
+	})
 end)
 
 CrewMailboxClaimEvent.OnServerEvent:Connect(function(player, mailboxId)
