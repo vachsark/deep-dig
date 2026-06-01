@@ -530,6 +530,12 @@ function awardHatch(player, eggType, options)
 	}
 	table.insert(data.pets, petRecord)
 
+	local autoEquipped = data.equippedPet == nil or data.equippedPet == false
+	if autoEquipped then
+		data.equippedPet = petRecord.id
+		updateCompanion(player)
+	end
+
 	-- Notify the player
 	if options.notifyPlayer ~= false then
 		local message = options.successMessage
@@ -545,11 +551,21 @@ function awardHatch(player, eggType, options)
 	end
 
 	-- Push updated coin count to HUD
-	UpdateHUDEvent:FireClient(player, {
+	local hudPayload = {
 		coins = data.coins,
 		petCount = #data.pets,
 		equippedPet = data.equippedPet == false and nil or data.equippedPet,
-	})
+	}
+
+	if autoEquipped then
+		hudPayload.equippedPet = petRecord.id
+		hudPayload.petName = petRecord.name
+		hudPayload.petRarity = petRecord.rarity
+		hudPayload.petLevel = tonumber(petRecord.level) or 1
+		hudPayload.petMultipliers = petRecord.multipliers
+	end
+
+	UpdateHUDEvent:FireClient(player, hudPayload)
 
 	return true, petRecord
 end
