@@ -3283,6 +3283,204 @@ function showStreakRewardBurst(payload)
 end
 end
 
+do
+local friendReferralRewardUi = {}
+friendReferralRewardUi.panel = Instance.new("Frame")
+friendReferralRewardUi.panel.Name = "FriendReferralRewardBurst"
+friendReferralRewardUi.panel.AnchorPoint = Vector2.new(0.5, 0.5)
+friendReferralRewardUi.panel.Size = UDim2.fromOffset(392, 166)
+friendReferralRewardUi.panel.Position = UDim2.fromScale(0.5, 0.46)
+friendReferralRewardUi.panel.BackgroundColor3 = Color3.fromRGB(18, 42, 38)
+friendReferralRewardUi.panel.BackgroundTransparency = 1
+friendReferralRewardUi.panel.BorderSizePixel = 0
+friendReferralRewardUi.panel.Visible = false
+friendReferralRewardUi.panel.ZIndex = 78
+friendReferralRewardUi.panel.Parent = screenGui
+
+friendReferralRewardUi.corner = Instance.new("UICorner")
+friendReferralRewardUi.corner.CornerRadius = UDim.new(0, 12)
+friendReferralRewardUi.corner.Parent = friendReferralRewardUi.panel
+
+friendReferralRewardUi.stroke = Instance.new("UIStroke")
+friendReferralRewardUi.stroke.Color = Color3.fromRGB(125, 245, 190)
+friendReferralRewardUi.stroke.Thickness = 2
+friendReferralRewardUi.stroke.Transparency = 1
+friendReferralRewardUi.stroke.Parent = friendReferralRewardUi.panel
+
+local function constrainFriendReferralText(label, maxTextSize, minTextSize)
+	label.TextScaled = true
+	label.TextWrapped = true
+
+	local constraint = Instance.new("UITextSizeConstraint")
+	constraint.MaxTextSize = maxTextSize
+	constraint.MinTextSize = minTextSize or 10
+	constraint.Parent = label
+end
+
+friendReferralRewardUi.title = Instance.new("TextLabel")
+friendReferralRewardUi.title.Name = "Title"
+friendReferralRewardUi.title.Size = UDim2.new(1, -28, 0, 28)
+friendReferralRewardUi.title.Position = UDim2.fromOffset(14, 12)
+friendReferralRewardUi.title.BackgroundTransparency = 1
+friendReferralRewardUi.title.Text = "Friend Reward!"
+friendReferralRewardUi.title.TextColor3 = Color3.fromRGB(145, 255, 205)
+friendReferralRewardUi.title.TextTransparency = 1
+friendReferralRewardUi.title.Font = Enum.Font.GothamBlack
+friendReferralRewardUi.title.TextXAlignment = Enum.TextXAlignment.Center
+friendReferralRewardUi.title.ZIndex = 79
+constrainFriendReferralText(friendReferralRewardUi.title, 23, 13)
+friendReferralRewardUi.title.Parent = friendReferralRewardUi.panel
+
+friendReferralRewardUi.friend = Instance.new("TextLabel")
+friendReferralRewardUi.friend.Name = "FriendName"
+friendReferralRewardUi.friend.Size = UDim2.new(1, -32, 0, 30)
+friendReferralRewardUi.friend.Position = UDim2.fromOffset(16, 42)
+friendReferralRewardUi.friend.BackgroundTransparency = 1
+friendReferralRewardUi.friend.Text = "with a friend"
+friendReferralRewardUi.friend.TextColor3 = Color3.fromRGB(235, 255, 246)
+friendReferralRewardUi.friend.TextTransparency = 1
+friendReferralRewardUi.friend.Font = Enum.Font.GothamBlack
+friendReferralRewardUi.friend.TextXAlignment = Enum.TextXAlignment.Center
+friendReferralRewardUi.friend.ZIndex = 79
+constrainFriendReferralText(friendReferralRewardUi.friend, 21, 11)
+friendReferralRewardUi.friend.Parent = friendReferralRewardUi.panel
+
+friendReferralRewardUi.coins = Instance.new("TextLabel")
+friendReferralRewardUi.coins.Name = "Coins"
+friendReferralRewardUi.coins.Size = UDim2.new(1, -32, 0, 34)
+friendReferralRewardUi.coins.Position = UDim2.fromOffset(16, 76)
+friendReferralRewardUi.coins.BackgroundTransparency = 1
+friendReferralRewardUi.coins.Text = "+0 coins"
+friendReferralRewardUi.coins.TextColor3 = Color3.fromRGB(255, 232, 105)
+friendReferralRewardUi.coins.TextTransparency = 1
+friendReferralRewardUi.coins.Font = Enum.Font.GothamBlack
+friendReferralRewardUi.coins.TextXAlignment = Enum.TextXAlignment.Center
+friendReferralRewardUi.coins.ZIndex = 79
+constrainFriendReferralText(friendReferralRewardUi.coins, 29, 14)
+friendReferralRewardUi.coins.Parent = friendReferralRewardUi.panel
+
+friendReferralRewardUi.egg = Instance.new("TextLabel")
+friendReferralRewardUi.egg.Name = "Egg"
+friendReferralRewardUi.egg.Size = UDim2.new(1, -36, 0, 32)
+friendReferralRewardUi.egg.Position = UDim2.fromOffset(18, 114)
+friendReferralRewardUi.egg.BackgroundTransparency = 1
+friendReferralRewardUi.egg.Text = "Referral Egg"
+friendReferralRewardUi.egg.TextColor3 = Color3.fromRGB(210, 235, 230)
+friendReferralRewardUi.egg.TextTransparency = 1
+friendReferralRewardUi.egg.Font = Enum.Font.GothamBold
+friendReferralRewardUi.egg.TextXAlignment = Enum.TextXAlignment.Center
+friendReferralRewardUi.egg.ZIndex = 79
+constrainFriendReferralText(friendReferralRewardUi.egg, 17, 10)
+friendReferralRewardUi.egg.Parent = friendReferralRewardUi.panel
+
+local friendReferralRewardSequence = 0
+local friendReferralRewardTweens = {}
+
+local function clearFriendReferralRewardTweens()
+	for _, tween in ipairs(friendReferralRewardTweens) do
+		tween:Cancel()
+	end
+	friendReferralRewardTweens = {}
+end
+
+local function tweenFriendReferralReward(instance, duration, goal, easingStyle, easingDirection)
+	local tween = TweenService:Create(
+		instance,
+		TweenInfo.new(duration, easingStyle or Enum.EasingStyle.Quad, easingDirection or Enum.EasingDirection.Out),
+		goal
+	)
+	table.insert(friendReferralRewardTweens, tween)
+	tween:Play()
+	return tween
+end
+
+local function getFriendReferralEggLabel(eggType)
+	eggType = tostring(eggType or Config.FRIEND_REFERRAL_REWARD_EGG or "Stone")
+	if eggType == "" then
+		eggType = tostring(Config.FRIEND_REFERRAL_REWARD_EGG or "Stone")
+	end
+
+	if string.find(string.lower(eggType), "egg", 1, true) then
+		return eggType
+	end
+
+	return eggType .. " Egg"
+end
+
+function showFriendReferralRewardBurst(payload)
+	if type(payload) ~= "table" then
+		return
+	end
+
+	local friendName = tostring(payload.friendName or "your friend")
+	local coins = math.floor(tonumber(payload.coins) or Config.FRIEND_REFERRAL_REWARD_COINS or 0)
+	local eggLabel = getFriendReferralEggLabel(payload.eggType)
+	local eggGranted = payload.eggGranted == true
+
+	friendReferralRewardSequence = friendReferralRewardSequence + 1
+	local sequence = friendReferralRewardSequence
+	clearFriendReferralRewardTweens()
+
+	friendReferralRewardUi.title.Text = "Friend Reward!"
+	friendReferralRewardUi.friend.Text = "with " .. friendName
+	friendReferralRewardUi.coins.Text = "+" .. tostring(coins) .. " coins"
+	if eggGranted then
+		friendReferralRewardUi.egg.Text = eggLabel
+		friendReferralRewardUi.egg.TextColor3 = Color3.fromRGB(210, 235, 230)
+	else
+		friendReferralRewardUi.egg.Text = eggLabel .. " unavailable"
+		friendReferralRewardUi.egg.TextColor3 = Color3.fromRGB(255, 170, 130)
+	end
+
+	friendReferralRewardUi.panel.Visible = true
+	friendReferralRewardUi.panel.Size = UDim2.fromOffset(368, 156)
+	friendReferralRewardUi.panel.Position = UDim2.fromScale(0.5, 0.48)
+	friendReferralRewardUi.panel.BackgroundTransparency = 1
+	friendReferralRewardUi.stroke.Transparency = 1
+	friendReferralRewardUi.title.TextTransparency = 1
+	friendReferralRewardUi.friend.TextTransparency = 1
+	friendReferralRewardUi.coins.TextTransparency = 1
+	friendReferralRewardUi.egg.TextTransparency = 1
+
+	if LocalPlaySound and LocalPlaySound:IsA("BindableEvent") then
+		LocalPlaySound:Fire("friend_referral_reward")
+	end
+
+	tweenFriendReferralReward(friendReferralRewardUi.panel, 0.18, {
+		Size = UDim2.fromOffset(392, 166),
+		Position = UDim2.fromScale(0.5, 0.44),
+		BackgroundTransparency = 0.05,
+	}, Enum.EasingStyle.Back)
+	tweenFriendReferralReward(friendReferralRewardUi.stroke, 0.18, { Transparency = 0 })
+	tweenFriendReferralReward(friendReferralRewardUi.title, 0.14, { TextTransparency = 0 })
+	tweenFriendReferralReward(friendReferralRewardUi.friend, 0.17, { TextTransparency = 0 })
+	tweenFriendReferralReward(friendReferralRewardUi.coins, 0.2, { TextTransparency = 0 })
+	tweenFriendReferralReward(friendReferralRewardUi.egg, 0.22, { TextTransparency = 0 })
+
+	task.delay(3.1, function()
+		if sequence ~= friendReferralRewardSequence then
+			return
+		end
+
+		tweenFriendReferralReward(friendReferralRewardUi.panel, 0.24, {
+			Position = UDim2.fromScale(0.5, 0.40),
+			BackgroundTransparency = 1,
+		}, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+		tweenFriendReferralReward(friendReferralRewardUi.stroke, 0.22, { Transparency = 1 }, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+		tweenFriendReferralReward(friendReferralRewardUi.title, 0.18, { TextTransparency = 1 }, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+		tweenFriendReferralReward(friendReferralRewardUi.friend, 0.18, { TextTransparency = 1 }, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+		tweenFriendReferralReward(friendReferralRewardUi.coins, 0.18, { TextTransparency = 1 }, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+		local eggFade = tweenFriendReferralReward(friendReferralRewardUi.egg, 0.18, { TextTransparency = 1 }, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+		eggFade.Completed:Connect(function()
+			if sequence ~= friendReferralRewardSequence then
+				return
+			end
+			friendReferralRewardUi.panel.Visible = false
+		end)
+	end)
+end
+end
+
 DeepDigAutoCollectedUi = {}
 DeepDigAutoCollectedUi.panel = Instance.new("Frame")
 DeepDigAutoCollectedUi.panel.Name = "AutoCollectorBurst"
@@ -4933,6 +5131,9 @@ Remotes.UpdateHUD.OnClientEvent:Connect(function(data)
 	end
 	if data.offlineIncome then
 		showOfflineIncomePopup(data.offlineIncome)
+	end
+	if data.friendReferralReward then
+		showFriendReferralRewardBurst(data.friendReferralReward)
 	end
 	if data.autoCollected then
 		DeepDigShowAutoCollectedBurst(data.autoCollected)

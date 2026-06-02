@@ -555,6 +555,19 @@ local function ensureFriendReferralRewards(data)
 	return data.friendReferralRewards
 end
 
+local function formatFriendReferralEggLabel(eggType)
+	eggType = tostring(eggType or Config.FRIEND_REFERRAL_REWARD_EGG or "Stone")
+	if eggType == "" then
+		eggType = tostring(Config.FRIEND_REFERRAL_REWARD_EGG or "Stone")
+	end
+
+	if string.find(string.lower(eggType), "egg", 1, true) then
+		return eggType
+	end
+
+	return eggType .. " Egg"
+end
+
 local function grantFriendReferralReward(player, friendPlayer)
 	if not Config.FRIEND_REFERRAL_REWARD_ENABLED then
 		return
@@ -579,8 +592,14 @@ local function grantFriendReferralReward(player, friendPlayer)
 
 	local coins = Config.FRIEND_REFERRAL_REWARD_COINS or 0
 	local eggType = Config.FRIEND_REFERRAL_REWARD_EGG or "Stone"
+	local eggLabel = formatFriendReferralEggLabel(eggType)
 
 	local function awardOne(recipient, recipientData, otherPlayer)
+		local friendName = otherPlayer.DisplayName
+		if friendName == nil or friendName == "" then
+			friendName = otherPlayer.Name
+		end
+
 		recipientData.coins = (recipientData.coins or 0) + coins
 		recipientData.totalEarned = (recipientData.totalEarned or 0) + coins
 		if coins > 0 then
@@ -589,7 +608,7 @@ local function grantFriendReferralReward(player, friendPlayer)
 
 		NotifyEvent:FireClient(
 			recipient,
-			"Friend referral bonus with " .. otherPlayer.DisplayName .. ": +" .. coins .. " coins and a free Stone Egg!",
+			"Friend referral bonus with " .. friendName .. ": +" .. coins .. " coins and a free " .. eggLabel .. "!",
 			"Rare"
 		)
 
@@ -599,7 +618,7 @@ local function grantFriendReferralReward(player, friendPlayer)
 			petAwarded = grantFreeEgg(
 				recipient,
 				eggType,
-				"Referral Stone Egg hatched from playing with " .. otherPlayer.DisplayName .. "!"
+				"Referral " .. eggLabel .. " hatched from playing with " .. friendName .. "!"
 			)
 		end
 
@@ -616,6 +635,12 @@ local function grantFriendReferralReward(player, friendPlayer)
 			totalEarned = recipientData.totalEarned,
 			rebirths = recipientData.rebirths or 0,
 			petCount = recipientData.pets and #recipientData.pets or 0,
+			friendReferralReward = {
+				friendName = friendName,
+				coins = coins,
+				eggType = eggType,
+				eggGranted = petAwarded == true,
+			},
 		}, recipientData, recipient))
 	end
 

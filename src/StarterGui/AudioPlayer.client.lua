@@ -182,6 +182,12 @@ local SOUNDS = {
 		playbackSpeed = 1.48,
 		pitchRange = { 1.02, 1.08 },
 	},
+	friend_referral_reward = {
+		id = "rbxassetid://5852285683", -- centered friend referral reward shimmer
+		volume = 0.82,
+		playbackSpeed = 1.02,
+		pitchRange = { 0.98, 1.04 },
+	},
 	group_benefit = {
 		id = "rbxassetid://6837730320", -- compact group coin bonus chime
 		volume = 0.5,
