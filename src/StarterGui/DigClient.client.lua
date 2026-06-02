@@ -13,10 +13,12 @@ local EnemyHitEvent = Remotes:WaitForChild("EnemyHitEvent", 10)
 
 local TARGET_DIG_BLOCK = "DigBlock"
 local TARGET_ENEMY = "Enemy"
+local CLIENT_ATTACK_RANGE = 8
 local DEBUG_DIG_CLIENT = false
 
 local character = player.Character or player.CharacterAdded:Wait()
 local equippedExcavator = nil
+local playerGui = player:WaitForChild("PlayerGui")
 
 local targetHighlight = Instance.new("Highlight")
 targetHighlight.Name = "DeepDigTargetHighlight"
@@ -26,15 +28,108 @@ targetHighlight.OutlineTransparency = 0.12
 targetHighlight.DepthMode = Enum.HighlightDepthMode.Occluded
 targetHighlight.Parent = workspace
 
+local moveCloserCue = Instance.new("BillboardGui")
+moveCloserCue.Name = "DeepDigMoveCloserCue"
+moveCloserCue.Enabled = false
+moveCloserCue.AlwaysOnTop = true
+moveCloserCue.Size = UDim2.fromOffset(120, 32)
+moveCloserCue.StudsOffset = Vector3.new(0, 3.2, 0)
+moveCloserCue.MaxDistance = 120
+moveCloserCue.Parent = playerGui
+
+local moveCloserLabel = Instance.new("TextLabel")
+moveCloserLabel.Name = "Label"
+moveCloserLabel.BackgroundTransparency = 1
+moveCloserLabel.Size = UDim2.fromScale(1, 1)
+moveCloserLabel.Font = Enum.Font.GothamBold
+moveCloserLabel.Text = "Move closer"
+moveCloserLabel.TextColor3 = Color3.fromRGB(255, 210, 190)
+moveCloserLabel.TextStrokeColor3 = Color3.fromRGB(45, 25, 20)
+moveCloserLabel.TextStrokeTransparency = 0.25
+moveCloserLabel.TextScaled = true
+moveCloserLabel.Parent = moveCloserCue
+
 local function debugLog(...)
 	if DEBUG_DIG_CLIENT then
 		print(...)
 	end
 end
 
+local function clearMoveCloserCue()
+	moveCloserCue.Enabled = false
+	moveCloserCue.Adornee = nil
+end
+
 local function clearTargetHighlight()
 	targetHighlight.Enabled = false
 	targetHighlight.Adornee = nil
+	clearMoveCloserCue()
+end
+
+local function getModelRoot(model)
+	if not model then
+		return nil
+	end
+
+	if model.PrimaryPart then
+		return model.PrimaryPart
+	end
+
+	local root = model:FindFirstChild("HumanoidRootPart")
+	if root and root:IsA("BasePart") then
+		return root
+	end
+
+	root = model:FindFirstChild("RootPart")
+	if root and root:IsA("BasePart") then
+		return root
+	end
+
+	root = model:FindFirstChild("UpperTorso")
+	if root and root:IsA("BasePart") then
+		return root
+	end
+
+	root = model:FindFirstChild("Torso")
+	if root and root:IsA("BasePart") then
+		return root
+	end
+
+	return nil
+end
+
+local function getPlayerRoot()
+	if not character then
+		return nil
+	end
+
+	local root = character:FindFirstChild("HumanoidRootPart")
+	if root and root:IsA("BasePart") then
+		return root
+	end
+
+	return nil
+end
+
+local function isEnemyInClientAttackRange(enemyModel)
+	local playerRoot = getPlayerRoot()
+	local enemyRoot = getModelRoot(enemyModel)
+	if not playerRoot or not enemyRoot then
+		return true, enemyRoot
+	end
+
+	return (playerRoot.Position - enemyRoot.Position).Magnitude <= CLIENT_ATTACK_RANGE, enemyRoot
+end
+
+local function showMoveCloserCue(enemyModel)
+	local enemyRoot = getModelRoot(enemyModel)
+	if not enemyRoot then
+		clearMoveCloserCue()
+		return
+	end
+
+	moveCloserCue.Adornee = enemyRoot
+	moveCloserCue.Enabled = true
 end
 
 local function classifyTarget(target)
@@ -68,15 +163,30 @@ local function updateTargetHighlight()
 
 	local targetType, targetInstance = classifyTarget(mouse.Target)
 	if targetType == TARGET_ENEMY then
+		local isInRange = isEnemyInClientAttackRange(targetInstance)
 		targetHighlight.Adornee = targetInstance
-		targetHighlight.FillColor = Color3.fromRGB(255, 65, 65)
-		targetHighlight.OutlineColor = Color3.fromRGB(255, 35, 35)
+		if isInRange then
+			targetHighlight.FillColor = Color3.fromRGB(255, 65, 65)
+			targetHighlight.OutlineColor = Color3.fromRGB(255, 35, 35)
+			targetHighlight.FillTransparency = 0.86
+			targetHighlight.OutlineTransparency = 0.12
+			clearMoveCloserCue()
+		else
+			targetHighlight.FillColor = Color3.fromRGB(120, 78, 78)
+			targetHighlight.OutlineColor = Color3.fromRGB(150, 110, 110)
+			targetHighlight.FillTransparency = 0.92
+			targetHighlight.OutlineTransparency = 0.35
+			showMoveCloserCue(targetInstance)
+		end
 		targetHighlight.Enabled = true
 	elseif targetType == TARGET_DIG_BLOCK then
 		targetHighlight.Adornee = targetInstance
 		targetHighlight.FillColor = Color3.fromRGB(255, 190, 70)
 		targetHighlight.OutlineColor = Color3.fromRGB(255, 170, 35)
+		targetHighlight.FillTransparency = 0.86
+		targetHighlight.OutlineTransparency = 0.12
 		targetHighlight.Enabled = true
+		clearMoveCloserCue()
 	else
 		clearTargetHighlight()
 	end
@@ -92,6 +202,13 @@ local function onToolActivated()
 
 	local targetType, targetInstance = classifyTarget(target)
 	if targetType == TARGET_ENEMY then
+		local isInRange = isEnemyInClientAttackRange(targetInstance)
+		if not isInRange then
+			debugLog("[DeepDig dig] enemy hit ignored: move closer:", targetInstance.Name)
+			showMoveCloserCue(targetInstance)
+			return
+		end
+
 		debugLog("[DeepDig dig] enemy hit:", targetInstance.Name)
 		EnemyHitEvent:FireServer(targetInstance)
 		return
