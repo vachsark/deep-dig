@@ -3640,6 +3640,174 @@ function showFriendReferralRewardBurst(payload)
 end
 end
 
+do
+local sellAllSummaryUi = {}
+sellAllSummaryUi.panel = Instance.new("Frame")
+sellAllSummaryUi.panel.Name = "SellAllSummaryBurst"
+sellAllSummaryUi.panel.AnchorPoint = Vector2.new(0.5, 0.5)
+sellAllSummaryUi.panel.Size = UDim2.fromOffset(360, 132)
+sellAllSummaryUi.panel.Position = UDim2.fromScale(0.5, 0.48)
+sellAllSummaryUi.panel.BackgroundColor3 = Color3.fromRGB(40, 32, 18)
+sellAllSummaryUi.panel.BackgroundTransparency = 1
+sellAllSummaryUi.panel.BorderSizePixel = 0
+sellAllSummaryUi.panel.Visible = false
+sellAllSummaryUi.panel.ZIndex = 78
+sellAllSummaryUi.panel.Parent = screenGui
+
+sellAllSummaryUi.corner = Instance.new("UICorner")
+sellAllSummaryUi.corner.CornerRadius = UDim.new(0, 12)
+sellAllSummaryUi.corner.Parent = sellAllSummaryUi.panel
+
+sellAllSummaryUi.stroke = Instance.new("UIStroke")
+sellAllSummaryUi.stroke.Color = Color3.fromRGB(255, 216, 92)
+sellAllSummaryUi.stroke.Thickness = 2
+sellAllSummaryUi.stroke.Transparency = 1
+sellAllSummaryUi.stroke.Parent = sellAllSummaryUi.panel
+
+local function constrainSellAllSummaryText(label, maxTextSize, minTextSize)
+	label.TextScaled = true
+	label.TextWrapped = true
+
+	local constraint = Instance.new("UITextSizeConstraint")
+	constraint.MaxTextSize = maxTextSize
+	constraint.MinTextSize = minTextSize or 10
+	constraint.Parent = label
+end
+
+sellAllSummaryUi.title = Instance.new("TextLabel")
+sellAllSummaryUi.title.Name = "Title"
+sellAllSummaryUi.title.Size = UDim2.new(1, -28, 0, 28)
+sellAllSummaryUi.title.Position = UDim2.fromOffset(14, 12)
+sellAllSummaryUi.title.BackgroundTransparency = 1
+sellAllSummaryUi.title.Text = "Backpack Sold"
+sellAllSummaryUi.title.TextColor3 = Color3.fromRGB(255, 224, 110)
+sellAllSummaryUi.title.TextTransparency = 1
+sellAllSummaryUi.title.Font = Enum.Font.GothamBlack
+sellAllSummaryUi.title.TextXAlignment = Enum.TextXAlignment.Center
+sellAllSummaryUi.title.ZIndex = 79
+constrainSellAllSummaryText(sellAllSummaryUi.title, 24, 13)
+sellAllSummaryUi.title.Parent = sellAllSummaryUi.panel
+
+sellAllSummaryUi.coins = Instance.new("TextLabel")
+sellAllSummaryUi.coins.Name = "Coins"
+sellAllSummaryUi.coins.Size = UDim2.new(1, -28, 0, 42)
+sellAllSummaryUi.coins.Position = UDim2.fromOffset(14, 44)
+sellAllSummaryUi.coins.BackgroundTransparency = 1
+sellAllSummaryUi.coins.Text = "+0 coins"
+sellAllSummaryUi.coins.TextColor3 = Color3.fromRGB(255, 238, 124)
+sellAllSummaryUi.coins.TextTransparency = 1
+sellAllSummaryUi.coins.Font = Enum.Font.GothamBlack
+sellAllSummaryUi.coins.TextXAlignment = Enum.TextXAlignment.Center
+sellAllSummaryUi.coins.ZIndex = 79
+constrainSellAllSummaryText(sellAllSummaryUi.coins, 34, 15)
+sellAllSummaryUi.coins.Parent = sellAllSummaryUi.panel
+
+sellAllSummaryUi.detail = Instance.new("TextLabel")
+sellAllSummaryUi.detail.Name = "Detail"
+sellAllSummaryUi.detail.Size = UDim2.new(1, -32, 0, 28)
+sellAllSummaryUi.detail.Position = UDim2.fromOffset(16, 90)
+sellAllSummaryUi.detail.BackgroundTransparency = 1
+sellAllSummaryUi.detail.Text = "0 items sold"
+sellAllSummaryUi.detail.TextColor3 = Color3.fromRGB(232, 218, 180)
+sellAllSummaryUi.detail.TextTransparency = 1
+sellAllSummaryUi.detail.Font = Enum.Font.GothamBold
+sellAllSummaryUi.detail.TextXAlignment = Enum.TextXAlignment.Center
+sellAllSummaryUi.detail.ZIndex = 79
+constrainSellAllSummaryText(sellAllSummaryUi.detail, 17, 10)
+sellAllSummaryUi.detail.Parent = sellAllSummaryUi.panel
+
+local sellAllSummarySequence = 0
+local sellAllSummaryTweens = {}
+
+local function clearSellAllSummaryTweens()
+	for _, tween in ipairs(sellAllSummaryTweens) do
+		tween:Cancel()
+	end
+	sellAllSummaryTweens = {}
+end
+
+local function tweenSellAllSummary(instance, duration, goal, easingStyle, easingDirection)
+	local tween = TweenService:Create(
+		instance,
+		TweenInfo.new(duration, easingStyle or Enum.EasingStyle.Quad, easingDirection or Enum.EasingDirection.Out),
+		goal
+	)
+	table.insert(sellAllSummaryTweens, tween)
+	tween:Play()
+	return tween
+end
+
+function showSellAllSummaryBurst(payload)
+	if type(payload) ~= "table" then
+		return
+	end
+
+	local itemsSold = math.floor(tonumber(payload.itemsSold) or 0)
+	local coinsEarned = math.floor(tonumber(payload.coinsEarned) or 0)
+	if itemsSold <= 0 then
+		return
+	end
+
+	local wasBackpackFull = payload.wasBackpackFull == true
+	local itemLabel = itemsSold == 1 and "item" or "items"
+
+	sellAllSummarySequence = sellAllSummarySequence + 1
+	local sequence = sellAllSummarySequence
+	clearSellAllSummaryTweens()
+
+	sellAllSummaryUi.title.Text = wasBackpackFull and "Full Backpack Cashout!" or "Backpack Sold"
+	sellAllSummaryUi.coins.Text = "+" .. tostring(coinsEarned) .. " coins"
+	sellAllSummaryUi.detail.Text = tostring(itemsSold) .. " " .. itemLabel .. " sold"
+	sellAllSummaryUi.panel.BackgroundColor3 = wasBackpackFull and Color3.fromRGB(48, 36, 14) or Color3.fromRGB(36, 32, 22)
+	sellAllSummaryUi.stroke.Color = wasBackpackFull and Color3.fromRGB(255, 226, 82) or Color3.fromRGB(255, 196, 86)
+	sellAllSummaryUi.stroke.Thickness = wasBackpackFull and 3 or 2
+
+	sellAllSummaryUi.panel.Visible = true
+	sellAllSummaryUi.panel.Size = UDim2.fromOffset(338, 124)
+	sellAllSummaryUi.panel.Position = UDim2.fromScale(0.5, 0.48)
+	sellAllSummaryUi.panel.BackgroundTransparency = 1
+	sellAllSummaryUi.stroke.Transparency = 1
+	sellAllSummaryUi.title.TextTransparency = 1
+	sellAllSummaryUi.coins.TextTransparency = 1
+	sellAllSummaryUi.detail.TextTransparency = 1
+
+	if LocalPlaySound and LocalPlaySound:IsA("BindableEvent") then
+		LocalPlaySound:Fire("sell_all_bonus")
+	end
+
+	tweenSellAllSummary(sellAllSummaryUi.panel, 0.18, {
+		Size = wasBackpackFull and UDim2.fromOffset(390, 144) or UDim2.fromOffset(368, 132),
+		Position = UDim2.fromScale(0.5, 0.42),
+		BackgroundTransparency = 0.05,
+	}, Enum.EasingStyle.Back)
+	tweenSellAllSummary(sellAllSummaryUi.stroke, 0.18, { Transparency = 0 })
+	tweenSellAllSummary(sellAllSummaryUi.title, 0.14, { TextTransparency = 0 })
+	tweenSellAllSummary(sellAllSummaryUi.coins, 0.18, { TextTransparency = 0 })
+	tweenSellAllSummary(sellAllSummaryUi.detail, 0.22, { TextTransparency = 0 })
+
+	task.delay(wasBackpackFull and 2.8 or 2.3, function()
+		if sequence ~= sellAllSummarySequence then
+			return
+		end
+
+		tweenSellAllSummary(sellAllSummaryUi.panel, 0.24, {
+			Position = UDim2.fromScale(0.5, 0.37),
+			BackgroundTransparency = 1,
+		}, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+		tweenSellAllSummary(sellAllSummaryUi.stroke, 0.22, { Transparency = 1 }, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+		tweenSellAllSummary(sellAllSummaryUi.title, 0.18, { TextTransparency = 1 }, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+		tweenSellAllSummary(sellAllSummaryUi.coins, 0.18, { TextTransparency = 1 }, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+		local detailFade = tweenSellAllSummary(sellAllSummaryUi.detail, 0.18, { TextTransparency = 1 }, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+		detailFade.Completed:Connect(function()
+			if sequence ~= sellAllSummarySequence then
+				return
+			end
+			sellAllSummaryUi.panel.Visible = false
+		end)
+	end)
+end
+end
+
 DeepDigAutoCollectedUi = {}
 DeepDigAutoCollectedUi.panel = Instance.new("Frame")
 DeepDigAutoCollectedUi.panel.Name = "AutoCollectorBurst"
@@ -5296,6 +5464,9 @@ Remotes.UpdateHUD.OnClientEvent:Connect(function(data)
 	end
 	if data.badgeUnlock then
 		DeepDigShowBadgeUnlockBurst(data.badgeUnlock)
+	end
+	if data.sellAllSummary then
+		showSellAllSummaryBurst(data.sellAllSummary)
 	end
 	if data.autoCollected then
 		DeepDigShowAutoCollectedBurst(data.autoCollected)

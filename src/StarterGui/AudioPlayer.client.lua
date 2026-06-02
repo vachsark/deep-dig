@@ -50,6 +50,12 @@ local SOUNDS = {
 		id = "rbxassetid://6837730320", -- coin clink jingle
 		volume = 0.8,
 	},
+	sell_all_bonus = {
+		id = "rbxassetid://5852285683", -- centered sell-all payout shimmer
+		volume = 0.82,
+		playbackSpeed = 1.06,
+		pitchRange = { 0.98, 1.04 },
+	},
 	trade_complete = {
 		id = "rbxassetid://6837730320", -- compact positive swap-complete chime
 		volume = 0.62,

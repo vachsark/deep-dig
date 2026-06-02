@@ -1319,6 +1319,9 @@ SellAllEvent.OnServerEvent:Connect(function(player)
 	local data = getPlayerData(player)
 	if not data then return end
 
+	local itemsSold = #data.inventory
+	local capacity = getBackpackCapacity(data)
+	local wasBackpackFull = capacity ~= nil and itemsSold >= capacity
 	local total = 0
 	for _, item in ipairs(data.inventory) do
 		total = total + item.sellValue
@@ -1330,7 +1333,7 @@ SellAllEvent.OnServerEvent:Connect(function(player)
 	applyFirstSellAffordabilityGrant(player, data)
 
 	-- SOUND HOOK: coin clink/jingle on sell
-	if PlaySound then
+	if itemsSold > 0 and PlaySound then
 		PlaySound:FireClient(player, "sell_coins")
 	end
 
@@ -1339,6 +1342,11 @@ SellAllEvent.OnServerEvent:Connect(function(player)
 		coins = data.coins,
 		totalEarned = data.totalEarned,
 		rebirths = data.rebirths or 0,
+		sellAllSummary = itemsSold > 0 and {
+			itemsSold = itemsSold,
+			coinsEarned = earned,
+			wasBackpackFull = wasBackpackFull,
+		} or nil,
 	}, data, player))
 
 	-- ── FTUE: Post-sell upgrade nudge ───────────────────────────────
