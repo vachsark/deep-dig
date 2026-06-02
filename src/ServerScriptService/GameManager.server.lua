@@ -84,6 +84,7 @@ local ItemFoundEvent = createRemote("ItemFound")
 local EventTriggeredEvent = createRemote("EventTriggered")
 local NotifyEvent = createRemote("Notify")
 local GetPlayerDataFunc = createRemote("GetPlayerData", "RemoteFunction")
+local MarkFTUEHintsSeenEvent = createRemote("MarkFTUEHintsSeen")
 local PlaySound = Remotes:WaitForChild("PlaySound", 5)
 local REFRESH_EXCAVATOR_VISUAL_EVENT_NAME = "RefreshExcavatorVisual"
 
@@ -134,6 +135,7 @@ local DEFAULT_DATA = {
 	ownedGamepasses = {}, -- { [passId] = true }
 	friendReferralRewards = {}, -- { [friendUserIdString] = true }
 	firstSellAffordabilityGrantUsed = false, -- FTUE: one-time first-sell catch-up
+	ftueHintsSeen = false,
 	enemyDangerUnlockedSeen = false,
 }
 
@@ -1573,6 +1575,24 @@ BuyToolEvent.OnServerEvent:Connect(function(player, toolTier)
 	}, player))
 end)
 
+MarkFTUEHintsSeenEvent.OnServerEvent:Connect(function(player)
+	local data = getPlayerData(player)
+	if not data then
+		return
+	end
+
+	if data.ftueHintsSeen == true then
+		return
+	end
+
+	data.ftueHintsSeen = true
+	task.spawn(function()
+		if not savePlayerData(player) then
+			warn(string.format("[DeepDig] FTUE hints save FAILED for %s (UserId %d)", player.Name, player.UserId))
+		end
+	end)
+end)
+
 -- ═══════════════════════════════════════════════════════════════════
 -- Data Requests
 -- ═══════════════════════════════════════════════════════════════════
@@ -1603,6 +1623,7 @@ GetPlayerDataFunc.OnServerInvoke = function(player)
 		streakReviveOfferDate = data.streakReviveOfferDate,
 		streakRevivePrice = 50,
 		ownedGamepasses = data.ownedGamepasses,
+		ftueHintsSeen = data.ftueHintsSeen == true,
 		nextToolCost = Config.TOOLS[data.toolTier + 1] and Config.TOOLS[data.toolTier + 1].cost or nil,
 		nextToolName = Config.TOOLS[data.toolTier + 1] and Config.TOOLS[data.toolTier + 1].name or nil,
 	}

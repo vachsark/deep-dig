@@ -4,11 +4,11 @@
 -- Shows a one-time guided tour highlighting the Pets, Quests, Stats, Leaderboard,
 -- and Trade panels with dim overlay + spotlight cutout + speech-bubble explainers.
 --
--- Triggers once per session (per-character attribute, no DataStore yet).
--- Players who relog will see the FTUE again — acceptable for v1; persistence can
--- be added later via a server-side MarkFTUEDone RemoteEvent.
+-- Triggers once per session and is persisted through server-owned player data
+-- when the player finishes or skips the tour.
 
 local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
 
@@ -97,7 +97,42 @@ local function safeSetAttribute(name, value)
 	end)
 end
 
+local function waitForChildTimeout(parent, childName, timeoutSeconds)
+	if not parent then return nil end
+	return parent:WaitForChild(childName, timeoutSeconds or 5)
+end
+
+local Remotes = waitForChildTimeout(ReplicatedStorage, "Remotes", 10)
+local GetPlayerDataFunction = Remotes and waitForChildTimeout(Remotes, "GetPlayerData", 10)
+local MarkFTUEHintsSeenEvent = Remotes and waitForChildTimeout(Remotes, "MarkFTUEHintsSeen", 10)
+
+local function fetchPlayerDataSnapshot()
+	if not GetPlayerDataFunction then
+		return nil
+	end
+
+	local ok, result = pcall(function()
+		return GetPlayerDataFunction:InvokeServer()
+	end)
+
+	if ok and type(result) == "table" then
+		return result
+	end
+
+	return nil
+end
+
+local function markFTUEHintsSeen()
+	if MarkFTUEHintsSeenEvent then
+		MarkFTUEHintsSeenEvent:FireServer()
+	end
+end
+
 if safeGetAttribute("FTUE_HintsShown") then
+	return
+end
+
+if not (GetPlayerDataFunction and MarkFTUEHintsSeenEvent) then
 	return
 end
 
@@ -114,6 +149,16 @@ task.wait(INITIAL_DELAY_SECONDS)
 -- Re-check after the delay — player may have logged out and back in,
 -- or another path may have set the flag.
 if safeGetAttribute("FTUE_HintsShown") then
+	return
+end
+
+local playerData = fetchPlayerDataSnapshot()
+if not playerData then
+	return
+end
+
+if playerData.ftueHintsSeen == true then
+	safeSetAttribute("FTUE_HintsShown", true)
 	return
 end
 
@@ -455,6 +500,7 @@ if skipped then
 else
 	safeSetAttribute("FTUE_HintsShown", true)
 end
+markFTUEHintsSeen()
 
 if inputConn then
 	inputConn:Disconnect()
