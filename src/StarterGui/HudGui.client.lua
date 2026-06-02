@@ -3283,6 +3283,165 @@ function showStreakRewardBurst(payload)
 end
 end
 
+DeepDigShowBadgeUnlockBurst = (function()
+	local badgeUnlockUi = {}
+badgeUnlockUi.panel = Instance.new("Frame")
+badgeUnlockUi.panel.Name = "BadgeUnlockBurst"
+badgeUnlockUi.panel.AnchorPoint = Vector2.new(0.5, 0.5)
+badgeUnlockUi.panel.Size = UDim2.fromOffset(372, 138)
+badgeUnlockUi.panel.Position = UDim2.fromScale(0.5, 0.44)
+badgeUnlockUi.panel.BackgroundColor3 = Color3.fromRGB(42, 31, 16)
+badgeUnlockUi.panel.BackgroundTransparency = 1
+badgeUnlockUi.panel.BorderSizePixel = 0
+badgeUnlockUi.panel.Visible = false
+badgeUnlockUi.panel.ZIndex = 80
+badgeUnlockUi.panel.Parent = screenGui
+
+badgeUnlockUi.corner = Instance.new("UICorner")
+badgeUnlockUi.corner.CornerRadius = UDim.new(0, 12)
+badgeUnlockUi.corner.Parent = badgeUnlockUi.panel
+
+badgeUnlockUi.stroke = Instance.new("UIStroke")
+badgeUnlockUi.stroke.Color = Color3.fromRGB(255, 220, 90)
+badgeUnlockUi.stroke.Thickness = 3
+badgeUnlockUi.stroke.Transparency = 1
+badgeUnlockUi.stroke.Parent = badgeUnlockUi.panel
+
+local function constrainBadgeUnlockText(label, maxTextSize, minTextSize)
+	label.TextScaled = true
+	label.TextWrapped = true
+
+	local constraint = Instance.new("UITextSizeConstraint")
+	constraint.MaxTextSize = maxTextSize
+	constraint.MinTextSize = minTextSize or 10
+	constraint.Parent = label
+end
+
+badgeUnlockUi.title = Instance.new("TextLabel")
+badgeUnlockUi.title.Name = "Title"
+badgeUnlockUi.title.Size = UDim2.new(1, -30, 0, 32)
+badgeUnlockUi.title.Position = UDim2.fromOffset(15, 14)
+badgeUnlockUi.title.BackgroundTransparency = 1
+badgeUnlockUi.title.Text = "🏆 Badge Unlocked"
+badgeUnlockUi.title.TextColor3 = Color3.fromRGB(255, 236, 130)
+badgeUnlockUi.title.TextTransparency = 1
+badgeUnlockUi.title.Font = Enum.Font.GothamBlack
+badgeUnlockUi.title.TextXAlignment = Enum.TextXAlignment.Center
+badgeUnlockUi.title.ZIndex = 81
+constrainBadgeUnlockText(badgeUnlockUi.title, 24, 13)
+badgeUnlockUi.title.Parent = badgeUnlockUi.panel
+
+badgeUnlockUi.description = Instance.new("TextLabel")
+badgeUnlockUi.description.Name = "Description"
+badgeUnlockUi.description.Size = UDim2.new(1, -34, 0, 48)
+badgeUnlockUi.description.Position = UDim2.fromOffset(17, 50)
+badgeUnlockUi.description.BackgroundTransparency = 1
+badgeUnlockUi.description.Text = "Milestone reached"
+badgeUnlockUi.description.TextColor3 = Color3.fromRGB(255, 245, 210)
+badgeUnlockUi.description.TextTransparency = 1
+badgeUnlockUi.description.Font = Enum.Font.GothamBlack
+badgeUnlockUi.description.TextXAlignment = Enum.TextXAlignment.Center
+badgeUnlockUi.description.TextYAlignment = Enum.TextYAlignment.Center
+badgeUnlockUi.description.ZIndex = 81
+constrainBadgeUnlockText(badgeUnlockUi.description, 22, 12)
+badgeUnlockUi.description.Parent = badgeUnlockUi.panel
+
+badgeUnlockUi.detail = Instance.new("TextLabel")
+badgeUnlockUi.detail.Name = "Detail"
+badgeUnlockUi.detail.Size = UDim2.new(1, -34, 0, 22)
+badgeUnlockUi.detail.Position = UDim2.fromOffset(17, 102)
+badgeUnlockUi.detail.BackgroundTransparency = 1
+badgeUnlockUi.detail.Text = "Milestone achievement"
+badgeUnlockUi.detail.TextColor3 = Color3.fromRGB(225, 195, 115)
+badgeUnlockUi.detail.TextTransparency = 1
+badgeUnlockUi.detail.Font = Enum.Font.GothamBold
+badgeUnlockUi.detail.TextXAlignment = Enum.TextXAlignment.Center
+badgeUnlockUi.detail.ZIndex = 81
+constrainBadgeUnlockText(badgeUnlockUi.detail, 14, 10)
+badgeUnlockUi.detail.Parent = badgeUnlockUi.panel
+
+local badgeUnlockSequence = 0
+local badgeUnlockTweens = {}
+
+local function clearBadgeUnlockTweens()
+	for _, tween in ipairs(badgeUnlockTweens) do
+		tween:Cancel()
+	end
+	badgeUnlockTweens = {}
+end
+
+local function tweenBadgeUnlock(instance, duration, goal, easingStyle, easingDirection)
+	local tween = TweenService:Create(
+		instance,
+		TweenInfo.new(duration, easingStyle or Enum.EasingStyle.Quad, easingDirection or Enum.EasingDirection.Out),
+		goal
+	)
+	table.insert(badgeUnlockTweens, tween)
+	tween:Play()
+	return tween
+end
+
+	return function(payload)
+	if type(payload) ~= "table" then
+		return
+	end
+
+	local description = tostring(payload.description or "Milestone reached")
+
+	badgeUnlockSequence = badgeUnlockSequence + 1
+	local sequence = badgeUnlockSequence
+	clearBadgeUnlockTweens()
+
+	badgeUnlockUi.title.Text = "🏆 Badge Unlocked"
+	badgeUnlockUi.description.Text = description
+	badgeUnlockUi.detail.Text = "Milestone achievement"
+
+	badgeUnlockUi.panel.Visible = true
+	badgeUnlockUi.panel.Size = UDim2.fromOffset(340, 126)
+	badgeUnlockUi.panel.Position = UDim2.fromScale(0.5, 0.48)
+	badgeUnlockUi.panel.BackgroundTransparency = 1
+	badgeUnlockUi.stroke.Transparency = 1
+	badgeUnlockUi.title.TextTransparency = 1
+	badgeUnlockUi.description.TextTransparency = 1
+	badgeUnlockUi.detail.TextTransparency = 1
+
+	if LocalPlaySound and LocalPlaySound:IsA("BindableEvent") then
+		LocalPlaySound:Fire("badge_unlock")
+	end
+
+	tweenBadgeUnlock(badgeUnlockUi.panel, 0.18, {
+		Size = UDim2.fromOffset(372, 138),
+		Position = UDim2.fromScale(0.5, 0.42),
+		BackgroundTransparency = 0.06,
+	}, Enum.EasingStyle.Back)
+	tweenBadgeUnlock(badgeUnlockUi.stroke, 0.18, { Transparency = 0 })
+	tweenBadgeUnlock(badgeUnlockUi.title, 0.14, { TextTransparency = 0 })
+	tweenBadgeUnlock(badgeUnlockUi.description, 0.18, { TextTransparency = 0 })
+	tweenBadgeUnlock(badgeUnlockUi.detail, 0.22, { TextTransparency = 0 })
+
+	task.delay(2.8, function()
+		if sequence ~= badgeUnlockSequence then
+			return
+		end
+
+		tweenBadgeUnlock(badgeUnlockUi.panel, 0.24, {
+			Position = UDim2.fromScale(0.5, 0.38),
+			BackgroundTransparency = 1,
+		}, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+		tweenBadgeUnlock(badgeUnlockUi.stroke, 0.22, { Transparency = 1 }, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+		tweenBadgeUnlock(badgeUnlockUi.title, 0.18, { TextTransparency = 1 }, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+		tweenBadgeUnlock(badgeUnlockUi.description, 0.18, { TextTransparency = 1 }, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+		local detailFade = tweenBadgeUnlock(badgeUnlockUi.detail, 0.18, { TextTransparency = 1 }, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+		detailFade.Completed:Connect(function()
+			if sequence ~= badgeUnlockSequence then
+				return
+			end
+			badgeUnlockUi.panel.Visible = false
+		end)
+	end)
+	end
+end)()
+
 do
 local friendReferralRewardUi = {}
 friendReferralRewardUi.panel = Instance.new("Frame")
@@ -5134,6 +5293,9 @@ Remotes.UpdateHUD.OnClientEvent:Connect(function(data)
 	end
 	if data.friendReferralReward then
 		showFriendReferralRewardBurst(data.friendReferralReward)
+	end
+	if data.badgeUnlock then
+		DeepDigShowBadgeUnlockBurst(data.badgeUnlock)
 	end
 	if data.autoCollected then
 		DeepDigShowAutoCollectedBurst(data.autoCollected)

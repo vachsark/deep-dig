@@ -188,6 +188,12 @@ local SOUNDS = {
 		playbackSpeed = 1.02,
 		pitchRange = { 0.98, 1.04 },
 	},
+	badge_unlock = {
+		id = "rbxassetid://5852285683", -- centered badge milestone shimmer
+		volume = 0.9,
+		playbackSpeed = 0.92,
+		pitchRange = { 0.98, 1.04 },
+	},
 	group_benefit = {
 		id = "rbxassetid://6837730320", -- compact group coin bonus chime
 		volume = 0.5,

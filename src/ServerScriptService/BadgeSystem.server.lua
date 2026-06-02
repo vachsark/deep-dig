@@ -180,6 +180,16 @@ local function awardBadge(player, badgeKey)
 		end
 	end
 
+	if UpdateHUDEvent then
+		UpdateHUDEvent:FireClient(player, {
+			badgeUnlock = {
+				id = entry.id,
+				badgeId = entry.badgeId,
+				description = entry.description,
+			},
+		})
+	end
+
 	if NotifyEvent then
 		NotifyEvent:FireClient(player, "🏆 Badge unlocked: " .. entry.description, "Legendary")
 	end
