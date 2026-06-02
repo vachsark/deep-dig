@@ -3808,6 +3808,184 @@ function showSellAllSummaryBurst(payload)
 end
 end
 
+do
+local enemyDangerUnlockedUi = {}
+enemyDangerUnlockedUi.panel = Instance.new("Frame")
+enemyDangerUnlockedUi.panel.Name = "EnemyDangerUnlockedBurst"
+enemyDangerUnlockedUi.panel.AnchorPoint = Vector2.new(0.5, 0.5)
+enemyDangerUnlockedUi.panel.Size = UDim2.fromOffset(382, 142)
+enemyDangerUnlockedUi.panel.Position = UDim2.fromScale(0.5, 0.48)
+enemyDangerUnlockedUi.panel.BackgroundColor3 = Color3.fromRGB(38, 20, 18)
+enemyDangerUnlockedUi.panel.BackgroundTransparency = 1
+enemyDangerUnlockedUi.panel.BorderSizePixel = 0
+enemyDangerUnlockedUi.panel.Visible = false
+enemyDangerUnlockedUi.panel.ZIndex = 84
+enemyDangerUnlockedUi.panel.Parent = screenGui
+
+enemyDangerUnlockedUi.corner = Instance.new("UICorner")
+enemyDangerUnlockedUi.corner.CornerRadius = UDim.new(0, 12)
+enemyDangerUnlockedUi.corner.Parent = enemyDangerUnlockedUi.panel
+
+enemyDangerUnlockedUi.stroke = Instance.new("UIStroke")
+enemyDangerUnlockedUi.stroke.Color = Color3.fromRGB(255, 92, 76)
+enemyDangerUnlockedUi.stroke.Thickness = 3
+enemyDangerUnlockedUi.stroke.Transparency = 1
+enemyDangerUnlockedUi.stroke.Parent = enemyDangerUnlockedUi.panel
+
+local function constrainEnemyDangerText(label, maxTextSize, minTextSize)
+	label.TextScaled = true
+	label.TextWrapped = true
+
+	local constraint = Instance.new("UITextSizeConstraint")
+	constraint.MaxTextSize = maxTextSize
+	constraint.MinTextSize = minTextSize or 10
+	constraint.Parent = label
+end
+
+enemyDangerUnlockedUi.title = Instance.new("TextLabel")
+enemyDangerUnlockedUi.title.Name = "Title"
+enemyDangerUnlockedUi.title.Size = UDim2.new(1, -28, 0, 30)
+enemyDangerUnlockedUi.title.Position = UDim2.fromOffset(14, 12)
+enemyDangerUnlockedUi.title.BackgroundTransparency = 1
+enemyDangerUnlockedUi.title.Text = "COMBAT UNLOCKED"
+enemyDangerUnlockedUi.title.TextColor3 = Color3.fromRGB(255, 120, 96)
+enemyDangerUnlockedUi.title.TextTransparency = 1
+enemyDangerUnlockedUi.title.Font = Enum.Font.GothamBlack
+enemyDangerUnlockedUi.title.TextXAlignment = Enum.TextXAlignment.Center
+enemyDangerUnlockedUi.title.ZIndex = 85
+constrainEnemyDangerText(enemyDangerUnlockedUi.title, 25, 13)
+enemyDangerUnlockedUi.title.Parent = enemyDangerUnlockedUi.panel
+
+enemyDangerUnlockedUi.warning = Instance.new("TextLabel")
+enemyDangerUnlockedUi.warning.Name = "Warning"
+enemyDangerUnlockedUi.warning.Size = UDim2.new(1, -34, 0, 48)
+enemyDangerUnlockedUi.warning.Position = UDim2.fromOffset(17, 46)
+enemyDangerUnlockedUi.warning.BackgroundTransparency = 1
+enemyDangerUnlockedUi.warning.Text = "Enemies can now emerge from broken ground."
+enemyDangerUnlockedUi.warning.TextColor3 = Color3.fromRGB(255, 238, 220)
+enemyDangerUnlockedUi.warning.TextTransparency = 1
+enemyDangerUnlockedUi.warning.Font = Enum.Font.GothamBlack
+enemyDangerUnlockedUi.warning.TextXAlignment = Enum.TextXAlignment.Center
+enemyDangerUnlockedUi.warning.TextYAlignment = Enum.TextYAlignment.Center
+enemyDangerUnlockedUi.warning.ZIndex = 85
+constrainEnemyDangerText(enemyDangerUnlockedUi.warning, 21, 12)
+enemyDangerUnlockedUi.warning.Parent = enemyDangerUnlockedUi.panel
+
+enemyDangerUnlockedUi.detail = Instance.new("TextLabel")
+enemyDangerUnlockedUi.detail.Name = "Detail"
+enemyDangerUnlockedUi.detail.Size = UDim2.new(1, -34, 0, 24)
+enemyDangerUnlockedUi.detail.Position = UDim2.fromOffset(17, 100)
+enemyDangerUnlockedUi.detail.BackgroundTransparency = 1
+enemyDangerUnlockedUi.detail.Text = "Depth 11 - Stone layer"
+enemyDangerUnlockedUi.detail.TextColor3 = Color3.fromRGB(245, 170, 130)
+enemyDangerUnlockedUi.detail.TextTransparency = 1
+enemyDangerUnlockedUi.detail.Font = Enum.Font.GothamBold
+enemyDangerUnlockedUi.detail.TextXAlignment = Enum.TextXAlignment.Center
+enemyDangerUnlockedUi.detail.ZIndex = 85
+constrainEnemyDangerText(enemyDangerUnlockedUi.detail, 15, 10)
+enemyDangerUnlockedUi.detail.Parent = enemyDangerUnlockedUi.panel
+
+local enemyDangerUnlockedSequence = 0
+local enemyDangerUnlockedTweens = {}
+
+local function clearEnemyDangerUnlockedTweens()
+	for _, tween in ipairs(enemyDangerUnlockedTweens) do
+		tween:Cancel()
+	end
+	enemyDangerUnlockedTweens = {}
+end
+
+local function tweenEnemyDangerUnlocked(instance, duration, goal, easingStyle, easingDirection)
+	local tween = TweenService:Create(
+		instance,
+		TweenInfo.new(duration, easingStyle or Enum.EasingStyle.Quad, easingDirection or Enum.EasingDirection.Out),
+		goal
+	)
+	table.insert(enemyDangerUnlockedTweens, tween)
+	tween:Play()
+	return tween
+end
+
+function showEnemyDangerUnlockedBurst(payload)
+	if type(payload) ~= "table" then
+		return
+	end
+
+	local depth = math.floor(tonumber(payload.depth) or 11)
+	local tierName = tostring(payload.tierName or "Stone")
+
+	enemyDangerUnlockedSequence = enemyDangerUnlockedSequence + 1
+	local sequence = enemyDangerUnlockedSequence
+	clearEnemyDangerUnlockedTweens()
+
+	enemyDangerUnlockedUi.detail.Text = "Depth " .. tostring(depth) .. " - " .. tierName .. " layer"
+	enemyDangerUnlockedUi.panel.Visible = true
+	enemyDangerUnlockedUi.panel.Size = UDim2.fromOffset(348, 128)
+	enemyDangerUnlockedUi.panel.Position = UDim2.fromScale(0.5, 0.50)
+	enemyDangerUnlockedUi.panel.BackgroundTransparency = 1
+	enemyDangerUnlockedUi.stroke.Transparency = 1
+	enemyDangerUnlockedUi.stroke.Thickness = 2
+	enemyDangerUnlockedUi.title.TextTransparency = 1
+	enemyDangerUnlockedUi.warning.TextTransparency = 1
+	enemyDangerUnlockedUi.detail.TextTransparency = 1
+
+	if LocalPlaySound and LocalPlaySound:IsA("BindableEvent") then
+		LocalPlaySound:Fire("enemy_aggro")
+	end
+
+	tweenEnemyDangerUnlocked(enemyDangerUnlockedUi.panel, 0.18, {
+		Size = UDim2.fromOffset(394, 148),
+		Position = UDim2.fromScale(0.5, 0.43),
+		BackgroundTransparency = 0.04,
+	}, Enum.EasingStyle.Back)
+	tweenEnemyDangerUnlocked(enemyDangerUnlockedUi.stroke, 0.18, {
+		Transparency = 0,
+		Thickness = 4,
+	})
+	tweenEnemyDangerUnlocked(enemyDangerUnlockedUi.title, 0.14, { TextTransparency = 0 })
+	tweenEnemyDangerUnlocked(enemyDangerUnlockedUi.warning, 0.18, { TextTransparency = 0 })
+	tweenEnemyDangerUnlocked(enemyDangerUnlockedUi.detail, 0.22, { TextTransparency = 0 })
+
+	task.delay(0.35, function()
+		if sequence ~= enemyDangerUnlockedSequence then
+			return
+		end
+
+		tweenEnemyDangerUnlocked(enemyDangerUnlockedUi.stroke, 0.22, {
+			Thickness = 2.5,
+			Color = Color3.fromRGB(255, 170, 90),
+		}, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+		tweenEnemyDangerUnlocked(enemyDangerUnlockedUi.panel, 0.2, {
+			Size = UDim2.fromOffset(382, 142),
+		}, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+	end)
+
+	task.delay(3.0, function()
+		if sequence ~= enemyDangerUnlockedSequence then
+			return
+		end
+
+		tweenEnemyDangerUnlocked(enemyDangerUnlockedUi.panel, 0.24, {
+			Position = UDim2.fromScale(0.5, 0.37),
+			BackgroundTransparency = 1,
+		}, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+		tweenEnemyDangerUnlocked(enemyDangerUnlockedUi.stroke, 0.22, {
+			Transparency = 1,
+			Color = Color3.fromRGB(255, 92, 76),
+		}, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+		tweenEnemyDangerUnlocked(enemyDangerUnlockedUi.title, 0.18, { TextTransparency = 1 }, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+		tweenEnemyDangerUnlocked(enemyDangerUnlockedUi.warning, 0.18, { TextTransparency = 1 }, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+		local detailFade = tweenEnemyDangerUnlocked(enemyDangerUnlockedUi.detail, 0.18, { TextTransparency = 1 }, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+		detailFade.Completed:Connect(function()
+			if sequence ~= enemyDangerUnlockedSequence then
+				return
+			end
+			enemyDangerUnlockedUi.panel.Visible = false
+		end)
+	end)
+end
+end
+
 DeepDigAutoCollectedUi = {}
 DeepDigAutoCollectedUi.panel = Instance.new("Frame")
 DeepDigAutoCollectedUi.panel.Name = "AutoCollectorBurst"
@@ -5467,6 +5645,9 @@ Remotes.UpdateHUD.OnClientEvent:Connect(function(data)
 	end
 	if data.sellAllSummary then
 		showSellAllSummaryBurst(data.sellAllSummary)
+	end
+	if data.enemyDangerUnlocked then
+		showEnemyDangerUnlockedBurst(data.enemyDangerUnlocked)
 	end
 	if data.autoCollected then
 		DeepDigShowAutoCollectedBurst(data.autoCollected)

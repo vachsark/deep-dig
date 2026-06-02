@@ -110,6 +110,7 @@ local playerData = {} -- In-memory cache
 _G.DeepDig_playerData = playerData -- Shared with DailyStreak, Leaderboard, Gamepasses
 local offlineIncomeHandled = {}
 _G.DeepDig_offlineIncomeHandled = offlineIncomeHandled
+local ENEMY_DANGER_UNLOCK_DEPTH = 11 -- Keep aligned with EnemySystem.server.lua FIRST_ENEMY_DEPTH.
 
 local DEFAULT_DATA = {
 	coins = Config.STARTING_COINS,
@@ -133,6 +134,7 @@ local DEFAULT_DATA = {
 	ownedGamepasses = {}, -- { [passId] = true }
 	friendReferralRewards = {}, -- { [friendUserIdString] = true }
 	firstSellAffordabilityGrantUsed = false, -- FTUE: one-time first-sell catch-up
+	enemyDangerUnlockedSeen = false,
 }
 
 local function normalizeBooleanMap(value)
@@ -168,6 +170,9 @@ local function loadPlayerData(player)
 	end
 
 	playerData[player.UserId].friendReferralRewards = normalizeBooleanMap(playerData[player.UserId].friendReferralRewards)
+	if (playerData[player.UserId].deepestBlock or 0) >= ENEMY_DANGER_UNLOCK_DEPTH then
+		playerData[player.UserId].enemyDangerUnlockedSeen = true
+	end
 
 	return playerData[player.UserId]
 end
@@ -1030,6 +1035,8 @@ BlockBrokenEvent.Event:Connect(function(player, blockPosition)
 	-- Calculate depth (in blocks)
 	local depth = math.floor(math.abs(blockPosition.Y) / Config.BLOCK_SIZE)
 	local tierName = ItemDatabase.getTierForDepth(depth)
+	local previousDeepestBlock = data.deepestBlock or 0
+	local enemyDangerUnlockedPayload = nil
 
 	-- Update stats
 	data.totalBlocksDug = data.totalBlocksDug + 1
@@ -1052,6 +1059,15 @@ BlockBrokenEvent.Event:Connect(function(player, blockPosition)
 		data.deepestBlock = depth
 		-- Fire depth_reached on each new max so QuestSystem can take max
 		fireQuestProgress(player, "depth_reached", { depth = data.deepestBlock })
+	end
+	if not data.enemyDangerUnlockedSeen
+		and previousDeepestBlock < ENEMY_DANGER_UNLOCK_DEPTH
+		and data.deepestBlock >= ENEMY_DANGER_UNLOCK_DEPTH then
+		data.enemyDangerUnlockedSeen = true
+		enemyDangerUnlockedPayload = {
+			depth = ENEMY_DANGER_UNLOCK_DEPTH,
+			tierName = ItemDatabase.getTierForDepth(ENEMY_DANGER_UNLOCK_DEPTH),
+		}
 	end
 
 	-- (block_break sound fires from DigSystem.server.lua at the actual
@@ -1276,6 +1292,7 @@ BlockBrokenEvent.Event:Connect(function(player, blockPosition)
 		rebirths = data.rebirths or 0,
 		autoCollected = autoCollectedPayload,
 		artifactDetected = artifactDetectedPayload,
+		enemyDangerUnlocked = enemyDangerUnlockedPayload,
 		-- spring_loot bumps fragments per-block; keep the HUD coherent.
 		fragments = data.fragments,
 	}
