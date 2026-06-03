@@ -47,6 +47,22 @@ local function isStreakReviveProductAvailable()
 	return Config.isStreakReviveProductIdValid(STREAK_REVIVE_PRODUCT_ID)
 end
 
+local function isRareRevealRarity(rarity)
+	return rarity == "Rare" or rarity == "Epic" or rarity == "Legendary" or rarity == "Mythic"
+end
+
+local function fireItemFindSounds(player, rarity)
+	local PlaySound = Remotes:FindFirstChild("PlaySound")
+	if not PlaySound then
+		return
+	end
+
+	PlaySound:FireClient(player, "item_found")
+	if isRareRevealRarity(rarity) then
+		PlaySound:FireClient(player, "rare_reveal")
+	end
+end
+
 -- ─── Helpers ────────────────────────────────────────────────────────────────
 
 -- Returns today's date as "YYYY-MM-DD" using os.date on the server.
@@ -259,6 +275,7 @@ local function applyReward(player, reward)
 			table.insert(data.inventory, reward.item)
 		end
 		data.collections[reward.item.name] = true
+		fireItemFindSounds(player, reward.item.rarity)
 	end
 
 	return true

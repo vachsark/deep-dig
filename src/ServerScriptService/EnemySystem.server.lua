@@ -70,6 +70,22 @@ local killStreaksByUserId = {}
 local deathConnectionsByUserId = {}
 local sharedGlobals = getfenv()._G
 
+local function isRareRevealRarity(rarity)
+	return rarity == "Rare" or rarity == "Epic" or rarity == "Legendary" or rarity == "Mythic"
+end
+
+local function fireItemFindSounds(player, rarity)
+	local PlaySound = Remotes:FindFirstChild("PlaySound")
+	if not PlaySound then
+		return
+	end
+
+	PlaySound:FireClient(player, "item_found")
+	if isRareRevealRarity(rarity) then
+		PlaySound:FireClient(player, "rare_reveal")
+	end
+end
+
 local function getSharedData(player)
 	local cache = sharedGlobals.DeepDig_playerData
 	if cache then
@@ -162,6 +178,7 @@ local function addItemReward(player, data, tierName)
 			ItemFoundEvent:FireClient(player, item)
 		end
 		ItemFoundBindable:Fire(player, item)
+		fireItemFindSounds(player, item.rarity)
 		return item
 	end
 

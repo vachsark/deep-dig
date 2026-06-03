@@ -103,6 +103,21 @@ local function fireQuestProgress(player, eventType, eventData)
 	end
 end
 
+local function isRareRevealRarity(rarity)
+	return rarity == "Rare" or rarity == "Epic" or rarity == "Legendary" or rarity == "Mythic"
+end
+
+local function fireItemFindSounds(player, rarity)
+	if not PlaySound then
+		return
+	end
+
+	PlaySound:FireClient(player, "item_found")
+	if isRareRevealRarity(rarity) then
+		PlaySound:FireClient(player, "rare_reveal")
+	end
+end
+
 -- ═══════════════════════════════════════════════════════════════════
 -- Player Data Management
 -- ═══════════════════════════════════════════════════════════════════
@@ -1529,6 +1544,7 @@ CraftFromFragsEvent.OnServerEvent:Connect(function(player, targetRarity, tierNam
 	-- Race-free server-side signal for BadgeSystem (mirrors normal drop path).
 	-- Crafted items count as a "find" for first_rare_find / first_legendary.
 	ItemFoundBindable:Fire(player, newItem)
+	fireItemFindSounds(player, newItem.rarity)
 
 	UpdateHUDEvent:FireClient(player, addStandardHudFields({
 		coins = data.coins,
