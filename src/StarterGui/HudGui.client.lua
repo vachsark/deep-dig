@@ -4669,18 +4669,33 @@ local function refreshStreakRevivePrompt(data)
 	end
 	streakReviveDetail.Text = "Current streak: Day " .. day .. " (×" .. streak .. ", Cycle " .. cycle .. ")"
 	if currentStreakReviveProductAvailable then
+		streakReviveBuyButton.Visible = true
+		streakReviveBuyButton.Active = true
+		streakReviveBuyButton.AutoButtonColor = true
+		streakReviveBuyButton.Selectable = true
 		streakReviveBuyButton.Text = "Revive for " .. currentStreakRevivePrice .. " Robux"
 		streakReviveBuyButton.BackgroundColor3 = Color3.fromRGB(255, 200, 50)
 		streakReviveBuyButton.TextColor3 = Color3.fromRGB(40, 20, 0)
+		streakReviveDeclineButton.Size = UDim2.new(0, 140, 0, 40)
+		streakReviveDeclineButton.Position = UDim2.new(1, -155, 1, -54)
 	else
+		streakReviveBuyButton.Visible = false
+		streakReviveBuyButton.Active = false
+		streakReviveBuyButton.AutoButtonColor = false
+		streakReviveBuyButton.Selectable = false
 		streakReviveBuyButton.Text = "Revive unavailable"
 		streakReviveBuyButton.BackgroundColor3 = Color3.fromRGB(90, 85, 78)
 		streakReviveBuyButton.TextColor3 = Color3.fromRGB(210, 205, 195)
+		streakReviveDeclineButton.Size = UDim2.new(0, 190, 0, 40)
+		streakReviveDeclineButton.Position = UDim2.new(0.5, -95, 1, -54)
 	end
 end
 
 streakReviveBuyButton.MouseButton1Click:Connect(function()
 	if not currentStreakReviveEligible or not currentStreakRevivePending then
+		return
+	end
+	if not currentStreakReviveProductAvailable then
 		return
 	end
 
