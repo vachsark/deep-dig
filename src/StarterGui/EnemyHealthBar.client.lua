@@ -133,6 +133,29 @@ local enemyThreatGui = nil
 local enemyThreatFrame = nil
 local enemyThreatArrow = nil
 local enemyThreatDistanceLabel = nil
+local CombatStreak = {
+	guiName = "DeepDigCombatStreakMeter",
+	displayOrder = 72,
+	width = 218,
+	height = 56,
+	fadeDuration = 0.24,
+	pulseDuration = 0.22,
+	gui = nil,
+	frame = nil,
+	stroke = nil,
+	titleLabel = nil,
+	titleStroke = nil,
+	bonusLabel = nil,
+	bonusStroke = nil,
+	fillBack = nil,
+	fill = nil,
+	scale = nil,
+	fadeTweens = {},
+	visible = false,
+	sequence = 0,
+	expiresAt = 0,
+	window = 1,
+}
 local hapticSupportChecked = false
 local hapticSupported = false
 local hapticMotorSupport = {}
@@ -1597,6 +1620,293 @@ local function showRewardBurst(model, reward)
 	end)
 end
 
+function CombatStreak.getSyncedServerTime()
+	local ok, serverTime = pcall(function()
+		return workspace:GetServerTimeNow()
+	end)
+
+	if ok and type(serverTime) == "number" then
+		return serverTime
+	end
+
+	return os.clock()
+end
+
+function CombatStreak.cancelTweens()
+	for _, tween in ipairs(CombatStreak.fadeTweens) do
+		if tween then
+			tween:Cancel()
+		end
+	end
+
+	CombatStreak.fadeTweens = {}
+end
+
+function CombatStreak.setTransparency(alpha)
+	if not CombatStreak.frame then
+		return
+	end
+
+	alpha = math.clamp(alpha, 0, 1)
+	CombatStreak.frame.BackgroundTransparency = 0.08 + (alpha * 0.92)
+	CombatStreak.stroke.Transparency = 0.12 + (alpha * 0.88)
+	CombatStreak.titleLabel.TextTransparency = alpha
+	CombatStreak.titleLabel.TextStrokeTransparency = 0.32 + (alpha * 0.68)
+	CombatStreak.titleStroke.Transparency = 0.04 + (alpha * 0.96)
+	CombatStreak.bonusLabel.TextTransparency = alpha
+	CombatStreak.bonusLabel.TextStrokeTransparency = 0.42 + (alpha * 0.58)
+	CombatStreak.bonusStroke.Transparency = 0.1 + (alpha * 0.9)
+	CombatStreak.fillBack.BackgroundTransparency = 0.28 + (alpha * 0.72)
+	CombatStreak.fill.BackgroundTransparency = alpha
+end
+
+function CombatStreak.ensure()
+	if CombatStreak.frame and CombatStreak.frame.Parent then
+		return
+	end
+
+	local playerGui = player:FindFirstChildOfClass("PlayerGui") or player:WaitForChild("PlayerGui")
+	local existingGui = playerGui:FindFirstChild(CombatStreak.guiName)
+	if existingGui and existingGui:IsA("ScreenGui") then
+		existingGui:ClearAllChildren()
+		CombatStreak.gui = existingGui
+	else
+		CombatStreak.gui = Instance.new("ScreenGui")
+		CombatStreak.gui.Name = CombatStreak.guiName
+		CombatStreak.gui.Parent = playerGui
+	end
+	CombatStreak.gui.ResetOnSpawn = false
+	CombatStreak.gui.IgnoreGuiInset = true
+	CombatStreak.gui.DisplayOrder = CombatStreak.displayOrder
+	CombatStreak.gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+
+	CombatStreak.frame = Instance.new("Frame")
+	CombatStreak.frame.Name = "Meter"
+	CombatStreak.frame.AnchorPoint = Vector2.new(0.5, 0)
+	CombatStreak.frame.Position = UDim2.new(0.5, 0, 0, 116)
+	CombatStreak.frame.Size = UDim2.fromOffset(CombatStreak.width, CombatStreak.height)
+	CombatStreak.frame.BackgroundColor3 = Color3.fromRGB(32, 18, 15)
+	CombatStreak.frame.BackgroundTransparency = 1
+	CombatStreak.frame.BorderSizePixel = 0
+	CombatStreak.frame.Visible = false
+	CombatStreak.frame.ZIndex = 1
+	CombatStreak.frame.Parent = CombatStreak.gui
+
+	local sizeConstraint = Instance.new("UISizeConstraint")
+	sizeConstraint.MinSize = Vector2.new(184, CombatStreak.height)
+	sizeConstraint.MaxSize = Vector2.new(CombatStreak.width, CombatStreak.height)
+	sizeConstraint.Parent = CombatStreak.frame
+
+	local corner = Instance.new("UICorner")
+	corner.CornerRadius = UDim.new(0, 8)
+	corner.Parent = CombatStreak.frame
+
+	CombatStreak.stroke = Instance.new("UIStroke")
+	CombatStreak.stroke.Color = STREAK_REWARD_COLOR
+	CombatStreak.stroke.Transparency = 1
+	CombatStreak.stroke.Thickness = 1
+	CombatStreak.stroke.Parent = CombatStreak.frame
+
+	CombatStreak.scale = Instance.new("UIScale")
+	CombatStreak.scale.Scale = 1
+	CombatStreak.scale.Parent = CombatStreak.frame
+
+	CombatStreak.titleLabel = Instance.new("TextLabel")
+	CombatStreak.titleLabel.Name = "Title"
+	CombatStreak.titleLabel.Position = UDim2.fromOffset(12, 7)
+	CombatStreak.titleLabel.Size = UDim2.new(1, -24, 0, 22)
+	CombatStreak.titleLabel.BackgroundTransparency = 1
+	CombatStreak.titleLabel.Text = "x2 Combat Streak"
+	CombatStreak.titleLabel.TextColor3 = Color3.fromRGB(255, 222, 180)
+	CombatStreak.titleLabel.TextStrokeTransparency = 1
+	CombatStreak.titleLabel.TextSize = 18
+	CombatStreak.titleLabel.Font = Enum.Font.GothamBlack
+	CombatStreak.titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+	CombatStreak.titleLabel.TextTruncate = Enum.TextTruncate.AtEnd
+	CombatStreak.titleLabel.ZIndex = 2
+	CombatStreak.titleLabel.Parent = CombatStreak.frame
+
+	CombatStreak.titleStroke = Instance.new("UIStroke")
+	CombatStreak.titleStroke.Color = Color3.fromRGB(74, 24, 9)
+	CombatStreak.titleStroke.Transparency = 1
+	CombatStreak.titleStroke.Thickness = 1
+	CombatStreak.titleStroke.Parent = CombatStreak.titleLabel
+
+	CombatStreak.bonusLabel = Instance.new("TextLabel")
+	CombatStreak.bonusLabel.Name = "Bonus"
+	CombatStreak.bonusLabel.Position = UDim2.fromOffset(12, 29)
+	CombatStreak.bonusLabel.Size = UDim2.new(1, -24, 0, 16)
+	CombatStreak.bonusLabel.BackgroundTransparency = 1
+	CombatStreak.bonusLabel.Text = "+0 bonus coins"
+	CombatStreak.bonusLabel.TextColor3 = COIN_REWARD_COLOR
+	CombatStreak.bonusLabel.TextStrokeTransparency = 1
+	CombatStreak.bonusLabel.TextSize = 13
+	CombatStreak.bonusLabel.Font = Enum.Font.GothamBold
+	CombatStreak.bonusLabel.TextXAlignment = Enum.TextXAlignment.Left
+	CombatStreak.bonusLabel.TextTruncate = Enum.TextTruncate.AtEnd
+	CombatStreak.bonusLabel.ZIndex = 2
+	CombatStreak.bonusLabel.Parent = CombatStreak.frame
+
+	CombatStreak.bonusStroke = Instance.new("UIStroke")
+	CombatStreak.bonusStroke.Color = Color3.fromRGB(72, 43, 5)
+	CombatStreak.bonusStroke.Transparency = 1
+	CombatStreak.bonusStroke.Thickness = 1
+	CombatStreak.bonusStroke.Parent = CombatStreak.bonusLabel
+
+	CombatStreak.fillBack = Instance.new("Frame")
+	CombatStreak.fillBack.Name = "CountdownBack"
+	CombatStreak.fillBack.Position = UDim2.fromOffset(12, 47)
+	CombatStreak.fillBack.Size = UDim2.new(1, -24, 0, 5)
+	CombatStreak.fillBack.BackgroundColor3 = Color3.fromRGB(83, 45, 29)
+	CombatStreak.fillBack.BackgroundTransparency = 1
+	CombatStreak.fillBack.BorderSizePixel = 0
+	CombatStreak.fillBack.ZIndex = 2
+	CombatStreak.fillBack.Parent = CombatStreak.frame
+
+	local backCorner = Instance.new("UICorner")
+	backCorner.CornerRadius = UDim.new(0, 3)
+	backCorner.Parent = CombatStreak.fillBack
+
+	CombatStreak.fill = Instance.new("Frame")
+	CombatStreak.fill.Name = "CountdownFill"
+	CombatStreak.fill.Size = UDim2.fromScale(1, 1)
+	CombatStreak.fill.BackgroundColor3 = STREAK_REWARD_COLOR
+	CombatStreak.fill.BackgroundTransparency = 1
+	CombatStreak.fill.BorderSizePixel = 0
+	CombatStreak.fill.ZIndex = 3
+	CombatStreak.fill.Parent = CombatStreak.fillBack
+
+	local fillCorner = Instance.new("UICorner")
+	fillCorner.CornerRadius = UDim.new(0, 3)
+	fillCorner.Parent = CombatStreak.fill
+end
+
+function CombatStreak.fade(sequence)
+	if not CombatStreak.frame or not CombatStreak.frame.Visible then
+		return
+	end
+	if sequence and sequence ~= CombatStreak.sequence then
+		return
+	end
+
+	CombatStreak.visible = false
+	CombatStreak.cancelTweens()
+
+	local tweenInfo = TweenInfo.new(
+		CombatStreak.fadeDuration,
+		Enum.EasingStyle.Quad,
+		Enum.EasingDirection.Out
+	)
+	local tweens = {
+		TweenService:Create(CombatStreak.frame, tweenInfo, {
+			BackgroundTransparency = 1,
+		}),
+		TweenService:Create(CombatStreak.stroke, tweenInfo, {
+			Transparency = 1,
+		}),
+		TweenService:Create(CombatStreak.titleLabel, tweenInfo, {
+			TextTransparency = 1,
+			TextStrokeTransparency = 1,
+		}),
+		TweenService:Create(CombatStreak.titleStroke, tweenInfo, {
+			Transparency = 1,
+		}),
+		TweenService:Create(CombatStreak.bonusLabel, tweenInfo, {
+			TextTransparency = 1,
+			TextStrokeTransparency = 1,
+		}),
+		TweenService:Create(CombatStreak.bonusStroke, tweenInfo, {
+			Transparency = 1,
+		}),
+		TweenService:Create(CombatStreak.fillBack, tweenInfo, {
+			BackgroundTransparency = 1,
+		}),
+		TweenService:Create(CombatStreak.fill, tweenInfo, {
+			BackgroundTransparency = 1,
+		}),
+	}
+
+	CombatStreak.fadeTweens = tweens
+	for _, tween in ipairs(tweens) do
+		tween:Play()
+	end
+
+	task.delay(CombatStreak.fadeDuration + 0.04, function()
+		if sequence and sequence ~= CombatStreak.sequence then
+			return
+		end
+		if CombatStreak.frame then
+			CombatStreak.frame.Visible = false
+			CombatStreak.scale.Scale = 1
+		end
+		CombatStreak.cancelTweens()
+	end)
+end
+
+function CombatStreak.pulse()
+	if not CombatStreak.scale then
+		return
+	end
+
+	CombatStreak.scale.Scale = 1.08
+	local pulseTween = TweenService:Create(CombatStreak.scale, TweenInfo.new(
+		CombatStreak.pulseDuration,
+		Enum.EasingStyle.Back,
+		Enum.EasingDirection.Out
+	), {
+		Scale = 1,
+	})
+	pulseTween:Play()
+end
+
+function CombatStreak.update()
+	if not CombatStreak.visible or not CombatStreak.frame or not CombatStreak.frame.Visible then
+		return
+	end
+
+	local remaining = CombatStreak.expiresAt - CombatStreak.getSyncedServerTime()
+	if remaining <= 0 then
+		CombatStreak.fade(CombatStreak.sequence)
+		return
+	end
+
+	local ratio = math.clamp(remaining / math.max(CombatStreak.window, 0.1), 0, 1)
+	CombatStreak.fill.Size = UDim2.fromScale(ratio, 1)
+	CombatStreak.fill.BackgroundColor3 = ATTACK_WARNING_COLOR:Lerp(STREAK_REWARD_COLOR, ratio)
+end
+
+function CombatStreak.show(reward)
+	if typeof(reward) ~= "table" then
+		return
+	end
+
+	local streakCount = tonumber(reward.streakCount) or 1
+	local streakBonusCoins = tonumber(reward.streakBonusCoins) or 0
+	if streakCount < 2 or streakBonusCoins <= 0 then
+		return
+	end
+
+	local window = tonumber(reward.killStreakWindow) or 1
+	local expiresAt = tonumber(reward.streakExpiresAt) or (CombatStreak.getSyncedServerTime() + window)
+	if expiresAt <= CombatStreak.getSyncedServerTime() then
+		return
+	end
+
+	CombatStreak.ensure()
+	CombatStreak.sequence = CombatStreak.sequence + 1
+	CombatStreak.visible = true
+	CombatStreak.expiresAt = expiresAt
+	CombatStreak.window = math.max(window, 0.1)
+	CombatStreak.cancelTweens()
+
+	CombatStreak.frame.Visible = true
+	CombatStreak.setTransparency(0)
+	CombatStreak.titleLabel.Text = string.format("x%d Combat Streak", math.floor(streakCount + 0.5))
+	CombatStreak.bonusLabel.Text = string.format("+%d bonus coins", math.floor(streakBonusCoins + 0.5))
+	CombatStreak.update()
+	CombatStreak.pulse()
+end
+
 local function showEnemySpawnCue(model)
 	if not model or not model:IsA("Model") or not model:IsDescendantOf(workspace) then
 		return
@@ -2503,6 +2813,7 @@ EnemyCombatFeedback.OnClientEvent:Connect(function(payload)
 		showDamageNumber(payload.model, payload.damage)
 	elseif feedbackType == "defeated" then
 		showRewardBurst(payload.model, payload.reward)
+		CombatStreak.show(payload.reward)
 		if payload.reward and LocalPlaySound and LocalPlaySound:IsA("BindableEvent") then
 			LocalPlaySound:Fire("enemy_reward")
 		end
@@ -2536,6 +2847,9 @@ end
 
 enemiesFolder.ChildAdded:Connect(trackEnemy)
 enemiesFolder.ChildRemoved:Connect(cleanupEnemy)
-RunService.RenderStepped:Connect(updateEnemyThreatIndicator)
+RunService.RenderStepped:Connect(function()
+	updateEnemyThreatIndicator()
+	CombatStreak.update()
+end)
 
 print("[DeepDig] EnemyHealthBar loaded")

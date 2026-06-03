@@ -295,6 +295,8 @@ local function payEnemyReward(record)
 		isMiniboss = enemy.isMiniboss == true,
 		streakCount = streakCount,
 		streakBonusCoins = streakBonusCoins,
+		killStreakWindow = KILL_STREAK_WINDOW,
+		streakExpiresAt = workspace:GetServerTimeNow() + KILL_STREAK_WINDOW,
 	}
 	if itemReward then
 		rewardSummary.item = {
