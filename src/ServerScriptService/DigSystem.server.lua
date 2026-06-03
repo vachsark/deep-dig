@@ -73,6 +73,9 @@ digSiteFolder.Parent = workspace
 
 local blockGrid = {} -- [x][z][y] = Part
 local digCooldownByUserId = {}
+local enemyBlockedNotifyByUserId = {}
+local BLOCKED_DIG_ENEMY_RANGE_STUDS = 16
+local BLOCKED_DIG_NOTIFY_COOLDOWN = 2.5
 
 local function getTierForDepth(depthBlocks)
 	for _, tier in ipairs(Config.TIERS) do
@@ -250,6 +253,73 @@ end
 
 local DIG_RANGE_STUDS = 60 -- conservative; tune later
 
+local function isOwnedActiveLivingEnemy(player, model)
+	if not model or not model:IsA("Model") then
+		return false
+	end
+	if model:GetAttribute("OwnerUserId") ~= player.UserId then
+		return false
+	end
+	if model:GetAttribute("IsEmerging") == true then
+		return false
+	end
+
+	local humanoid = model:FindFirstChildOfClass("Humanoid")
+	if not humanoid or humanoid.Health <= 0 then
+		return false
+	end
+
+	local root = model:FindFirstChild("HumanoidRootPart")
+	if not root then
+		return false
+	end
+
+	return true, root
+end
+
+local function hasBlockingEnemyNearDig(player, playerRoot, block)
+	local enemiesFolder = workspace:FindFirstChild("Enemies")
+	if not enemiesFolder then
+		return false
+	end
+
+	for _, enemyModel in ipairs(enemiesFolder:GetChildren()) do
+		local isBlockingCandidate, enemyRoot = isOwnedActiveLivingEnemy(player, enemyModel)
+		if isBlockingCandidate then
+			local enemyPosition = enemyRoot.Position
+			local nearPlayer = playerRoot and (enemyPosition - playerRoot.Position).Magnitude <= BLOCKED_DIG_ENEMY_RANGE_STUDS
+			local nearBlock = (enemyPosition - block.Position).Magnitude <= BLOCKED_DIG_ENEMY_RANGE_STUDS
+			if nearPlayer or nearBlock then
+				return true
+			end
+		end
+	end
+
+	return false
+end
+
+local function notifyDigBlockedByEnemy(player)
+	local userId = player.UserId
+	local now = os.clock()
+	local nextNotifyAt = enemyBlockedNotifyByUserId[userId] or 0
+	if now < nextNotifyAt then
+		return
+	end
+
+	enemyBlockedNotifyByUserId[userId] = now + BLOCKED_DIG_NOTIFY_COOLDOWN
+
+	local Remotes = ReplicatedStorage:WaitForChild("Remotes")
+	local Notify = Remotes:FindFirstChild("Notify")
+	if Notify then
+		Notify:FireClient(player, "Defeat this enemy first before digging.", "Rare")
+	end
+
+	local PlaySound = Remotes:FindFirstChild("PlaySound")
+	if PlaySound then
+		PlaySound:FireClient(player, "enemy_aggro")
+	end
+end
+
 local function breakBlock(player, block)
 	if not block then return false end
 	if not block:GetAttribute("Depth") then return false end
@@ -259,6 +329,11 @@ local function breakBlock(player, block)
 	local character = player.Character
 	local hrp = character and character:FindFirstChild("HumanoidRootPart")
 	if hrp and (hrp.Position - block.Position).Magnitude > DIG_RANGE_STUDS then
+		return false
+	end
+
+	if hasBlockingEnemyNearDig(player, hrp, block) then
+		notifyDigBlockedByEnemy(player)
 		return false
 	end
 
@@ -474,6 +549,7 @@ end
 Players.PlayerAdded:Connect(onPlayerAdded)
 Players.PlayerRemoving:Connect(function(player)
 	digCooldownByUserId[player.UserId] = nil
+	enemyBlockedNotifyByUserId[player.UserId] = nil
 end)
 
 -- Handle players already in the game when the script loads (Studio playtest)
