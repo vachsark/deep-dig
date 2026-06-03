@@ -89,6 +89,78 @@ end
 local TRADE_PROXIMITY_STUDS = 20
 local MAX_OFFER_ITEMS = 20
 
+local function isPositiveInteger(value)
+	return type(value) == "number" and value >= 1 and value == math.floor(value)
+end
+
+local function hasTradingData(data)
+	return data and type(data.inventory) == "table" and type(data.collections) == "table"
+end
+
+local function getHumanoidRootPart(player)
+	local character = player and player.Character
+	return character and character:FindFirstChild("HumanoidRootPart")
+end
+
+local function playersAreInTradeRange(trade)
+	local hrpA = getHumanoidRootPart(trade.playerA)
+	local hrpB = getHumanoidRootPart(trade.playerB)
+	if not (hrpA and hrpB) then
+		return false
+	end
+
+	return (hrpA.Position - hrpB.Position).Magnitude <= TRADE_PROXIMITY_STUDS
+end
+
+local function createItemSnapshot(idx, item)
+	return {
+		idx = idx,
+		name = item.name,
+		rarity = item.rarity,
+		sellValue = item.sellValue,
+	}
+end
+
+local function validateTradeOffer(player, itemIndices)
+	if type(itemIndices) ~= "table" then return nil end
+
+	local data = getData(player)
+	if not hasTradingData(data) then return nil end
+
+	local offerCount = 0
+	local offerKeys = {}
+	for key in pairs(itemIndices) do
+		if not isPositiveInteger(key) then return nil end
+		offerCount = offerCount + 1
+		if offerCount > MAX_OFFER_ITEMS then return nil end
+		offerKeys[key] = true
+	end
+
+	for i = 1, offerCount do
+		if not offerKeys[i] then return nil end
+	end
+
+	local invSize = #data.inventory
+	local cleaned = {}
+	local snapshots = {}
+	local seen = {}
+	for i = 1, offerCount do
+		local idx = itemIndices[i]
+		if not isPositiveInteger(idx) then return nil end
+		if idx > invSize then return nil end
+		if seen[idx] then return nil end
+		seen[idx] = true
+
+		local item = data.inventory[idx]
+		if type(item) ~= "table" then return nil end
+
+		table.insert(cleaned, idx)
+		table.insert(snapshots, createItemSnapshot(idx, item))
+	end
+
+	return cleaned, snapshots
+end
+
 -- Player A requests trade with Player B
 RequestTradeEvent.OnServerEvent:Connect(function(playerA, playerBId)
 	local playerB = Players:GetPlayerByUserId(playerBId)
@@ -99,10 +171,8 @@ RequestTradeEvent.OnServerEvent:Connect(function(playerA, playerBId)
 
 	-- Proximity check (20 studs). Both characters MUST exist; if either side is
 	-- mid-respawn, deny the trade rather than silently allowing across-map asks.
-	local charA = playerA.Character
-	local charB = playerB.Character
-	local hrpA = charA and charA:FindFirstChild("HumanoidRootPart")
-	local hrpB = charB and charB:FindFirstChild("HumanoidRootPart")
+	local hrpA = getHumanoidRootPart(playerA)
+	local hrpB = getHumanoidRootPart(playerB)
 	if not (hrpA and hrpB) then
 		Remotes.Notify:FireClient(playerA, "Can't trade — partner is respawning.", "Common")
 		return
@@ -190,32 +260,8 @@ SetTradeOfferEvent.OnServerEvent:Connect(function(player, tradeId, itemIndices)
 	if not trade or trade.state ~= "selecting" then return end
 	if player ~= trade.playerA and player ~= trade.playerB then return end
 
-	if type(itemIndices) ~= "table" then return end
-
-	local data = getData(player)
-	if not data then return end
-
-	local invSize = #data.inventory
-	local cleaned = {}
-	local snapshots = {}
-	local seen = {}
-	for _, idx in ipairs(itemIndices) do
-		if type(idx) ~= "number" then return end
-		idx = math.floor(idx)
-		if idx < 1 or idx > invSize then return end
-		if seen[idx] then return end -- duplicate index in offer
-		seen[idx] = true
-		local item = data.inventory[idx]
-		if not item then return end
-		table.insert(cleaned, idx)
-		table.insert(snapshots, {
-			idx = idx,
-			name = item.name,
-			rarity = item.rarity,
-			sellValue = item.sellValue,
-		})
-		if #cleaned >= MAX_OFFER_ITEMS then break end
-	end
+	local cleaned, snapshots = validateTradeOffer(player, itemIndices)
+	if not cleaned then return end
 
 	if player == trade.playerA then
 		trade.offerA = cleaned
@@ -281,6 +327,24 @@ local function snapshotsMatch(snapshots, inventory)
 	return true
 end
 
+local function offerStateMatches(offer, snapshots)
+	if type(offer) ~= "table" or type(snapshots) ~= "table" then
+		return false
+	end
+	if #offer ~= #snapshots then
+		return false
+	end
+
+	for i, idx in ipairs(offer) do
+		local snap = snapshots[i]
+		if not snap or snap.idx ~= idx then
+			return false
+		end
+	end
+
+	return true
+end
+
 local function hasTradeBackpackSpace(data, outgoingCount, incomingCount)
 	local getBackpackCapacity = _G.DeepDig_getBackpackCapacity
 	local capacity = getBackpackCapacity and getBackpackCapacity(data) or Config.DEFAULT_BACKPACK_CAPACITY
@@ -297,8 +361,19 @@ executeTrade = function(tradeId)
 
 	local dataA = getData(trade.playerA)
 	local dataB = getData(trade.playerB)
-	if not dataA or not dataB then
+	if not hasTradingData(dataA) or not hasTradingData(dataB) then
 		cancelTrade(tradeId, "trade aborted — player data not available")
+		return
+	end
+
+	if not playersAreInTradeRange(trade) then
+		cancelTrade(tradeId, "trade aborted — players are no longer close enough")
+		return
+	end
+
+	if not (offerStateMatches(trade.offerA, trade.snapshotA)
+		and offerStateMatches(trade.offerB, trade.snapshotB)) then
+		cancelTrade(tradeId, "trade aborted — offer state is no longer valid")
 		return
 	end
 
