@@ -63,6 +63,19 @@ local function fireItemFindSounds(player, rarity)
 	end
 end
 
+local function fireItemFoundPipeline(player, item)
+	local ItemFoundEvent = Remotes:FindFirstChild("ItemFound")
+	if ItemFoundEvent then
+		ItemFoundEvent:FireClient(player, item)
+	end
+
+	local ServerEvents = ReplicatedStorage:FindFirstChild("ServerEvents")
+	local ItemFoundBindable = ServerEvents and ServerEvents:FindFirstChild("ItemFoundBindable")
+	if ItemFoundBindable then
+		ItemFoundBindable:Fire(player, item)
+	end
+end
+
 -- ─── Helpers ────────────────────────────────────────────────────────────────
 
 -- Returns today's date as "YYYY-MM-DD" using os.date on the server.
@@ -275,6 +288,7 @@ local function applyReward(player, reward)
 			table.insert(data.inventory, reward.item)
 		end
 		data.collections[reward.item.name] = true
+		fireItemFoundPipeline(player, reward.item)
 		fireItemFindSounds(player, reward.item.rarity)
 	end
 
