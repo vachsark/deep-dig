@@ -1895,6 +1895,281 @@ local LEGENDARY_FIND_FLASH_RARITIES = {
 	},
 }
 
+DeepDigSeasonalRevealStyles = {
+	halloween = {
+		season = "Halloween",
+		theme = "The Bone Age",
+		symbol = "🎃",
+		background = Color3.fromRGB(44, 24, 48),
+		panel = Color3.fromRGB(74, 38, 24),
+		accent = Color3.fromRGB(255, 130, 45),
+		text = Color3.fromRGB(255, 224, 176),
+		detail = Color3.fromRGB(214, 255, 230),
+	},
+	winter = {
+		season = "Winter",
+		theme = "The Ice Age",
+		symbol = "❄",
+		background = Color3.fromRGB(18, 44, 64),
+		panel = Color3.fromRGB(24, 62, 86),
+		accent = Color3.fromRGB(120, 220, 255),
+		text = Color3.fromRGB(224, 250, 255),
+		detail = Color3.fromRGB(188, 236, 255),
+	},
+	spring = {
+		season = "Spring",
+		theme = "Fossil Rush",
+		symbol = "🌱",
+		background = Color3.fromRGB(24, 58, 36),
+		panel = Color3.fromRGB(30, 78, 48),
+		accent = Color3.fromRGB(95, 230, 120),
+		text = Color3.fromRGB(224, 255, 222),
+		detail = Color3.fromRGB(250, 230, 120),
+	},
+	summer = {
+		season = "Summer",
+		theme = "Volcano Event",
+		symbol = "☀",
+		background = Color3.fromRGB(70, 36, 20),
+		panel = Color3.fromRGB(88, 44, 24),
+		accent = Color3.fromRGB(255, 190, 70),
+		text = Color3.fromRGB(255, 238, 184),
+		detail = Color3.fromRGB(255, 124, 72),
+	},
+	fallback = {
+		season = "Seasonal",
+		theme = "Limited-Time Find",
+		symbol = "✦",
+		background = Color3.fromRGB(32, 34, 48),
+		panel = Color3.fromRGB(42, 44, 62),
+		accent = Color3.fromRGB(220, 220, 230),
+		text = Color3.fromRGB(246, 246, 255),
+		detail = Color3.fromRGB(195, 230, 255),
+	},
+}
+
+DeepDigSeasonalRevealState = {
+	token = 0,
+	frame = nil,
+}
+
+function DeepDigGetSeasonalRevealStyle(seasonId)
+	local key = string.lower(tostring(seasonId or ""))
+	local normalizedKey = string.gsub(key, "_loot$", "")
+	return DeepDigSeasonalRevealStyles[key]
+		or DeepDigSeasonalRevealStyles[normalizedKey]
+		or DeepDigSeasonalRevealStyles.fallback
+end
+
+function DeepDigFadeSeasonalRevealDescendants(root, duration)
+	for _, descendant in ipairs(root:GetDescendants()) do
+		if descendant:IsA("TextLabel") then
+			TweenService:Create(descendant, TweenInfo.new(duration), {
+				TextTransparency = 1,
+				TextStrokeTransparency = 1,
+			}):Play()
+		elseif descendant:IsA("Frame") then
+			TweenService:Create(descendant, TweenInfo.new(duration), {
+				BackgroundTransparency = 1,
+			}):Play()
+		elseif descendant:IsA("UIStroke") then
+			TweenService:Create(descendant, TweenInfo.new(duration), {
+				Transparency = 1,
+			}):Play()
+		end
+	end
+end
+
+function DeepDigPlaySeasonalExclusiveReveal(item)
+	DeepDigSeasonalRevealState.token = DeepDigSeasonalRevealState.token + 1
+	local token = DeepDigSeasonalRevealState.token
+
+	if DeepDigSeasonalRevealState.frame then
+		DeepDigSeasonalRevealState.frame:Destroy()
+		DeepDigSeasonalRevealState.frame = nil
+	end
+
+	local style = DeepDigGetSeasonalRevealStyle(item.seasonId)
+	local rarity = tostring(item.rarity or "Rare")
+	local rarityColor = RARITY_COLORS[rarity] or style.accent
+	local itemName = tostring(item.name or "Seasonal Artifact")
+	local coinValue = tostring(item.sellValue or item.baseValue or 0)
+
+	local layer = Instance.new("Frame")
+	layer.Name = "SeasonalExclusiveRevealBurst"
+	layer.Size = UDim2.new(1, 0, 1, 0)
+	layer.Position = UDim2.new(0, 0, 0, 0)
+	layer.BackgroundColor3 = style.background
+	layer.BackgroundTransparency = 1
+	layer.BorderSizePixel = 0
+	layer.Active = false
+	layer.ZIndex = 96
+	layer.Parent = screenGui
+	DeepDigSeasonalRevealState.frame = layer
+
+	local burstCenter = Instance.new("Frame")
+	burstCenter.Name = "BurstCenter"
+	burstCenter.Size = UDim2.new(0, 1, 0, 1)
+	burstCenter.AnchorPoint = Vector2.new(0.5, 0.5)
+	burstCenter.Position = UDim2.new(0.5, 0, 0.46, 0)
+	burstCenter.BackgroundTransparency = 1
+	burstCenter.ZIndex = 97
+	burstCenter.Parent = layer
+
+	for i = 1, 10 do
+		local ray = Instance.new("Frame")
+		ray.Name = "Ray"
+		ray.Size = UDim2.new(0, i % 2 == 0 and 172 or 118, 0, i % 2 == 0 and 5 or 3)
+		ray.AnchorPoint = Vector2.new(0.5, 0.5)
+		ray.Position = UDim2.new(0.5, 0, 0.5, 0)
+		ray.Rotation = i * 36
+		ray.BackgroundColor3 = style.accent
+		ray.BackgroundTransparency = 0.22
+		ray.BorderSizePixel = 0
+		ray.ZIndex = 97
+		ray.Parent = burstCenter
+		TweenService:Create(ray, TweenInfo.new(0.42, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+			Size = UDim2.new(0, i % 2 == 0 and 260 or 190, 0, 1),
+			BackgroundTransparency = 0.82,
+		}):Play()
+	end
+
+	local card = Instance.new("Frame")
+	card.Name = "SeasonalCard"
+	card.Size = UDim2.new(0, 430, 0, 178)
+	card.AnchorPoint = Vector2.new(0.5, 0.5)
+	card.Position = UDim2.new(0.5, 0, 0.46, 0)
+	card.BackgroundColor3 = style.panel
+	card.BackgroundTransparency = 0.04
+	card.BorderSizePixel = 0
+	card.ZIndex = 98
+	card.Parent = layer
+
+	local cardCorner = Instance.new("UICorner")
+	cardCorner.CornerRadius = UDim.new(0, 8)
+	cardCorner.Parent = card
+
+	local cardStroke = Instance.new("UIStroke")
+	cardStroke.Color = style.accent
+	cardStroke.Thickness = 3
+	cardStroke.Transparency = 0
+	cardStroke.Parent = card
+
+	local cardScale = Instance.new("UIScale")
+	cardScale.Scale = 0.82
+	cardScale.Parent = card
+
+	local symbolLabel = Instance.new("TextLabel")
+	symbolLabel.Name = "SeasonSymbol"
+	symbolLabel.Size = UDim2.new(0, 66, 0, 66)
+	symbolLabel.Position = UDim2.new(0.5, -33, 0, -28)
+	symbolLabel.BackgroundTransparency = 1
+	symbolLabel.Text = style.symbol
+	symbolLabel.TextColor3 = style.accent
+	symbolLabel.TextSize = 46
+	symbolLabel.TextStrokeColor3 = Color3.fromRGB(20, 20, 24)
+	symbolLabel.TextStrokeTransparency = 0.25
+	symbolLabel.Font = Enum.Font.GothamBlack
+	symbolLabel.ZIndex = 100
+	symbolLabel.Parent = card
+
+	local seasonLabel = Instance.new("TextLabel")
+	seasonLabel.Name = "Season"
+	seasonLabel.Size = UDim2.new(1, -36, 0, 24)
+	seasonLabel.Position = UDim2.new(0, 18, 0, 28)
+	seasonLabel.BackgroundTransparency = 1
+	seasonLabel.Text = style.season .. " Exclusive"
+	seasonLabel.TextColor3 = style.accent
+	seasonLabel.TextSize = 17
+	seasonLabel.Font = Enum.Font.GothamBlack
+	seasonLabel.TextXAlignment = Enum.TextXAlignment.Center
+	seasonLabel.ZIndex = 99
+	seasonLabel.Parent = card
+
+	local themeLabel = Instance.new("TextLabel")
+	themeLabel.Name = "Theme"
+	themeLabel.Size = UDim2.new(1, -36, 0, 20)
+	themeLabel.Position = UDim2.new(0, 18, 0, 52)
+	themeLabel.BackgroundTransparency = 1
+	themeLabel.Text = style.theme
+	themeLabel.TextColor3 = style.detail
+	themeLabel.TextSize = 14
+	themeLabel.Font = Enum.Font.GothamBold
+	themeLabel.TextXAlignment = Enum.TextXAlignment.Center
+	themeLabel.ZIndex = 99
+	themeLabel.Parent = card
+
+	local nameLabel = Instance.new("TextLabel")
+	nameLabel.Name = "ItemName"
+	nameLabel.Size = UDim2.new(1, -36, 0, 42)
+	nameLabel.Position = UDim2.new(0, 18, 0, 78)
+	nameLabel.BackgroundTransparency = 1
+	nameLabel.Text = itemName
+	nameLabel.TextColor3 = rarityColor
+	nameLabel.TextSize = 27
+	nameLabel.Font = Enum.Font.GothamBlack
+	nameLabel.TextXAlignment = Enum.TextXAlignment.Center
+	nameLabel.TextTruncate = Enum.TextTruncate.AtEnd
+	nameLabel.ZIndex = 99
+	nameLabel.Parent = card
+
+	local valueLabel = Instance.new("TextLabel")
+	valueLabel.Name = "Value"
+	valueLabel.Size = UDim2.new(1, -36, 0, 24)
+	valueLabel.Position = UDim2.new(0, 18, 0, 124)
+	valueLabel.BackgroundTransparency = 1
+	valueLabel.Text = rarity .. "  •  +" .. coinValue .. " coins"
+	valueLabel.TextColor3 = style.text
+	valueLabel.TextSize = 16
+	valueLabel.Font = Enum.Font.GothamBold
+	valueLabel.TextXAlignment = Enum.TextXAlignment.Center
+	valueLabel.ZIndex = 99
+	valueLabel.Parent = card
+
+	TweenService:Create(layer, TweenInfo.new(0.10, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+		BackgroundTransparency = 0.30,
+	}):Play()
+	TweenService:Create(cardScale, TweenInfo.new(0.18, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+		Scale = 1.06,
+	}):Play()
+	task.delay(0.18, function()
+		if token ~= DeepDigSeasonalRevealState.token or not cardScale.Parent then
+			return
+		end
+		TweenService:Create(cardScale, TweenInfo.new(0.14, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+			Scale = 1,
+		}):Play()
+	end)
+
+	if LocalPlaySound and LocalPlaySound:IsA("BindableEvent") then
+		LocalPlaySound:Fire("rare_reveal")
+	end
+
+	task.delay(1.35, function()
+		if token ~= DeepDigSeasonalRevealState.token or not layer.Parent then
+			return
+		end
+
+		TweenService:Create(layer, TweenInfo.new(0.28, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+			BackgroundTransparency = 1,
+		}):Play()
+		TweenService:Create(card, TweenInfo.new(0.28, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+			Position = UDim2.new(0.5, 0, 0.43, 0),
+		}):Play()
+		DeepDigFadeSeasonalRevealDescendants(layer, 0.28)
+
+		task.delay(0.30, function()
+			if token ~= DeepDigSeasonalRevealState.token then
+				return
+			end
+			if layer.Parent then
+				layer:Destroy()
+			end
+			DeepDigSeasonalRevealState.frame = nil
+		end)
+	end)
+end
+
 local updateDepthTone
 
 do
@@ -5693,6 +5968,10 @@ Remotes.ItemFound.OnClientEvent:Connect(function(item)
 
 	if item and LIGHTING_PULSE_PROFILES[item.rarity] then
 		playLightingPulse(item.rarity)
+	end
+
+	if item and (item.seasonalExclusive == true or item.seasonId ~= nil) then
+		DeepDigPlaySeasonalExclusiveReveal(item)
 	end
 
 	showNotification("Found: " .. item.name .. " (+" .. item.sellValue .. " coins)", item.rarity)
