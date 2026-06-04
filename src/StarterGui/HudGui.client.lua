@@ -245,12 +245,126 @@ local function pulseFragmentLabel()
 	end)
 end
 
+-- ─── Rare pity meter ─────────────────────────────────────────────────────────
+
+do
+local rareMeterFrame = Instance.new("Frame")
+rareMeterFrame.Name = "RareMeter"
+rareMeterFrame.Size = UDim2.new(0, 184, 0, 34)
+rareMeterFrame.Position = UDim2.new(0, 20, 0, 122)
+rareMeterFrame.BackgroundColor3 = Color3.fromRGB(24, 28, 36)
+rareMeterFrame.BackgroundTransparency = 0.08
+rareMeterFrame.BorderSizePixel = 0
+rareMeterFrame.Parent = screenGui
+
+local rareMeterCorner = Instance.new("UICorner")
+rareMeterCorner.CornerRadius = UDim.new(0, 7)
+rareMeterCorner.Parent = rareMeterFrame
+
+local rareMeterStroke = Instance.new("UIStroke")
+rareMeterStroke.Color = Color3.fromRGB(70, 130, 220)
+rareMeterStroke.Thickness = 1
+rareMeterStroke.Transparency = 0.15
+rareMeterStroke.Parent = rareMeterFrame
+
+local rareMeterLabel = Instance.new("TextLabel")
+rareMeterLabel.Name = "Label"
+rareMeterLabel.Size = UDim2.new(1, -16, 0, 20)
+rareMeterLabel.Position = UDim2.new(0, 8, 0, 4)
+rareMeterLabel.BackgroundTransparency = 1
+rareMeterLabel.Text = "Rare Meter: 0/" .. tostring(Config.RARE_PITY_THRESHOLD or 8)
+rareMeterLabel.TextColor3 = Color3.fromRGB(210, 225, 255)
+rareMeterLabel.TextSize = 12
+rareMeterLabel.Font = Enum.Font.GothamBlack
+rareMeterLabel.TextXAlignment = Enum.TextXAlignment.Left
+rareMeterLabel.TextTruncate = Enum.TextTruncate.AtEnd
+rareMeterLabel.Parent = rareMeterFrame
+
+local rareMeterTrack = Instance.new("Frame")
+rareMeterTrack.Name = "Track"
+rareMeterTrack.Size = UDim2.new(1, -16, 0, 5)
+rareMeterTrack.Position = UDim2.new(0, 8, 1, -9)
+rareMeterTrack.BackgroundColor3 = Color3.fromRGB(45, 50, 62)
+rareMeterTrack.BorderSizePixel = 0
+rareMeterTrack.Parent = rareMeterFrame
+
+local rareMeterTrackCorner = Instance.new("UICorner")
+rareMeterTrackCorner.CornerRadius = UDim.new(0, 3)
+rareMeterTrackCorner.Parent = rareMeterTrack
+
+local rareMeterFill = Instance.new("Frame")
+rareMeterFill.Name = "Fill"
+rareMeterFill.Size = UDim2.new(0, 0, 1, 0)
+rareMeterFill.BackgroundColor3 = Color3.fromRGB(80, 160, 255)
+rareMeterFill.BorderSizePixel = 0
+rareMeterFill.Parent = rareMeterTrack
+
+local rareMeterFillCorner = Instance.new("UICorner")
+rareMeterFillCorner.CornerRadius = UDim.new(0, 3)
+rareMeterFillCorner.Parent = rareMeterFill
+
+local previousRarePityValue = nil
+local currentRarePityThreshold = Config.RARE_PITY_THRESHOLD or 8
+local rareMeterPulseSequence = 0
+
+local function pulseRareMeter(triggered)
+	rareMeterPulseSequence = rareMeterPulseSequence + 1
+	local sequence = rareMeterPulseSequence
+	local accent = triggered and Color3.fromRGB(255, 210, 80) or Color3.fromRGB(115, 185, 255)
+
+	rareMeterFrame.Size = triggered and UDim2.new(0, 194, 0, 38) or UDim2.new(0, 188, 0, 36)
+	rareMeterStroke.Color = accent
+	rareMeterStroke.Thickness = triggered and 3 or 2
+	rareMeterFill.BackgroundColor3 = accent
+
+	local settleFrame = TweenService:Create(
+		rareMeterFrame,
+		TweenInfo.new(0.18, Enum.EasingStyle.Back, Enum.EasingDirection.Out),
+		{ Size = UDim2.new(0, 184, 0, 34) }
+	)
+	local settleStroke = TweenService:Create(
+		rareMeterStroke,
+		TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+		{
+			Color = Color3.fromRGB(70, 130, 220),
+			Thickness = 1,
+		}
+	)
+	settleFrame:Play()
+	settleStroke:Play()
+	settleFrame.Completed:Connect(function()
+		if sequence ~= rareMeterPulseSequence then return end
+		rareMeterFrame.Size = UDim2.new(0, 184, 0, 34)
+		rareMeterStroke.Color = Color3.fromRGB(70, 130, 220)
+		rareMeterStroke.Thickness = 1
+	end)
+end
+
+function DeepDigUpdateRareMeter(value, threshold, triggered)
+	local nextThreshold = math.max(1, math.floor(tonumber(threshold) or currentRarePityThreshold or 8))
+	local nextValue = math.max(0, math.min(nextThreshold, math.floor(tonumber(value) or 0)))
+	local progress = nextValue / nextThreshold
+
+	currentRarePityThreshold = nextThreshold
+	rareMeterFill.Size = UDim2.new(progress, 0, 1, 0)
+	rareMeterFill.BackgroundColor3 = progress >= 1
+		and Color3.fromRGB(255, 210, 80)
+		or Color3.fromRGB(80, 160, 255)
+	rareMeterLabel.Text = triggered and "Rare Meter: Rare+!" or "Rare Meter: " .. tostring(nextValue) .. "/" .. tostring(nextThreshold)
+
+	if previousRarePityValue ~= nil and (triggered or nextValue > previousRarePityValue) then
+		pulseRareMeter(triggered)
+	end
+	previousRarePityValue = nextValue
+end
+end
+
 -- ─── Login streak display ────────────────────────────────────────────────────
 
 local streakLabel = Instance.new("TextLabel")
 streakLabel.Name = "LoginStreak"
 streakLabel.Size = UDim2.new(0, 180, 0, 25)
-streakLabel.Position = UDim2.new(0, 20, 0, 118)
+streakLabel.Position = UDim2.new(0, 20, 0, 158)
 streakLabel.BackgroundTransparency = 1
 streakLabel.Text = "🔥 Streak: –"
 streakLabel.TextColor3 = Color3.fromRGB(255, 140, 40)
@@ -430,7 +544,7 @@ end
 local badgeRow = Instance.new("Frame")
 badgeRow.Name = "PassBadges"
 badgeRow.Size = UDim2.new(0, 620, 0, 24)
-badgeRow.Position = UDim2.new(0, 20, 0, 142)
+badgeRow.Position = UDim2.new(0, 20, 0, 182)
 badgeRow.BackgroundTransparency = 1
 badgeRow.Parent = screenGui
 
@@ -443,7 +557,7 @@ badgeLayout.Parent = badgeRow
 local friendBoostLabel = Instance.new("TextLabel")
 friendBoostLabel.Name = "FriendBoost"
 friendBoostLabel.Size = UDim2.new(0, 172, 0, 22)
-friendBoostLabel.Position = UDim2.new(0, 20, 0, 168)
+friendBoostLabel.Position = UDim2.new(0, 20, 0, 208)
 friendBoostLabel.BackgroundColor3 = Color3.fromRGB(70, 205, 150)
 friendBoostLabel.BackgroundTransparency = 0.15
 friendBoostLabel.BorderSizePixel = 0
@@ -462,7 +576,7 @@ friendBoostCorner.Parent = friendBoostLabel
 local groupBenefitLabel = Instance.new("TextLabel")
 groupBenefitLabel.Name = "GroupBenefit"
 groupBenefitLabel.Size = UDim2.new(0, 178, 0, 22)
-groupBenefitLabel.Position = UDim2.new(0, 20, 0, 194)
+groupBenefitLabel.Position = UDim2.new(0, 20, 0, 234)
 groupBenefitLabel.BackgroundColor3 = Config.GROUP_BENEFIT_DISPLAY_COLOR
 groupBenefitLabel.BackgroundTransparency = 0.15
 groupBenefitLabel.BorderSizePixel = 0
@@ -516,7 +630,7 @@ local SEASON_BADGE_STYLES = {
 local seasonBadge = Instance.new("Frame")
 seasonBadge.Name = "ActiveSeasonBadge"
 seasonBadge.Size = UDim2.new(0, 220, 0, 48)
-seasonBadge.Position = UDim2.new(0, 20, 0, 220)
+seasonBadge.Position = UDim2.new(0, 20, 0, 260)
 seasonBadge.BackgroundColor3 = Color3.fromRGB(30, 72, 46)
 seasonBadge.BackgroundTransparency = 0.1
 seasonBadge.BorderSizePixel = 0
@@ -5901,6 +6015,9 @@ Remotes.UpdateHUD.OnClientEvent:Connect(function(data)
 		end
 		previousFragmentValue = newFragments
 	end
+	if data.rarePity ~= nil or data.rarePityThreshold ~= nil or data.rarePityTriggered then
+		DeepDigUpdateRareMeter(data.rarePity, data.rarePityThreshold, data.rarePityTriggered == true)
+	end
 	if data.nextToolCost ~= nil and data.nextToolName then
 		upgradeButton.Text = "⬆️ " .. data.nextToolName .. " ($" .. data.nextToolCost .. ")"
 		affordanceNextToolCost = tonumber(data.nextToolCost)
@@ -6199,6 +6316,7 @@ task.spawn(function()
 			previousFragmentValue = math.floor(data.fragments)
 			fragLabel.Text = "Fragments: " .. tostring(previousFragmentValue)
 		end
+		DeepDigUpdateRareMeter(data.rarePity, data.rarePityThreshold, false)
 		currentToolTier = data.toolTier
 		initializeFtueGuide(data)
 		refreshStreakRevivePrompt(data)

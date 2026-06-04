@@ -104,6 +104,7 @@ Config.TOOLS = {
 -- Loot
 Config.BASE_SELL_MULTIPLIER = 1
 Config.LOOT_DROP_CHANCE = 0.35  -- 35% chance per block
+Config.RARE_PITY_THRESHOLD = 8
 
 -- Economy
 Config.STARTING_COINS = 50

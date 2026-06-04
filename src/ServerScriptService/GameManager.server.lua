@@ -152,7 +152,50 @@ local DEFAULT_DATA = {
 	firstSellAffordabilityGrantUsed = false, -- FTUE: one-time first-sell catch-up
 	ftueHintsSeen = false,
 	enemyDangerUnlockedSeen = false,
+	rarePity = 0,
 }
+
+local function getRarePityThreshold()
+	return math.max(1, math.floor(tonumber(Config.RARE_PITY_THRESHOLD) or 8))
+end
+
+local function clampRarePity(value)
+	local threshold = getRarePityThreshold()
+	local pity = math.floor(tonumber(value) or 0)
+	return math.max(0, math.min(threshold, pity))
+end
+
+local function normalizeRarePity(data)
+	data.rarePity = clampRarePity(data.rarePity)
+end
+
+local function addRarePityHudFields(payload, data)
+	payload.rarePityThreshold = getRarePityThreshold()
+	payload.rarePity = data and clampRarePity(data.rarePity) or 0
+	return payload
+end
+
+local function shouldForceRarePity(data, isNewPlayer, isFirstEverFind)
+	if isNewPlayer or isFirstEverFind then
+		return false
+	end
+
+	return clampRarePity(data and data.rarePity) >= getRarePityThreshold()
+end
+
+local function recordRarePityAward(data, rarity)
+	if not data then
+		return
+	end
+
+	if isRareRevealRarity(rarity) then
+		data.rarePity = 0
+	elseif rarity == "Common" or rarity == "Uncommon" then
+		data.rarePity = math.min(getRarePityThreshold(), clampRarePity(data.rarePity) + 1)
+	else
+		data.rarePity = clampRarePity(data.rarePity)
+	end
+end
 
 local function normalizeBooleanMap(value)
 	local normalized = {}
@@ -187,6 +230,7 @@ local function loadPlayerData(player)
 	end
 
 	playerData[player.UserId].friendReferralRewards = normalizeBooleanMap(playerData[player.UserId].friendReferralRewards)
+	normalizeRarePity(playerData[player.UserId])
 	if (playerData[player.UserId].deepestBlock or 0) >= ENEMY_DANGER_UNLOCK_DEPTH then
 		playerData[player.UserId].enemyDangerUnlockedSeen = true
 	end
@@ -199,6 +243,7 @@ local function savePlayerData(player)
 	if not data then return true end
 
 	data.lastSeenAt = os.time()
+	normalizeRarePity(data)
 
 	local success, err = pcall(function()
 		PlayerDataStore:SetAsync("player_" .. player.UserId, data)
@@ -691,6 +736,7 @@ end
 
 function addStandardHudFields(payload, data, player)
 	addInventoryHudFields(payload, data)
+	addRarePityHudFields(payload, data)
 	addFriendBoostHudFields(payload, player)
 	addGroupBenefitHudFields(payload, player)
 	if data then
@@ -1128,6 +1174,7 @@ BlockBrokenEvent.Event:Connect(function(player, blockPosition)
 
 	local autoCollectedPayload = nil
 	local artifactDetectedPayload = nil
+	local rarePityTriggeredPayload = false
 
 	if math.random() < dropChance then
 		-- FTUE: First-ever find is always Common or Uncommon.
@@ -1188,6 +1235,16 @@ BlockBrokenEvent.Event:Connect(function(player, blockPosition)
 				end
 			end
 
+			local rarePityTriggered = false
+			if shouldForceRarePity(data, isNewPlayer, isFirstEverFind)
+				and not isRareRevealRarity(item.rarity) then
+				local pityItem = rollRarePlusItem(tierName)
+				if pityItem then
+					item = pityItem
+					rarePityTriggered = true
+				end
+			end
+
 			local wasAlreadyCollected = data.collections[item.name] == true
 
 			-- Apply event multipliers
@@ -1224,6 +1281,10 @@ BlockBrokenEvent.Event:Connect(function(player, blockPosition)
 
 				local earned = awardSellPayout(player, data, item.sellValue, true)
 				applyFirstSellAffordabilityGrant(player, data)
+				recordRarePityAward(data, item.rarity)
+				if rarePityTriggered then
+					rarePityTriggeredPayload = true
+				end
 				autoCollectedPayload = {
 					name = item.name,
 					earned = earned,
@@ -1231,6 +1292,10 @@ BlockBrokenEvent.Event:Connect(function(player, blockPosition)
 				}
 
 				NotifyEvent:FireClient(player, "Auto Collector sold duplicate " .. item.name .. " for " .. earned .. " coins.", item.rarity)
+				if rarePityTriggered then
+					ItemFoundEvent:FireClient(player, item)
+					fireItemFindSounds(player, item.rarity)
+				end
 				if PlaySound then
 					PlaySound:FireClient(player, "sell_coins")
 				end
@@ -1244,6 +1309,10 @@ BlockBrokenEvent.Event:Connect(function(player, blockPosition)
 				if tryAddInventoryItem(player, inventoryItem) then
 					-- Track collection
 					data.collections[item.name] = true
+					recordRarePityAward(data, item.rarity)
+					if rarePityTriggered then
+						rarePityTriggeredPayload = true
+					end
 
 					-- Quest progress: items_found (always +1) and rarity_found (+1 with rarity tag).
 					-- QuestSystem listener filters by quest.rarityFilter == eventData.rarity.
@@ -1310,6 +1379,7 @@ BlockBrokenEvent.Event:Connect(function(player, blockPosition)
 		autoCollected = autoCollectedPayload,
 		artifactDetected = artifactDetectedPayload,
 		enemyDangerUnlocked = enemyDangerUnlockedPayload,
+		rarePityTriggered = rarePityTriggeredPayload or nil,
 		-- spring_loot bumps fragments per-block; keep the HUD coherent.
 		fragments = data.fragments,
 	}
