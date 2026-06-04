@@ -31,10 +31,12 @@ local Remotes = waitForChildTimeout(ReplicatedStorage, "Remotes", 5)
 local ConfigModule = waitForChildTimeout(ReplicatedStorage, "Config", 5)
 local ItemDatabaseModule = waitForChildTimeout(ReplicatedStorage, "ItemDatabase", 5)
 local PetDatabaseModule = waitForChildTimeout(ReplicatedStorage, "PetDatabase", 5)
+local EnemyDatabaseModule = waitForChildTimeout(ReplicatedStorage, "EnemyDatabase", 5)
 
 local Config = { TIERS = {} }
 local ItemDatabase = { ITEMS = {} }
 local PetDatabase = {}
+local EnemyDatabase = { ENEMIES = {} }
 
 if ConfigModule then
 	local ok, result = pcall(require, ConfigModule)
@@ -54,6 +56,13 @@ if PetDatabaseModule then
 	local ok, result = pcall(require, PetDatabaseModule)
 	if ok and type(result) == "table" then
 		PetDatabase = result
+	end
+end
+
+if EnemyDatabaseModule then
+	local ok, result = pcall(require, EnemyDatabaseModule)
+	if ok and type(result) == "table" then
+		EnemyDatabase = result
 	end
 end
 
@@ -505,6 +514,36 @@ local function makeLine(parent, y, text, color)
 	)
 end
 
+local function formatPercent(value)
+	local percent = clampNumber(value) * 100
+	if percent <= 0 then
+		return "0%"
+	end
+
+	local text = string.format("%.1f", percent)
+	text = text:gsub("%.0$", "")
+	return text .. "%"
+end
+
+local function getEnemyDisplay(enemy)
+	if type(enemy) == "table" and type(enemy.display) == "table" then
+		return enemy.display
+	end
+	return {}
+end
+
+local function getEnemyUnlockDepth(enemy)
+	return clampNumber(getEnemyDisplay(enemy).unlockDepth)
+end
+
+local function getEnemyUnlockText(enemy)
+	local display = getEnemyDisplay(enemy)
+	if type(display.unlockText) == "string" and display.unlockText ~= "" then
+		return display.unlockText
+	end
+	return "Depth " .. formatNumber(getEnemyUnlockDepth(enemy))
+end
+
 -- ═══════════════════════════════════════════════════════════════════
 -- ScreenGui scaffolding
 -- ═══════════════════════════════════════════════════════════════════
@@ -730,9 +769,106 @@ local combatFillCorner = Instance.new("UICorner")
 combatFillCorner.CornerRadius = UDim.new(0, 4)
 combatFillCorner.Parent = combatProgressFill
 
+-- Combat bestiary card
+local bestiaryCard, bestiaryStroke = makeCard(content, 386)
+bestiaryCard.LayoutOrder = 5
+bestiaryStroke.Color = Color3.fromRGB(80, 55, 70)
+addCardTitle(bestiaryCard, "Combat Bestiary", ACCENT_RED)
+
+local bestiaryRows = {}
+
+local function makeBestiaryRow(parent, index, enemy)
+	local y = 30 + ((index - 1) * 60)
+
+	local row = Instance.new("Frame")
+	row.Size = UDim2.new(1, -18, 0, 54)
+	row.Position = UDim2.fromOffset(9, y)
+	row.BackgroundColor3 = Color3.fromRGB(34, 30, 34)
+	row.BackgroundTransparency = 0.08
+	row.BorderSizePixel = 0
+	row.Parent = parent
+
+	local corner = Instance.new("UICorner")
+	corner.CornerRadius = UDim.new(0, 8)
+	corner.Parent = row
+
+	local swatch = Instance.new("Frame")
+	swatch.Size = UDim2.fromOffset(28, 28)
+	swatch.Position = UDim2.fromOffset(8, 8)
+	swatch.BackgroundColor3 = enemy.color or TEXT_MUTED
+	swatch.BorderSizePixel = 0
+	swatch.Parent = row
+
+	local swatchCorner = Instance.new("UICorner")
+	swatchCorner.CornerRadius = UDim.new(0, 14)
+	swatchCorner.Parent = swatch
+
+	local nameLabel = makeLabel(
+		row,
+		UDim2.new(0.5, -46, 0, 18),
+		UDim2.fromOffset(44, 6),
+		enemy.name or "Unknown Enemy",
+		TEXT_PRIMARY,
+		Enum.Font.GothamBold,
+		13,
+		Enum.TextXAlignment.Left,
+		Enum.TextTruncate.AtEnd
+	)
+
+	local rewardLabel = makeLabel(
+		row,
+		UDim2.new(0.5, -10, 0, 18),
+		UDim2.new(0.5, 0, 0, 6),
+		"",
+		TEXT_MUTED,
+		Enum.Font.Gotham,
+		12,
+		Enum.TextXAlignment.Right,
+		Enum.TextTruncate.AtEnd
+	)
+
+	local statLabel = makeLabel(
+		row,
+		UDim2.new(1, -52, 0, 16),
+		UDim2.fromOffset(44, 24),
+		"",
+		TEXT_SOFT,
+		Enum.Font.Gotham,
+		12,
+		Enum.TextXAlignment.Left,
+		Enum.TextTruncate.AtEnd
+	)
+
+	local hintLabel = makeLabel(
+		row,
+		UDim2.new(1, -52, 0, 14),
+		UDim2.fromOffset(44, 39),
+		"",
+		TEXT_MUTED,
+		Enum.Font.Gotham,
+		11,
+		Enum.TextXAlignment.Left,
+		Enum.TextTruncate.AtEnd
+	)
+
+	return {
+		enemy = enemy,
+		row = row,
+		swatch = swatch,
+		nameLabel = nameLabel,
+		rewardLabel = rewardLabel,
+		statLabel = statLabel,
+		hintLabel = hintLabel,
+	}
+end
+
+for index, enemy in ipairs(EnemyDatabase.ENEMIES or {}) do
+	bestiaryRows[index] = makeBestiaryRow(bestiaryCard, index, enemy)
+end
+
 -- Collection card
 local collectionCard, collectionStroke = makeCard(content, 92)
-collectionCard.LayoutOrder = 5
+collectionCard.LayoutOrder = 6
 collectionStroke.Color = Color3.fromRGB(60, 90, 90)
 addCardTitle(collectionCard, "Collection", ACCENT_BLUE)
 
@@ -742,7 +878,7 @@ local databaseLabel = makeLine(collectionCard, 68, "Database Total: Loading...",
 
 -- Pets card
 local petsCard, petsStroke = makeCard(content, 92)
-petsCard.LayoutOrder = 6
+petsCard.LayoutOrder = 7
 petsStroke.Color = Color3.fromRGB(90, 70, 90)
 addCardTitle(petsCard, "Pets", ACCENT_PURPLE)
 
@@ -752,7 +888,7 @@ local petHintLabel = makeLine(petsCard, 68, "No pets yet - hatch one!", TEXT_MUT
 
 -- Badges card
 local badgeCard, badgeStroke = makeCard(content, 234)
-badgeCard.LayoutOrder = 7
+badgeCard.LayoutOrder = 8
 badgeStroke.Color = Color3.fromRGB(95, 85, 55)
 addCardTitle(badgeCard, "Badges", ACCENT_GOLD)
 
@@ -899,6 +1035,38 @@ local function render()
 	combatBadgeLabel.TextColor3 = hasData and (enemyCombatComplete and ACCENT_GREEN or TEXT_SOFT) or TEXT_SOFT
 	combatProgressFill.Size = UDim2.fromScale(enemyBadgeRatio, 1)
 	combatProgressFill.BackgroundColor3 = enemyCombatComplete and ACCENT_GREEN or ACCENT_RED
+
+	for _, row in ipairs(bestiaryRows) do
+		local enemy = row.enemy
+		local display = getEnemyDisplay(enemy)
+		local unlockDepth = getEnemyUnlockDepth(enemy)
+		local unlocked = hasData and deepestBlock >= unlockDepth
+		local rewardText = "+" .. formatNumber(enemy.coinDrop) .. "c +" .. formatNumber(enemy.fragmentDrop) .. "f"
+
+		if unlocked then
+			row.swatch.BackgroundColor3 = enemy.color or ACCENT_RED
+			row.swatch.BackgroundTransparency = 0
+			row.nameLabel.Text = enemy.name or "Unknown Enemy"
+			row.nameLabel.TextColor3 = TEXT_PRIMARY
+			row.rewardLabel.Text = rewardText .. " | Item " .. formatPercent(enemy.itemDropChance)
+			row.rewardLabel.TextColor3 = ACCENT_GOLD
+			row.statLabel.Text = "HP " .. formatNumber(enemy.hp) .. " | Damage " .. formatNumber(enemy.damage)
+			row.statLabel.TextColor3 = TEXT_SOFT
+			row.hintLabel.Text = display.hint or ""
+			row.hintLabel.TextColor3 = TEXT_MUTED
+		else
+			row.swatch.BackgroundColor3 = Color3.fromRGB(18, 18, 22)
+			row.swatch.BackgroundTransparency = 0.1
+			row.nameLabel.Text = "Locked Enemy"
+			row.nameLabel.TextColor3 = TEXT_MUTED
+			row.rewardLabel.Text = getEnemyUnlockText(enemy)
+			row.rewardLabel.TextColor3 = TEXT_SOFT
+			row.statLabel.Text = "Reach " .. getEnemyUnlockText(enemy)
+			row.statLabel.TextColor3 = TEXT_MUTED
+			row.hintLabel.Text = "Combat data hidden until discovered."
+			row.hintLabel.TextColor3 = TEXT_MUTED
+		end
+	end
 
 	inventoryLabel.Text = "Collected: " .. (hasData and (formatNumber(inventoryCount) .. " items") or "Loading...")
 	if hasData and uniqueCount == 0 then
