@@ -468,7 +468,6 @@ end
 local activeEvents = {} -- { [eventName] = endTick }
 local ARTIFACT_DETECTOR_CHANCE = 0.10
 local ARTIFACT_DETECTOR_MIN_RANK = 3
-local SEASONAL_EXCLUSIVE_DROP_CHANCE = 0.025
 local RESURFACE_LOOT_BONUS_PER_REBIRTH = 0.5
 local REBIRTH_BOOST_LOOT_BONUS_PER_REBIRTH = 1.0
 local FRIEND_DIG_SPEED_MULTIPLIER = 1.05
@@ -956,6 +955,15 @@ local function getActiveSeasonId()
 	return season and season.id or nil
 end
 
+local function getSeasonalExclusiveDropChance(activeSeason)
+	local chance = Config.SEASONAL_EXCLUSIVE_DROP_CHANCE or 0.025
+	if activeSeason == "summer" and isEventActive("volcano_vent") then
+		chance = math.max(chance, Config.VOLCANO_VENT_OBSIDIAN_DROP_CHANCE or chance)
+	end
+
+	return chance
+end
+
 local crewBonusNotifiedAt = {}
 
 local function hasNearbyCrewmate(player)
@@ -1031,18 +1039,28 @@ local function promoteWinterLootItem(tierName, item, isFirstEverFind)
 	return ItemDatabase.rollItemOfRarity(tierName, promotedRarity) or item
 end
 
-local function triggerRandomEvent(player)
+local function triggerRandomEvent(activeSeason)
 	local chance = Config.EVENT_CHANCE
 	-- summer_loot: doubles random world event trigger frequency.
 	-- We bump the per-tick probability instead of halving the wait,
 	-- because the random event check runs inline in BlockBrokenEvent
 	-- (no fixed-cadence loop to halve).
-	if getActiveSeasonId() == "summer" then
+	if activeSeason == "summer" then
 		chance = chance * 2
 	end
 	if math.random() > chance then return end
 
-	local event = Config.EVENTS[math.random(#Config.EVENTS)]
+	local eligibleEvents = {}
+	for _, configuredEvent in ipairs(Config.EVENTS) do
+		if configuredEvent.seasonId == nil or configuredEvent.seasonId == activeSeason then
+			table.insert(eligibleEvents, configuredEvent)
+		end
+	end
+	if #eligibleEvents == 0 then
+		return
+	end
+
+	local event = eligibleEvents[math.random(#eligibleEvents)]
 	activateWorldEvent(event)
 end
 
@@ -1217,7 +1235,10 @@ BlockBrokenEvent.Event:Connect(function(player, blockPosition)
 				item = promoteWinterLootItem(tierName, item, isFirstEverFind)
 			end
 
-			if activeSeason and not isNewPlayer and math.random() < SEASONAL_EXCLUSIVE_DROP_CHANCE then
+			if activeSeason
+				and not isNewPlayer
+				and not isFirstEverFind
+				and math.random() < getSeasonalExclusiveDropChance(activeSeason) then
 				local seasonalItem
 				if activeSeason == "spring" then
 					seasonalItem = ItemDatabase.buildSpringDinoEgg(tierName)
@@ -1366,7 +1387,7 @@ BlockBrokenEvent.Event:Connect(function(player, blockPosition)
 	end
 
 	-- Random events
-	triggerRandomEvent(player)
+	triggerRandomEvent(activeSeason)
 
 	-- Update client HUD
 	local hudPayload = {

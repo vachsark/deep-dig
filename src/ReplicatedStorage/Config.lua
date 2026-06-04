@@ -176,6 +176,8 @@ Config.ADMIN_USERIDS = {}
 
 -- Events
 Config.EVENT_CHANCE = 0.02  -- 2% per block broken
+Config.SEASONAL_EXCLUSIVE_DROP_CHANCE = 0.025
+Config.VOLCANO_VENT_OBSIDIAN_DROP_CHANCE = 0.12
 Config.EVENTS = {
 	{ name = "Fossil Layer",   duration = 30, effect = "2x_rare",    message = "FOSSIL LAYER EXPOSED! 2x rare finds for 30 seconds!" },
 	{ name = "Cave System",    duration = 45, effect = "bonus_loot",  message = "CAVE DISCOVERED! Bonus loot for 45 seconds!" },
@@ -184,6 +186,7 @@ Config.EVENTS = {
 	{ name = "Echoes from Below", duration = 90, effect = "echo_blocks", message = "👻 Echoes ripple through the dig site... legendary finds twice as likely!" },
 	{ name = "Earthquake",     duration = 30, effect = "earthquake",  message = "🌋 EARTHQUAKE! The ground trembles — extra coin drops for 30 seconds!" },
 	{ name = "Earthquake",     duration = 5,  effect = "instant_dig", message = "EARTHQUAKE! 5 layers crumble instantly!" },
+	{ name = "Volcano Vent",   duration = 35, effect = "volcano_vent", seasonId = "summer", message = "🌋 VOLCANO VENT! Lava cracks glow — obsidian tools surge for 35 seconds!" },
 }
 
 return Config

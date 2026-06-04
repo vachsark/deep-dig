@@ -746,6 +746,12 @@ DeepDigActiveEventHud = {
 			title = SEASON_BADGE_STYLES.summer_loot.title,
 			detail = SEASON_BADGE_STYLES.summer_loot.detail,
 		},
+		volcano_vent = {
+			accent = Color3.fromRGB(255, 84, 34),
+			background = Color3.fromRGB(76, 28, 18),
+			title = "Volcano Vent",
+			detail = "Obsidian tools surging",
+		},
 		fallback = {
 			accent = Color3.fromRGB(220, 220, 230),
 			background = Color3.fromRGB(34, 36, 46),
@@ -1932,15 +1938,14 @@ end
 
 local function updateSeasonBadge(effectId)
 	local seasonUi = SEASON_BADGE_STYLES[effectId]
-	setHalloweenAmbienceActive(effectId == "halloween_loot" and seasonUi ~= nil)
-	setSpringAmbienceActive(effectId == "spring_loot" and seasonUi ~= nil)
-	setSummerAmbienceActive(effectId == "summer_loot" and seasonUi ~= nil)
-	setWinterAmbienceActive(effectId == "winter_loot" and seasonUi ~= nil)
-
 	if not seasonUi then
-		seasonBadge.Visible = false
 		return false
 	end
+
+	setHalloweenAmbienceActive(effectId == "halloween_loot")
+	setSpringAmbienceActive(effectId == "spring_loot")
+	setSummerAmbienceActive(effectId == "summer_loot")
+	setWinterAmbienceActive(effectId == "winter_loot")
 
 	seasonBadge.BackgroundColor3 = seasonUi.background
 	seasonBadgeStroke.Color = seasonUi.stroke
@@ -2875,6 +2880,7 @@ local EVENT_SHAKE_PROFILES = {
 	luckyhour = { duration = 0.24, positionStrength = 0.05, rotationStrength = 0.12, noiseFrequency = 30 },
 	echoesfrombelow = { duration = 0.46, positionStrength = 0.10, rotationStrength = 0.46, noiseFrequency = 12 },
 	echoblocks = { duration = 0.46, positionStrength = 0.10, rotationStrength = 0.46, noiseFrequency = 12 },
+	volcanovent = { duration = 0.48, positionStrength = 0.12, rotationStrength = 0.42, noiseFrequency = 20 },
 }
 
 local DEFAULT_EVENT_SHAKE_PROFILE = { duration = 0.26, positionStrength = 0.10, rotationStrength = 0.24, noiseFrequency = 18 }

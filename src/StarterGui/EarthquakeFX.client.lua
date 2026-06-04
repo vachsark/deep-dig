@@ -87,6 +87,10 @@ local EVENT_PULSE_SETTINGS = {
 		color = Color3.fromRGB(255, 82, 48),
 		peakTransparency = 0.61,
 	},
+	["volcano_vent"] = {
+		color = Color3.fromRGB(255, 44, 18),
+		peakTransparency = 0.5,
+	},
 }
 
 local LocalPlaySound = SoundService:FindFirstChild(LOCAL_PLAY_SOUND_NAME)
