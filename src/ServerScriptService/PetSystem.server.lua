@@ -262,7 +262,8 @@ local function buildCompanion(player, root, owned, petDef)
 	local label = Instance.new("TextLabel")
 	label.Size = UDim2.fromScale(1, 1)
 	label.BackgroundTransparency = 1
-	label.Text = tostring(owned.rarity or petDef.rarity) .. "\n" .. tostring(owned.name)
+	label.Text = tostring(owned.rarity or petDef.rarity) .. " Lv. "
+		.. tostring(tonumber(owned.level) or 1) .. "\n" .. tostring(owned.name)
 	label.TextColor3 = Color3.fromRGB(255, 255, 255)
 	label.TextStrokeTransparency = 0.3
 	label.TextScaled = true
@@ -292,6 +293,15 @@ local function updateCompanion(player)
 	if not root then return end
 
 	buildCompanion(player, root, owned, petDef)
+end
+
+_G.DeepDig_refreshEquippedPetCompanion = function(player)
+	if not player or not player.Parent then
+		return false
+	end
+
+	updateCompanion(player)
+	return true
 end
 
 local petsByEggAndRarity = {}

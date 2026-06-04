@@ -215,6 +215,11 @@ FeedPetEvent.OnServerEvent:Connect(function(player, targetPetId, sacrificePetId)
 	end
 
 	if data.equippedPet == targetPetId then
+		local refreshCompanion = _G.DeepDig_refreshEquippedPetCompanion
+		if refreshCompanion then
+			refreshCompanion(player)
+		end
+
 		UpdateHUDEvent:FireClient(player, {
 			equippedPet = targetPetId,
 			petName = target.name,
