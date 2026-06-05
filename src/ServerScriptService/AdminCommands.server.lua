@@ -11,7 +11,7 @@
 --   /maxtool                  set tool to top tier
 --   /depth <n>                set deepestBlock to n (and refresh HUD)
 --   /give <rarity> [tier]     drop a random item of given rarity into inventory
---   /event <effect>           trigger event effect: 2x_rare | bonus_loot | gold_rush
+--   /event <effect/name>      trigger any configured world event
 --   /resetfresh               wipe player data to defaults (for testing FTUE)
 --   /maxall                   coins=10M, tool=top, depth=200, all collections, 5 rebirths
 --   /tp museum                teleport to your museum
@@ -72,6 +72,36 @@ end
 
 local function notify(player, msg, rarity)
 	NotifyEvent:FireClient(player, "[admin] " .. msg, rarity or "Uncommon")
+end
+
+local function normalizeEventAlias(value)
+	local normalized = tostring(value or ""):lower():gsub("[%s%-]+", "_")
+	normalized = normalized:gsub("^_+", ""):gsub("_+$", "")
+	return normalized
+end
+
+local function getEventAliases()
+	local aliases = {}
+	local validEffects = {}
+	for _, event in ipairs(Config.EVENTS) do
+		if event.effect then
+			local normalizedEffect = normalizeEventAlias(event.effect)
+			aliases[normalizedEffect] = event
+			table.insert(validEffects, event.effect)
+		end
+		if event.name then
+			local normalizedName = normalizeEventAlias(event.name)
+			if not aliases[normalizedName] then
+				aliases[normalizedName] = event
+			end
+		end
+	end
+	return aliases, validEffects
+end
+
+local function getEventUsage()
+	local _, validEffects = getEventAliases()
+	return table.concat(validEffects, " | ")
 end
 
 -- ═══════════════════════════════════════════════════════════════════
@@ -160,13 +190,11 @@ commands.give = function(player, args)
 end
 
 commands.event = function(player, args)
-	local effect = args[1]
-	if not effect then return notify(player, "usage: /event <2x_rare|bonus_loot|gold_rush>") end
-	local match
-	for _, e in ipairs(Config.EVENTS) do
-		if e.effect == effect then match = e; break end
-	end
-	if not match then return notify(player, "unknown effect: " .. effect) end
+	if #args == 0 then return notify(player, "usage: /event <" .. getEventUsage() .. ">") end
+	local requested = table.concat(args, "_")
+	local aliases = getEventAliases()
+	local match = aliases[normalizeEventAlias(requested)]
+	if not match then return notify(player, "unknown event: " .. requested .. " (valid: " .. getEventUsage() .. ")") end
 	TriggerWorldEvent:Fire(match)
 	notify(player, "fired " .. match.name, "Epic")
 end
