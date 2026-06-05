@@ -18,8 +18,8 @@
 -- longer depend on inspecting data.inventory[last] after a BlockBroken
 -- event — that approach was vulnerable to re-processing old finds when
 -- a block break didn't drop a new item. blocks_dug / depth_tier still
--- listen to BlockBroken; resurface_count / museum_displays are still
--- on the slow polling loop until those systems expose dedicated events.
+-- listen to BlockBroken; resurface_count still runs on the slow polling loop,
+-- and museum_displays now listens to the museum's dedicated display event.
 
 local Players = game:GetService("Players")
 local BadgeService = game:GetService("BadgeService")
@@ -43,6 +43,12 @@ if not EnemyKilledBindable then
 	EnemyKilledBindable.Name = "EnemyKilledBindable"
 	EnemyKilledBindable.Parent = ServerEvents
 end
+local MuseumItemDisplayedBindable = ServerEvents:FindFirstChild("MuseumItemDisplayedBindable")
+if not MuseumItemDisplayedBindable then
+	MuseumItemDisplayedBindable = Instance.new("BindableEvent")
+	MuseumItemDisplayedBindable.Name = "MuseumItemDisplayedBindable"
+	MuseumItemDisplayedBindable.Parent = ServerEvents
+end
 
 -- ═══════════════════════════════════════════════════════════════════
 -- Badge definitions
@@ -53,9 +59,7 @@ end
 --                             (driven by dedicated listener — NOT evaluateAll)
 --   depth_tier              → tier name reached (uses data.deepestBlock)
 --   resurface_count         → data.rebirths >= value
---   museum_displays         → count(data.collections) >= value
---                             (proxy for "displayed in museum"; tightened
---                             once Museum.server.lua exposes a counter)
+--   museum_displays         → MuseumItemDisplayedBindable totalDisplayed >= value
 --   enemy_kills             → data.enemyKills >= value
 local BADGES = {
 	{
@@ -102,7 +106,7 @@ local BADGES = {
 	},
 	{
 		id = "first_museum_display",
-		badgeId = 0,           -- TODO: replace with real Roblox badge id; proxy on data.collections until Museum exposes a counter
+		badgeId = 0,           -- TODO: replace with real Roblox badge id
 		description = "Display your first item in the museum",
 		trigger = { type = "museum_displays", value = 1 },
 	},
@@ -199,15 +203,6 @@ end
 -- Trigger evaluation
 -- ═══════════════════════════════════════════════════════════════════
 
-local function countTable(t)
-	if type(t) ~= "table" then return 0 end
-	local n = 0
-	for _ in pairs(t) do
-		n = n + 1
-	end
-	return n
-end
-
 -- Evaluate every badge for a player. Cheap (10 entries, simple comparisons)
 -- and idempotency-protected by awardBadge, so we just brute-force on every
 -- relevant signal.
@@ -215,7 +210,8 @@ end
 -- NOTE: rarity_found triggers are NOT evaluated here — they're driven by
 -- the dedicated ItemFoundBindable listener below, so we don't accidentally
 -- re-process old finds when an unrelated BlockBroken event (or polling tick)
--- runs evaluateAll.
+-- runs evaluateAll. museum_displays is also event-driven because collections
+-- tracks ownership, not actual museum placement.
 local function evaluateAll(player)
 	local data = getData(player)
 	if not data then return end
@@ -246,13 +242,7 @@ local function evaluateAll(player)
 				end
 
 			elseif trigger.type == "museum_displays" then
-				-- Proxy on collections until Museum.server.lua exposes
-				-- a real "displayed" counter. data.collections is set
-				-- to true for any item the player has ever owned —
-				-- close enough for "first museum display" milestone.
-				if countTable(data.collections) >= trigger.value then
-					fired = true
-				end
+				-- Skip — handled by MuseumItemDisplayedBindable listener.
 
 			elseif trigger.type == "enemy_kills" then
 				if (data.enemyKills or 0) >= trigger.value then
@@ -284,6 +274,19 @@ ItemFoundBindable.Event:Connect(function(player, item)
 		if (rarity == "Legendary" or rarity == "Mythic") and not data.badgesAwarded.first_legendary then
 			awardBadge(player, "first_legendary")
 		end
+	end
+end)
+
+-- Museum display progress is driven only by Museum.server.lua after a valid
+-- inventory item is placed on its pedestal and removed from inventory.
+MuseumItemDisplayedBindable.Event:Connect(function(player, _item, totalDisplayed)
+	if not player then return end
+	local data = getData(player)
+	if not data then return end
+	ensureBadgeField(data)
+
+	if (totalDisplayed or 0) >= 1 then
+		awardBadge(player, "first_museum_display")
 	end
 end)
 

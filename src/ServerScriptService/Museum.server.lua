@@ -17,6 +17,12 @@ local Remotes = ReplicatedStorage:WaitForChild("Remotes")
 local ServerEvents = ReplicatedStorage:WaitForChild("ServerEvents")
 local PlayerDataReady = ServerEvents:WaitForChild("PlayerDataReady")
 local ItemFoundBindable = ServerEvents:WaitForChild("ItemFoundBindable")
+local MuseumItemDisplayedBindable = ServerEvents:FindFirstChild("MuseumItemDisplayedBindable")
+if not MuseumItemDisplayedBindable then
+	MuseumItemDisplayedBindable = Instance.new("BindableEvent")
+	MuseumItemDisplayedBindable.Name = "MuseumItemDisplayedBindable"
+	MuseumItemDisplayedBindable.Parent = ServerEvents
+end
 
 -- Create museum remotes
 local DisplayItemEvent = Instance.new("RemoteEvent")
@@ -676,7 +682,10 @@ DisplayItemEvent.OnServerEvent:Connect(function(player, inventoryIndex)
 		displayedAt = os.time(),
 	}
 
-	table.remove(data.inventory, inventoryIndex)
+	local removedItem = table.remove(data.inventory, inventoryIndex)
+	if removedItem then
+		MuseumItemDisplayedBindable:Fire(player, item, countDisplayed(museum))
+	end
 
 	local UpdateHUDEvent = Remotes:FindFirstChild("UpdateHUD")
 	if UpdateHUDEvent then
