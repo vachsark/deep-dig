@@ -839,6 +839,14 @@ local function isEventActive(effectName)
 	return endTick and tick() < endTick
 end
 
+_G.DeepDig_isWorldEventEffectActive = function(effectName)
+	if type(effectName) ~= "string" then
+		return false
+	end
+
+	return isEventActive(effectName) == true
+end
+
 local function activateWorldEvent(event)
 	activeEvents[event.effect] = tick() + event.duration
 

@@ -63,6 +63,16 @@ local function getDigInterval(player)
 	return baseInterval / (petDigSpeed * friendDigSpeed)
 end
 
+local function isWorldEventEffectActive(effectName)
+	local isActive = _G.DeepDig_isWorldEventEffectActive
+	if type(isActive) ~= "function" then
+		return false
+	end
+
+	local success, active = pcall(isActive, effectName)
+	return success and active == true
+end
+
 -- ═══════════════════════════════════════════════════════════════════
 -- Dig Site Generation
 -- ═══════════════════════════════════════════════════════════════════
@@ -251,6 +261,73 @@ local function spawnBreakVFX(blockPos, blockColor)
 	end
 end
 
+local function spawnVolcanoVentBreakVFX(blockPos)
+	local emitterPart = Instance.new("Part")
+	emitterPart.Name = "VolcanoVentBreakVFX"
+	emitterPart.Size = Vector3.new(0.2, 0.2, 0.2)
+	emitterPart.CFrame = CFrame.new(blockPos)
+	emitterPart.Anchored = true
+	emitterPart.CanCollide = false
+	emitterPart.CanQuery = false
+	emitterPart.CanTouch = false
+	emitterPart.Transparency = 1
+	emitterPart.Parent = workspace
+
+	local embers = Instance.new("ParticleEmitter")
+	embers.Name = "EmberBurst"
+	embers.Texture = "rbxasset://textures/particles/sparkles_main.dds"
+	embers.Color = ColorSequence.new({
+		ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 215, 70)),
+		ColorSequenceKeypoint.new(0.45, Color3.fromRGB(255, 88, 24)),
+		ColorSequenceKeypoint.new(1, Color3.fromRGB(150, 18, 0)),
+	})
+	embers.LightEmission = 0.9
+	embers.Lifetime = NumberRange.new(0.32, 0.7)
+	embers.Rate = 0
+	embers.Speed = NumberRange.new(12, 28)
+	embers.SpreadAngle = Vector2.new(180, 180)
+	embers.Rotation = NumberRange.new(0, 360)
+	embers.RotSpeed = NumberRange.new(-160, 160)
+	embers.Size = NumberSequence.new({
+		NumberSequenceKeypoint.new(0, 0.45),
+		NumberSequenceKeypoint.new(0.5, 0.22),
+		NumberSequenceKeypoint.new(1, 0),
+	})
+	embers.Transparency = NumberSequence.new({
+		NumberSequenceKeypoint.new(0, 0),
+		NumberSequenceKeypoint.new(0.7, 0.15),
+		NumberSequenceKeypoint.new(1, 1),
+	})
+	embers.Acceleration = Vector3.new(0, 18, 0)
+	embers.Drag = 5
+	embers.Parent = emitterPart
+	embers:Emit(24)
+
+	for i = 1, 4 do
+		local crack = Instance.new("Part")
+		crack.Name = "VolcanoVentLavaCrack"
+		crack.Size = Vector3.new(Config.BLOCK_SIZE * (0.45 + math.random() * 0.3), 0.08, 0.16)
+		crack.CFrame = CFrame.new(blockPos + Vector3.new(0, 0.12, 0))
+			* CFrame.Angles(0, math.rad((i - 1) * 45 + math.random(-12, 12)), 0)
+		crack.Anchored = true
+		crack.CanCollide = false
+		crack.CanQuery = false
+		crack.CanTouch = false
+		crack.Material = Enum.Material.Neon
+		crack.Color = Color3.fromRGB(255, math.random(45, 95), 8)
+		crack.Transparency = 0.1
+		crack.Parent = workspace
+
+		TweenService:Create(crack, TweenInfo.new(0.35, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+			Transparency = 1,
+			Size = Vector3.new(crack.Size.X * 1.2, 0.04, 0.05),
+		}):Play()
+		Debris:AddItem(crack, 0.45)
+	end
+
+	Debris:AddItem(emitterPart, 1)
+end
+
 local DIG_RANGE_STUDS = 60 -- conservative; tune later
 
 local function isOwnedActiveLivingEnemy(player, model)
@@ -342,6 +419,9 @@ local function breakBlock(player, block)
 	local depthBlock = block:GetAttribute("Depth")
 
 	spawnBreakVFX(block.Position, block.Color)
+	if isWorldEventEffectActive("volcano_vent") then
+		spawnVolcanoVentBreakVFX(block.Position)
+	end
 
 	-- Audio: AudioRouter creates the PlaySound RemoteEvent at game start.
 	local PlaySound = ReplicatedStorage:WaitForChild("Remotes"):FindFirstChild("PlaySound")
