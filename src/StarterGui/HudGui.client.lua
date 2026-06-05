@@ -1997,6 +1997,9 @@ local LEGENDARY_FIND_FLASH_RARITIES = {
 		pulseDuration = 0.36,
 		glintExpandDuration = 0.18,
 		glintFadeDuration = 0.26,
+		hapticSmallStrength = 0.08,
+		hapticLargeStrength = 0.14,
+		hapticDuration = 0.12,
 	},
 	Mythic = {
 		overlayColor = Color3.fromRGB(255, 34, 64),
@@ -2011,8 +2014,103 @@ local LEGENDARY_FIND_FLASH_RARITIES = {
 		pulseDuration = 0.44,
 		glintExpandDuration = 0.20,
 		glintFadeDuration = 0.34,
+		hapticSmallStrength = 0.12,
+		hapticLargeStrength = 0.24,
+		hapticDuration = 0.18,
 	},
 }
+
+LEGENDARY_FIND_FLASH_RARITIES._haptics = {
+	service = nil,
+	supportChecked = false,
+	supported = false,
+	motorSupport = {},
+	sequence = 0,
+}
+
+do
+	local ok, service = pcall(function()
+		return game:GetService("HapticService")
+	end)
+
+	if ok then
+		LEGENDARY_FIND_FLASH_RARITIES._haptics.service = service
+	end
+end
+
+function LEGENDARY_FIND_FLASH_RARITIES.PlayHaptics(rarity)
+	local profile = LEGENDARY_FIND_FLASH_RARITIES[rarity]
+	if not profile or not profile.hapticDuration then
+		return
+	end
+
+	local state = LEGENDARY_FIND_FLASH_RARITIES._haptics
+	local inputType = Enum.UserInputType.Gamepad1
+	local smallMotor = Enum.VibrationMotor.Small
+	local largeMotor = Enum.VibrationMotor.Large
+
+	local function canUseHaptics()
+		if state.supportChecked then
+			return state.supported
+		end
+
+		state.supportChecked = true
+		if not state.service then
+			return false
+		end
+
+		local ok, supported = pcall(function()
+			return state.service:IsVibrationSupported(inputType)
+		end)
+		state.supported = ok and supported == true
+		return state.supported
+	end
+
+	local function canUseHapticMotor(motor)
+		if not canUseHaptics() then
+			return false
+		end
+
+		if state.motorSupport[motor] ~= nil then
+			return state.motorSupport[motor]
+		end
+
+		local ok, supported = pcall(function()
+			return state.service:IsMotorSupported(inputType, motor)
+		end)
+		state.motorSupport[motor] = ok and supported == true
+		return state.motorSupport[motor]
+	end
+
+	local function setHapticMotor(motor, strength)
+		if not canUseHapticMotor(motor) then
+			return
+		end
+
+		pcall(function()
+			state.service:SetMotor(inputType, motor, strength)
+		end)
+	end
+
+	local function clearHapticPulse(sequence)
+		if sequence and sequence ~= state.sequence then
+			return
+		end
+
+		setHapticMotor(smallMotor, 0)
+		setHapticMotor(largeMotor, 0)
+	end
+
+	state.sequence = state.sequence + 1
+	local sequence = state.sequence
+
+	setHapticMotor(smallMotor, profile.hapticSmallStrength)
+	setHapticMotor(largeMotor, profile.hapticLargeStrength)
+
+	task.delay(profile.hapticDuration, function()
+		clearHapticPulse(sequence)
+	end)
+end
 
 DeepDigSeasonalRevealStyles = {
 	halloween = {
@@ -2630,6 +2728,8 @@ local findFlashOutTween = nil
 
 local function playLegendaryFindFlash(rarity)
 	local flashProfile = LEGENDARY_FIND_FLASH_RARITIES[rarity] or LEGENDARY_FIND_FLASH_RARITIES.Legendary
+	LEGENDARY_FIND_FLASH_RARITIES.PlayHaptics(rarity)
+
 	findFlashSequence = findFlashSequence + 1
 	local sequence = findFlashSequence
 
