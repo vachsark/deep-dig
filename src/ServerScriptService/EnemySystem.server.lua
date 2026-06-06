@@ -330,7 +330,12 @@ local function notifyMinibossSpawn(player, enemy, model)
 		return
 	end
 
-	NotifyEvent:FireClient(player, enemy.name .. " is emerging nearby!", "Legendary")
+	local ownerName = player.DisplayName
+	if not ownerName or ownerName == "" then
+		ownerName = player.Name
+	end
+
+	NotifyEvent:FireAllClients(ownerName .. " unearthed " .. enemy.name .. "!", "Legendary")
 	fireEnemyCombatFeedback(player, "miniboss_spawn", model)
 end
 
