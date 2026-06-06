@@ -29,6 +29,7 @@ local REWARD_BURST_NAME = "DeepDigEnemyRewardBurst"
 local ENEMY_SPAWN_CUE_NAME = "DeepDigEnemySpawnCue"
 local AGGRO_WARNING_NAME = "DeepDigEnemyAggroWarning"
 local ATTACK_WARNING_NAME = "DeepDigEnemyAttackWarning"
+local ATTACK_WARNING_RING_NAME = "DeepDigEnemyAttackWarningRing"
 local MINIBOSS_WARNING_NAME = "DeepDigEnemyMinibossWarning"
 local MINIBOSS_ENRAGE_WARNING_NAME = "DeepDigEnemyMinibossEnrageWarning"
 local BOSS_BAR_GUI_NAME = "DeepDigMinibossBossBar"
@@ -63,6 +64,11 @@ local ENEMY_SPAWN_CUE_DURATION = 0.52
 local ENEMY_EMERGENCE_CUE_MAX_DURATION = 1.65
 local AGGRO_WARNING_DURATION = 0.58
 local ATTACK_WARNING_DURATION = 0.38
+local ATTACK_WARNING_RING_START_DIAMETER = 4.2
+local ATTACK_WARNING_RING_END_DIAMETER = 7.4
+local ATTACK_WARNING_RING_THICKNESS = 0.08
+local ATTACK_WARNING_RING_SEGMENTS = 18
+local ATTACK_WARNING_RING_SEGMENT_WIDTH = 0.16
 local MINIBOSS_WARNING_DURATION = 1.05
 local MINIBOSS_ENRAGE_WARNING_DURATION = 0.82
 local BOSS_BAR_ENRAGE_PULSE_DURATION = 0.42
@@ -133,6 +139,7 @@ local enemyThreatGui = nil
 local enemyThreatFrame = nil
 local enemyThreatArrow = nil
 local enemyThreatDistanceLabel = nil
+local activeAttackWarningRing = nil
 local CombatStreak = {
 	guiName = "DeepDigCombatStreakMeter",
 	displayOrder = 72,
@@ -676,6 +683,110 @@ local function updateBossBar()
 	bossBarFrame.Visible = true
 end
 
+local function getAttackWarningRingCFrame(model, root)
+	local modelCFrame, modelSize = model:GetBoundingBox()
+	local y = modelCFrame.Position.Y - modelSize.Y * 0.5 + ATTACK_WARNING_RING_THICKNESS * 0.5
+	return CFrame.new(root.Position.X, y, root.Position.Z)
+end
+
+local function clearAttackWarningRing(model)
+	local record = activeAttackWarningRing
+	if not record or (model and record.model ~= model) then
+		return
+	end
+
+	if record.connection then
+		record.connection:Disconnect()
+	end
+	if record.folder and record.folder.Parent then
+		for _, part in ipairs(record.parts) do
+			if part and part.Parent then
+				part.Transparency = 1
+			end
+		end
+		record.folder:Destroy()
+	end
+
+	activeAttackWarningRing = nil
+end
+
+local function updateAttackWarningRing(record, progress)
+	local ringCFrame = getAttackWarningRingCFrame(record.model, record.root)
+	local diameter = ATTACK_WARNING_RING_START_DIAMETER
+		+ (ATTACK_WARNING_RING_END_DIAMETER - ATTACK_WARNING_RING_START_DIAMETER) * progress
+	local radius = diameter * 0.5
+	local segmentLength = (math.pi * diameter / ATTACK_WARNING_RING_SEGMENTS) * 0.72
+	local transparency = 0.24 + progress * 0.76
+
+	for index, part in ipairs(record.parts) do
+		local angle = ((index - 1) / ATTACK_WARNING_RING_SEGMENTS) * math.pi * 2
+		local radial = Vector3.new(math.cos(angle), 0, math.sin(angle))
+		local tangent = Vector3.new(-math.sin(angle), 0, math.cos(angle))
+		local center = ringCFrame.Position + radial * radius
+
+		part.Size = Vector3.new(segmentLength, ATTACK_WARNING_RING_THICKNESS, ATTACK_WARNING_RING_SEGMENT_WIDTH)
+		part.Transparency = transparency
+		part.CFrame = CFrame.fromMatrix(center, tangent, Vector3.new(0, 1, 0), radial)
+	end
+end
+
+local function showAttackWarningRing(model, root)
+	clearAttackWarningRing()
+
+	local parent = workspace.CurrentCamera or workspace
+	local folder = Instance.new("Folder")
+	folder.Name = ATTACK_WARNING_RING_NAME
+	folder.Parent = parent
+
+	local parts = {}
+	for index = 1, ATTACK_WARNING_RING_SEGMENTS do
+		local segment = Instance.new("Part")
+		segment.Name = "Segment" .. index
+		segment.Anchored = true
+		segment.CanCollide = false
+		segment.CanQuery = false
+		segment.CanTouch = false
+		segment.CastShadow = false
+		segment.Material = Enum.Material.Neon
+		segment.Color = ATTACK_WARNING_COLOR
+		segment.Parent = folder
+		table.insert(parts, segment)
+	end
+
+	local record = {
+		model = model,
+		root = root,
+		folder = folder,
+		parts = parts,
+		connection = nil,
+		startTime = os.clock(),
+	}
+	activeAttackWarningRing = record
+
+	updateAttackWarningRing(record, 0)
+	record.connection = RunService.Heartbeat:Connect(function()
+		if activeAttackWarningRing ~= record then
+			return
+		end
+		if not model.Parent or not root.Parent or not folder.Parent then
+			clearAttackWarningRing(model)
+			return
+		end
+
+		local progress = math.clamp((os.clock() - record.startTime) / ATTACK_WARNING_DURATION, 0, 1)
+		updateAttackWarningRing(record, progress)
+		if progress >= 1 then
+			clearAttackWarningRing(model)
+		end
+	end)
+
+	task.delay(ATTACK_WARNING_DURATION + 0.08, function()
+		if activeAttackWarningRing == record then
+			clearAttackWarningRing(model)
+		end
+	end)
+end
+
 local function cleanupEnemy(model)
 	local record = trackedEnemies[model]
 	if record then
@@ -709,6 +820,7 @@ local function cleanupEnemy(model)
 	if attackWarning then
 		attackWarning:Destroy()
 	end
+	clearAttackWarningRing(model)
 
 	local minibossWarning = root and root:FindFirstChild(MINIBOSS_WARNING_NAME)
 	if minibossWarning then
@@ -2126,6 +2238,7 @@ local function showAttackWarning(model)
 	if existing then
 		existing:Destroy()
 	end
+	showAttackWarningRing(model, root)
 
 	local billboard = Instance.new("BillboardGui")
 	billboard.Name = ATTACK_WARNING_NAME
