@@ -162,6 +162,14 @@ local CombatStreak = {
 	sequence = 0,
 	expiresAt = 0,
 	window = 1,
+	firstEnemyHintGuiName = "DeepDigFirstEnemyCombatHint",
+	firstEnemyHintSeenAttribute = "DeepDigFirstEnemyCombatHintSeen",
+	firstEnemyHintDisplayOrder = 74,
+	firstEnemyHintDuration = 3.6,
+	firstEnemyHintFadeDuration = 0.34,
+	firstEnemyHintShown = false,
+	firstEnemyHintGui = nil,
+	firstEnemyHintSequence = 0,
 }
 local hapticSupportChecked = false
 local hapticSupported = false
@@ -2019,6 +2027,212 @@ function CombatStreak.show(reward)
 	CombatStreak.pulse()
 end
 
+function CombatStreak.showFirstEnemyCombatHint()
+	if CombatStreak.firstEnemyHintShown then
+		return
+	end
+
+	local ok, hasSeen = pcall(function()
+		return player:GetAttribute(CombatStreak.firstEnemyHintSeenAttribute)
+	end)
+	if ok and hasSeen == true then
+		CombatStreak.firstEnemyHintShown = true
+		return
+	end
+
+	CombatStreak.firstEnemyHintShown = true
+	pcall(function()
+		player:SetAttribute(CombatStreak.firstEnemyHintSeenAttribute, true)
+	end)
+
+	CombatStreak.firstEnemyHintSequence = CombatStreak.firstEnemyHintSequence + 1
+	local sequence = CombatStreak.firstEnemyHintSequence
+
+	if CombatStreak.firstEnemyHintGui and CombatStreak.firstEnemyHintGui.Parent then
+		CombatStreak.firstEnemyHintGui:Destroy()
+	end
+
+	local playerGui = player:FindFirstChildOfClass("PlayerGui") or player:WaitForChild("PlayerGui")
+
+	local gui = Instance.new("ScreenGui")
+	gui.Name = CombatStreak.firstEnemyHintGuiName
+	gui.ResetOnSpawn = false
+	gui.IgnoreGuiInset = true
+	gui.DisplayOrder = CombatStreak.firstEnemyHintDisplayOrder
+	gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+	gui.Parent = playerGui
+	CombatStreak.firstEnemyHintGui = gui
+
+	local frame = Instance.new("Frame")
+	frame.Name = "HintPanel"
+	frame.AnchorPoint = Vector2.new(0.5, 0)
+	frame.Position = UDim2.new(0.5, 0, 0, 106)
+	frame.Size = UDim2.new(0.84, 0, 0, 76)
+	frame.BackgroundColor3 = Color3.fromRGB(28, 19, 14)
+	frame.BackgroundTransparency = 1
+	frame.BorderSizePixel = 0
+	frame.ZIndex = 1
+	frame.Parent = gui
+
+	local sizeConstraint = Instance.new("UISizeConstraint")
+	sizeConstraint.MinSize = Vector2.new(260, 76)
+	sizeConstraint.MaxSize = Vector2.new(360, 76)
+	sizeConstraint.Parent = frame
+
+	local scale = Instance.new("UIScale")
+	scale.Scale = 0.94
+	scale.Parent = frame
+
+	local corner = Instance.new("UICorner")
+	corner.CornerRadius = UDim.new(0, 8)
+	corner.Parent = frame
+
+	local stroke = Instance.new("UIStroke")
+	stroke.Color = ENEMY_SPAWN_COLOR
+	stroke.Transparency = 1
+	stroke.Thickness = 1
+	stroke.Parent = frame
+
+	local accent = Instance.new("Frame")
+	accent.Name = "Accent"
+	accent.Position = UDim2.fromOffset(0, 0)
+	accent.Size = UDim2.new(0, 4, 1, 0)
+	accent.BackgroundColor3 = ENEMY_SPAWN_COLOR
+	accent.BackgroundTransparency = 1
+	accent.BorderSizePixel = 0
+	accent.ZIndex = 2
+	accent.Parent = frame
+
+	local accentCorner = Instance.new("UICorner")
+	accentCorner.CornerRadius = UDim.new(0, 8)
+	accentCorner.Parent = accent
+
+	local icon = Instance.new("TextLabel")
+	icon.Name = "Icon"
+	icon.Position = UDim2.fromOffset(15, 18)
+	icon.Size = UDim2.fromOffset(38, 38)
+	icon.BackgroundColor3 = Color3.fromRGB(58, 34, 18)
+	icon.BackgroundTransparency = 1
+	icon.BorderSizePixel = 0
+	icon.Text = "!"
+	icon.TextColor3 = ENEMY_SPAWN_COLOR
+	icon.TextTransparency = 1
+	icon.TextStrokeTransparency = 1
+	icon.TextSize = 28
+	icon.Font = Enum.Font.GothamBlack
+	icon.ZIndex = 3
+	icon.Parent = frame
+
+	local iconCorner = Instance.new("UICorner")
+	iconCorner.CornerRadius = UDim.new(0, 8)
+	iconCorner.Parent = icon
+
+	local title = Instance.new("TextLabel")
+	title.Name = "Title"
+	title.Position = UDim2.fromOffset(64, 11)
+	title.Size = UDim2.new(1, -80, 0, 22)
+	title.BackgroundTransparency = 1
+	title.Text = "Enemy unearthed"
+	title.TextColor3 = Color3.fromRGB(255, 238, 210)
+	title.TextTransparency = 1
+	title.TextStrokeTransparency = 1
+	title.TextSize = 17
+	title.Font = Enum.Font.GothamBlack
+	title.TextXAlignment = Enum.TextXAlignment.Left
+	title.TextTruncate = Enum.TextTruncate.AtEnd
+	title.ZIndex = 3
+	title.Parent = frame
+
+	local body = Instance.new("TextLabel")
+	body.Name = "Body"
+	body.Position = UDim2.fromOffset(64, 35)
+	body.Size = UDim2.new(1, -80, 0, 34)
+	body.BackgroundTransparency = 1
+	body.Text = "Tap or click it with your tool equipped."
+	body.TextColor3 = Color3.fromRGB(255, 207, 160)
+	body.TextTransparency = 1
+	body.TextStrokeTransparency = 1
+	body.TextSize = 13
+	body.Font = Enum.Font.GothamBold
+	body.TextXAlignment = Enum.TextXAlignment.Left
+	body.TextYAlignment = Enum.TextYAlignment.Top
+	body.TextWrapped = true
+	body.ZIndex = 3
+	body.Parent = frame
+
+	local inTweenInfo = TweenInfo.new(
+		0.22,
+		Enum.EasingStyle.Back,
+		Enum.EasingDirection.Out
+	)
+	TweenService:Create(scale, inTweenInfo, {
+		Scale = 1,
+	}):Play()
+	TweenService:Create(frame, inTweenInfo, {
+		BackgroundTransparency = 0.08,
+	}):Play()
+	TweenService:Create(stroke, inTweenInfo, {
+		Transparency = 0.16,
+	}):Play()
+	TweenService:Create(accent, inTweenInfo, {
+		BackgroundTransparency = 0,
+	}):Play()
+	TweenService:Create(icon, inTweenInfo, {
+		BackgroundTransparency = 0.16,
+		TextTransparency = 0,
+		TextStrokeTransparency = 0.2,
+	}):Play()
+	TweenService:Create(title, inTweenInfo, {
+		TextTransparency = 0,
+		TextStrokeTransparency = 0.45,
+	}):Play()
+	TweenService:Create(body, inTweenInfo, {
+		TextTransparency = 0,
+		TextStrokeTransparency = 0.55,
+	}):Play()
+
+	task.delay(CombatStreak.firstEnemyHintDuration, function()
+		if sequence ~= CombatStreak.firstEnemyHintSequence or not gui.Parent then
+			return
+		end
+
+		local fadeTweenInfo = TweenInfo.new(
+			CombatStreak.firstEnemyHintFadeDuration,
+			Enum.EasingStyle.Quad,
+			Enum.EasingDirection.In
+		)
+		TweenService:Create(frame, fadeTweenInfo, {
+			Position = UDim2.new(0.5, 0, 0, 94),
+			BackgroundTransparency = 1,
+		}):Play()
+		TweenService:Create(stroke, fadeTweenInfo, {
+			Transparency = 1,
+		}):Play()
+		TweenService:Create(accent, fadeTweenInfo, {
+			BackgroundTransparency = 1,
+		}):Play()
+		TweenService:Create(icon, fadeTweenInfo, {
+			BackgroundTransparency = 1,
+			TextTransparency = 1,
+			TextStrokeTransparency = 1,
+		}):Play()
+		TweenService:Create(title, fadeTweenInfo, {
+			TextTransparency = 1,
+			TextStrokeTransparency = 1,
+		}):Play()
+		TweenService:Create(body, fadeTweenInfo, {
+			TextTransparency = 1,
+			TextStrokeTransparency = 1,
+		}):Play()
+
+		task.delay(CombatStreak.firstEnemyHintFadeDuration + 0.05, function()
+			if sequence == CombatStreak.firstEnemyHintSequence and gui.Parent then
+				gui:Destroy()
+			end
+		end)
+	end)
+end
+
 local function showEnemySpawnCue(model)
 	if not model or not model:IsA("Model") or not model:IsDescendantOf(workspace) then
 		return
@@ -2938,6 +3152,7 @@ EnemyCombatFeedback.OnClientEvent:Connect(function(payload)
 		showAttackWarning(payload.model)
 	elseif feedbackType == "enemy_spawn" then
 		showEnemySpawnCue(payload.model)
+		CombatStreak.showFirstEnemyCombatHint()
 	elseif feedbackType == "miniboss_spawn" then
 		showEnemySpawnCue(payload.model)
 		showMinibossWarning(payload.model)
