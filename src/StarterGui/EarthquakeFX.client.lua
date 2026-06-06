@@ -42,6 +42,9 @@ local EVENT_PULSE_STEP = 0.035
 local EVENT_PULSE_RING_START_SIZE = 0.52
 local EVENT_PULSE_RING_END_SIZE = 1.22
 local EVENT_PULSE_RING_THICKNESS = 8
+local EVENT_PULSE_HAPTIC_DURATION = 0.1
+local EVENT_PULSE_HAPTIC_SMALL_STRENGTH = 0.1
+local EVENT_PULSE_HAPTIC_LARGE_STRENGTH = 0.18
 local HAPTIC_INPUT_TYPE = Enum.UserInputType.Gamepad1
 local HAPTIC_SMALL_MOTOR = Enum.VibrationMotor.Small
 local HAPTIC_LARGE_MOTOR = Enum.VibrationMotor.Large
@@ -710,6 +713,11 @@ local function beginEventPulse(effectId)
 	end
 
 	startEventImpactRing(settings)
+	playHapticPulse(
+		EVENT_PULSE_HAPTIC_SMALL_STRENGTH,
+		EVENT_PULSE_HAPTIC_LARGE_STRENGTH,
+		EVENT_PULSE_HAPTIC_DURATION
+	)
 
 	startEventPulseLoop(eventPulseSession)
 end
