@@ -850,11 +850,6 @@ end
 local function activateWorldEvent(event)
 	activeEvents[event.effect] = tick() + event.duration
 
-	-- SOUND HOOK: alarm horn when a world event triggers.
-	if PlaySound then
-		PlaySound:FireAllClients("event_alarm")
-	end
-
 	EventTriggeredEvent:FireAllClients(event.name, event.message, event.duration, event.effect)
 end
 

@@ -578,6 +578,12 @@ local function playEarthquakeSound()
 	end
 end
 
+local function playEventAlarmSound()
+	if LocalPlaySound and LocalPlaySound:IsA("BindableEvent") then
+		LocalPlaySound:Fire("event_alarm")
+	end
+end
+
 local function startVignettePulse(session)
 	task.spawn(function()
 		local useBright = false
@@ -692,6 +698,7 @@ local function beginEventPulse(effectId)
 	eventPulseOffset = Vector3.new(0, 0, 0)
 	lastAppliedEventPulseOffset = Vector3.new(0, 0, 0)
 
+	playEventAlarmSound()
 	ensureEventPulseUi()
 	ensureEventPulseRenderBinding()
 
