@@ -66,6 +66,10 @@ local state = {
 	topCrews = {},
 	mailboxItems = {},
 }
+local coopBonusState = {
+	active = false,
+	partnerName = nil,
+}
 local currentInventory = {}
 local selectedMailboxRecipientUserId = nil
 local levelUpBurstSequence = 0
@@ -82,6 +86,7 @@ local activeMailboxReceivedBurst = nil
 local lastMailboxReceivedKey = nil
 local activeCrewMembersByUserId = {}
 local crewMarkerConnections = {}
+local refreshCoopBonusState
 
 local LocalPlaySound = SoundService:FindFirstChild(LOCAL_PLAY_SOUND_NAME)
 if not LocalPlaySound then
@@ -302,6 +307,7 @@ local function ensureCrewMarkerConnection(crewmate)
 		if member then
 			applyCrewMarker(crewmate, member)
 		end
+		refreshCoopBonusState(true)
 	end)
 end
 
@@ -359,8 +365,9 @@ toggleButton.BackgroundTransparency = 0.12
 toggleButton.BorderSizePixel = 0
 toggleButton.Text = "Crew"
 toggleButton.TextColor3 = TEXT_PRIMARY
-toggleButton.TextSize = 18
+toggleButton.TextSize = 16
 toggleButton.Font = Enum.Font.GothamBold
+toggleButton.TextYAlignment = Enum.TextYAlignment.Top
 toggleButton.AutoButtonColor = true
 toggleButton.Parent = screenGui
 setCorner(toggleButton, 8)
@@ -376,6 +383,32 @@ pendingDot.BorderSizePixel = 0
 pendingDot.Visible = false
 pendingDot.Parent = toggleButton
 setCorner(pendingDot, 12)
+
+local coopBadge = Instance.new("Frame")
+coopBadge.Name = "CoopBadge"
+coopBadge.Size = UDim2.fromOffset(58, 14)
+coopBadge.AnchorPoint = Vector2.new(1, 1)
+coopBadge.Position = UDim2.new(1, -8, 1, -5)
+coopBadge.BackgroundColor3 = SECTION_BG
+coopBadge.BackgroundTransparency = 0.18
+coopBadge.BorderSizePixel = 0
+coopBadge.Visible = false
+coopBadge.Parent = toggleButton
+setCorner(coopBadge, 5)
+
+local coopBadgeStroke = setStroke(coopBadge, Color3.fromRGB(80, 86, 96), 1, 0.25)
+
+local coopBadgeLabel = Instance.new("TextLabel")
+coopBadgeLabel.Name = "Label"
+coopBadgeLabel.Size = UDim2.fromScale(1, 1)
+coopBadgeLabel.BackgroundTransparency = 1
+coopBadgeLabel.Text = "+Frag"
+coopBadgeLabel.TextColor3 = TEXT_MUTED
+coopBadgeLabel.TextSize = 9
+coopBadgeLabel.Font = Enum.Font.GothamBlack
+coopBadgeLabel.TextXAlignment = Enum.TextXAlignment.Center
+coopBadgeLabel.TextYAlignment = Enum.TextYAlignment.Center
+coopBadgeLabel.Parent = coopBadge
 
 local function showLevelUpBurst(level, fragmentBonus)
 	levelUpBurstSequence = levelUpBurstSequence + 1
@@ -1244,6 +1277,65 @@ end
 
 local render
 
+local function getRootPart(targetPlayer)
+	local character = targetPlayer and targetPlayer.Character
+	if not character then
+		return nil
+	end
+
+	return character:FindFirstChild("HumanoidRootPart")
+end
+
+local function getCoopBonusPartner()
+	if not state.inCrew then
+		return nil
+	end
+
+	local radius = tonumber(state.coopRadius) or 0
+	if radius <= 0 then
+		return nil
+	end
+
+	local localRoot = getRootPart(player)
+	if not localRoot then
+		return nil
+	end
+
+	for _, member in ipairs(state.members or {}) do
+		local userId = tonumber(member.userId)
+		if userId and userId ~= player.UserId then
+			local crewmate = Players:GetPlayerByUserId(userId)
+			local crewmateRoot = getRootPart(crewmate)
+			if crewmateRoot and (crewmateRoot.Position - localRoot.Position).Magnitude <= radius then
+				return tostring(member.displayName or member.name or crewmate.DisplayName or crewmate.Name or "Crewmate")
+			end
+		end
+	end
+
+	return nil
+end
+
+refreshCoopBonusState = function(shouldRender)
+	local partnerName = getCoopBonusPartner()
+	local isActive = partnerName ~= nil
+	local changed = coopBonusState.active ~= isActive or coopBonusState.partnerName ~= partnerName
+
+	coopBonusState.active = isActive
+	coopBonusState.partnerName = partnerName
+
+	if changed and shouldRender and render then
+		render()
+	end
+
+	return changed
+end
+
+local function refreshCoopBonusStateSoon(delaySeconds)
+	task.delay(delaySeconds or 0.2, function()
+		refreshCoopBonusState(true)
+	end)
+end
+
 local function requestInventoryRefresh()
 	local ok, result = pcall(function()
 		return GetPlayerDataFunc:InvokeServer()
@@ -1262,6 +1354,7 @@ local function requestState()
 	end)
 	if ok and type(result) == "table" then
 		state = result
+		refreshCoopBonusState(false)
 		render()
 	end
 end
@@ -1346,9 +1439,27 @@ render = function()
 	local xpInLevel = state.crewXPInLevel or 0
 	local xpForNextLevel = state.crewXPForNextLevel or 0
 
+	refreshCoopBonusState(false)
 	refreshCrewMarkers(members)
 
 	pendingDot.Visible = pendingInvite ~= nil or mailboxCount > 0
+	coopBadge.Visible = state.inCrew
+	if coopBonusState.active then
+		coopBadge.BackgroundColor3 = ACCENT_GREEN
+		coopBadge.BackgroundTransparency = 0.04
+		coopBadgeStroke.Color = ACCENT_GREEN
+		coopBadgeStroke.Transparency = 0
+		coopBadgeLabel.Text = "ACTIVE"
+		coopBadgeLabel.TextColor3 = Color3.fromRGB(12, 24, 18)
+	else
+		coopBadge.BackgroundColor3 = SECTION_BG
+		coopBadge.BackgroundTransparency = 0.18
+		coopBadgeStroke.Color = Color3.fromRGB(80, 86, 96)
+		coopBadgeStroke.Transparency = 0.25
+		coopBadgeLabel.Text = "+Frag"
+		coopBadgeLabel.TextColor3 = TEXT_MUTED
+	end
+
 	if state.inCrew then
 		toggleButton.Text = mailboxCount > 0 and ("Crew " .. tostring(#members) .. "/" .. tostring(maxSize) .. " Mail " .. tostring(mailboxCount)) or ("Crew " .. tostring(#members) .. "/" .. tostring(maxSize))
 	else
@@ -1356,11 +1467,18 @@ render = function()
 	end
 
 	if state.inCrew then
-		statusLabel.Text = "Level " .. tostring(level) .. " crew - +" .. tostring(bonus) .. " fragments within " .. tostring(radius) .. " studs"
+		if coopBonusState.active then
+			statusLabel.Text = "Co-op bonus active with " .. tostring(coopBonusState.partnerName) .. " - +" .. tostring(bonus) .. " fragments"
+			statusLabel.TextColor3 = ACCENT_GREEN
+		else
+			statusLabel.Text = "Level " .. tostring(level) .. " crew - +" .. tostring(bonus) .. " fragments within " .. tostring(radius) .. " studs"
+			statusLabel.TextColor3 = TEXT_MUTED
+		end
 		actionButton.Text = "Leave Crew"
 		actionButton.BackgroundColor3 = ACCENT_RED
 	else
 		statusLabel.Text = "Create a crew, then invite nearby players."
+		statusLabel.TextColor3 = TEXT_MUTED
 		actionButton.Text = "Create Crew"
 		actionButton.BackgroundColor3 = ACCENT_BLUE
 	end
@@ -1549,6 +1667,7 @@ CrewUpdateEvent.OnClientEvent:Connect(function(payload)
 end)
 
 Players.PlayerAdded:Connect(function()
+	refreshCoopBonusStateSoon(0.5)
 	if panel.Visible then
 		task.delay(0.4, requestState)
 	end
@@ -1556,7 +1675,19 @@ end)
 
 Players.PlayerRemoving:Connect(function(leavingPlayer)
 	clearCrewMarker(leavingPlayer.UserId, true)
+	refreshCoopBonusStateSoon(0.2)
 	task.delay(0.2, requestState)
+end)
+
+player.CharacterAdded:Connect(function()
+	refreshCoopBonusStateSoon(0.35)
+end)
+
+task.spawn(function()
+	while true do
+		task.wait(0.5)
+		refreshCoopBonusState(true)
+	end
 end)
 
 task.spawn(function()
