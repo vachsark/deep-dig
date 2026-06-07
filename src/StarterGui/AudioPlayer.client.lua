@@ -92,6 +92,13 @@ local SOUNDS = {
 		volume = 0.36,
 		playbackSpeed = 1.65,
 	},
+	low_health_warning = {
+		id = "rbxassetid://5982968246", -- subtle repeated danger pulse while critically hurt
+		volume = 0.16,
+		playbackSpeed = 1.25,
+		replaceExisting = true,
+		cleanupDelay = 1.1,
+	},
 	enemy_spawn = {
 		id = "rbxassetid://9114013169", -- soft dirt surfacing thud
 		volume = 0.32,

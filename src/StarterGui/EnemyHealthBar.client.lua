@@ -91,6 +91,7 @@ local LOW_HEALTH_PULSE_IN_TRANSPARENCY = 0.4
 local LOW_HEALTH_PULSE_OUT_TRANSPARENCY = 0.72
 local LOW_HEALTH_CLEAR_TRANSPARENCY = 1
 local LOW_HEALTH_PULSE_DURATION = 0.42
+local LOW_HEALTH_SOUND_INTERVAL = LOW_HEALTH_PULSE_DURATION * 2
 local LOW_HEALTH_CLEAR_DURATION = 0.12
 local BOSS_BAR_DISPLAY_ORDER = 70
 local MINIBOSS_DEFEAT_DISPLAY_ORDER = 95
@@ -131,6 +132,7 @@ local lowHealthGui = nil
 local lowHealthEdges = {}
 local lowHealthPulseTweens = {}
 local lowHealthPulseSequence = 0
+local lowHealthSoundSequence = 0
 local lowHealthActive = false
 local lowHealthCurrentHumanoid = nil
 local lowHealthHumanoidConnection = nil
@@ -1336,6 +1338,7 @@ local function stopLowHealthWarning(fadeOut)
 
 	lowHealthActive = false
 	lowHealthPulseSequence = lowHealthPulseSequence + 1
+	lowHealthSoundSequence = lowHealthSoundSequence + 1
 	local sequence = lowHealthPulseSequence
 	cancelLowHealthPulseTweens()
 
@@ -1380,9 +1383,21 @@ local function startLowHealthWarning()
 
 	lowHealthActive = true
 	lowHealthPulseSequence = lowHealthPulseSequence + 1
+	lowHealthSoundSequence = lowHealthSoundSequence + 1
 	local sequence = lowHealthPulseSequence
+	local soundSequence = lowHealthSoundSequence
 	cancelLowHealthPulseTweens()
 	setLowHealthWarningTransparency(LOW_HEALTH_PULSE_OUT_TRANSPARENCY, true)
+
+	task.spawn(function()
+		while lowHealthActive and sequence == lowHealthPulseSequence and soundSequence == lowHealthSoundSequence do
+			if LocalPlaySound and LocalPlaySound:IsA("BindableEvent") then
+				LocalPlaySound:Fire("low_health_warning")
+			end
+
+			task.wait(LOW_HEALTH_SOUND_INTERVAL)
+		end
+	end)
 
 	task.spawn(function()
 		local pulseIn = true
