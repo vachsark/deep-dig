@@ -4921,6 +4921,8 @@ do
 		sequence = 0,
 		lastKey = nil,
 		tweens = {},
+		sparkles = {},
+		maxSparkles = 14,
 		foremanUpsellActive = false,
 		foremanUpsellAvailable = false,
 	}
@@ -4964,6 +4966,75 @@ do
 		return tween
 	end
 
+	local function clearOfflineIncomeSparkles()
+		for _, sparkle in ipairs(offlineIncomeState.sparkles) do
+			if sparkle and sparkle.Parent then
+				sparkle:Destroy()
+			end
+		end
+		offlineIncomeState.sparkles = {}
+	end
+
+	local function playOfflineIncomeSparkleBurst(reward, sequence)
+		clearOfflineIncomeSparkles()
+
+		local sparkleCount = 6
+		if reward >= 1000 then
+			sparkleCount = sparkleCount + 2
+		end
+		if reward >= 5000 then
+			sparkleCount = sparkleCount + 2
+		end
+		if reward >= 20000 then
+			sparkleCount = sparkleCount + 2
+		end
+		if reward >= 100000 then
+			sparkleCount = sparkleCount + 2
+		end
+		sparkleCount = math.min(offlineIncomeState.maxSparkles, sparkleCount)
+
+		for index = 1, sparkleCount do
+			local sparkle = Instance.new("TextLabel")
+			local isCoin = index % 3 ~= 0
+			local startX = math.random(-175, 175)
+			local startY = math.random(-96, 64)
+			local driftX = math.random(-56, 56)
+			local driftY = -math.random(54, 106)
+			local textSize = isCoin and math.random(18, 24) or math.random(20, 28)
+
+			sparkle.Name = "OfflineIncomeSparkle"
+			sparkle.AnchorPoint = Vector2.new(0.5, 0.5)
+			sparkle.Size = UDim2.fromOffset(34, 34)
+			sparkle.Position = UDim2.new(0.5, startX, 0.5, startY)
+			sparkle.BackgroundTransparency = 1
+			sparkle.Text = isCoin and "🪙" or "✦"
+			sparkle.TextColor3 = isCoin and Color3.fromRGB(255, 214, 70) or Color3.fromRGB(255, 245, 170)
+			sparkle.TextSize = textSize
+			sparkle.TextTransparency = 0
+			sparkle.TextStrokeColor3 = Color3.fromRGB(88, 46, 0)
+			sparkle.TextStrokeTransparency = 0.35
+			sparkle.Font = Enum.Font.GothamBlack
+			sparkle.Rotation = math.random(-16, 16)
+			sparkle.ZIndex = 82
+			sparkle.Parent = screenGui
+			table.insert(offlineIncomeState.sparkles, sparkle)
+
+			tweenOfflineIncome(sparkle, 0.64 + math.random() * 0.22, {
+				Position = UDim2.new(0.5, startX + driftX, 0.5, startY + driftY),
+				TextTransparency = 1,
+				TextStrokeTransparency = 1,
+				Rotation = sparkle.Rotation + math.random(-38, 38),
+			}, Enum.EasingStyle.Quad, Enum.EasingDirection.Out).Completed:Connect(function()
+				if sequence ~= offlineIncomeState.sequence then
+					return
+				end
+				if sparkle.Parent then
+					sparkle:Destroy()
+				end
+			end)
+		end
+	end
+
 	local function hideOfflineIncomePopup()
 		if not offlineIncomePanel.Visible then
 			return
@@ -4971,6 +5042,7 @@ do
 
 		offlineIncomeState.sequence = offlineIncomeState.sequence + 1
 		local sequence = offlineIncomeState.sequence
+		clearOfflineIncomeSparkles()
 		clearOfflineIncomeTweens()
 
 		tweenOfflineIncome(offlineIncomePanel, 0.22, {
@@ -5020,6 +5092,7 @@ do
 		local sequence = offlineIncomeState.sequence
 		offlineIncomeState.foremanUpsellActive = showForemanUpsell
 		offlineIncomeState.foremanUpsellAvailable = foremanPassAvailable
+		clearOfflineIncomeSparkles()
 		clearOfflineIncomeTweens()
 
 		offlineIncomeReward.Text = "+" .. tostring(reward) .. " coins"
@@ -5093,6 +5166,8 @@ do
 				TextTransparency = 0,
 			})
 		end
+
+		playOfflineIncomeSparkleBurst(reward, sequence)
 
 		if LocalPlaySound and LocalPlaySound:IsA("BindableEvent") then
 			LocalPlaySound:Fire("sell_coins")
