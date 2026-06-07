@@ -339,6 +339,38 @@ local function notifyMinibossSpawn(player, enemy, model)
 	fireEnemyCombatFeedback(player, "miniboss_spawn", model)
 end
 
+local function getPlayerDisplayName(player)
+	if not player then
+		return nil
+	end
+
+	local displayName = player.DisplayName
+	if displayName and displayName ~= "" then
+		return displayName
+	end
+
+	return player.Name
+end
+
+local function isMinibossDefeat(record)
+	if record.enemy.isMiniboss == true then
+		return true
+	end
+
+	return record.model and record.model:GetAttribute("EnemyId") == "hollow_king"
+end
+
+local function notifyMinibossDefeat(record, rewardedPlayer)
+	if not isMinibossDefeat(record) then
+		return
+	end
+
+	local creditedPlayer = rewardedPlayer or record.lastAttacker or record.owner
+	local creditedName = getPlayerDisplayName(creditedPlayer) or "A digger"
+	local enemyName = record.enemy.name or record.model:GetAttribute("EnemyName") or "a miniboss"
+	NotifyEvent:FireAllClients(creditedName .. " defeated " .. enemyName .. "!", "Mythic")
+end
+
 local function getEnemyMaxHealth(record)
 	local attributeMaxHealth = record.model:GetAttribute("MaxHealth")
 	if typeof(attributeMaxHealth) == "number" and attributeMaxHealth > 0 then
@@ -383,6 +415,7 @@ local function onEnemyDied(record)
 	if record.enemy.isMiniboss then
 		fireEnemyCombatFeedback(feedbackPlayer, "miniboss_defeated", record.model)
 	end
+	notifyMinibossDefeat(record, rewardedPlayer)
 	task.delay(2, function()
 		destroyEnemy(record)
 	end)
