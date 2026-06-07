@@ -1316,7 +1316,7 @@ BlockBrokenEvent.Event:Connect(function(player, blockPosition)
 				}
 
 				NotifyEvent:FireClient(player, "Auto Collector sold duplicate " .. item.name .. " for " .. earned .. " coins.", item.rarity)
-				if rarePityTriggered then
+				if isRareRevealRarity(item.rarity) then
 					ItemFoundEvent:FireClient(player, item)
 					fireItemFindSounds(player, item.rarity)
 				end
