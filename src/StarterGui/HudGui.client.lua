@@ -4419,15 +4419,27 @@ sellAllSummaryUi.detail.TextXAlignment = Enum.TextXAlignment.Center
 sellAllSummaryUi.detail.ZIndex = 79
 constrainSellAllSummaryText(sellAllSummaryUi.detail, 17, 10)
 sellAllSummaryUi.detail.Parent = sellAllSummaryUi.panel
+sellAllSummaryUi.particles = {}
+sellAllSummaryUi.maxFlyoutParticles = 14
 
 local sellAllSummarySequence = 0
 local sellAllSummaryTweens = {}
+
+local function clearSellAllSummaryParticles()
+	for _, particle in ipairs(sellAllSummaryUi.particles) do
+		if particle and particle.Parent then
+			particle:Destroy()
+		end
+	end
+	sellAllSummaryUi.particles = {}
+end
 
 local function clearSellAllSummaryTweens()
 	for _, tween in ipairs(sellAllSummaryTweens) do
 		tween:Cancel()
 	end
 	sellAllSummaryTweens = {}
+	clearSellAllSummaryParticles()
 end
 
 local function tweenSellAllSummary(instance, duration, goal, easingStyle, easingDirection)
@@ -4439,6 +4451,82 @@ local function tweenSellAllSummary(instance, duration, goal, easingStyle, easing
 	table.insert(sellAllSummaryTweens, tween)
 	tween:Play()
 	return tween
+end
+
+local function playSellAllCoinFlyout(coinsEarned, sequence)
+	clearSellAllSummaryParticles()
+
+	if coinsEarned <= 0 then
+		return
+	end
+
+	local panelPosition = sellAllSummaryUi.panel.AbsolutePosition
+	local panelSize = sellAllSummaryUi.panel.AbsoluteSize
+	local coinPosition = coinsLabel.AbsolutePosition
+	local coinSize = coinsLabel.AbsoluteSize
+	local startCenter = panelPosition + Vector2.new(panelSize.X * 0.5, panelSize.Y * 0.56)
+	local endCenter = coinPosition + Vector2.new(math.min(34, coinSize.X * 0.22), coinSize.Y * 0.5)
+	local particleCount = 8
+
+	if coinsEarned >= 250 then
+		particleCount = particleCount + 2
+	end
+	if coinsEarned >= 1000 then
+		particleCount = particleCount + 2
+	end
+	if coinsEarned >= 5000 then
+		particleCount = particleCount + 2
+	end
+	particleCount = math.min(sellAllSummaryUi.maxFlyoutParticles, particleCount)
+
+	for index = 1, particleCount do
+		local particle = Instance.new("Frame")
+		local size = math.random(6, 11)
+		local startOffset = Vector2.new(math.random(-96, 96), math.random(-18, 54))
+		local endOffset = Vector2.new(math.random(-8, 18), math.random(-9, 9))
+		local target = endCenter + endOffset
+		local delayTime = (index - 1) * 0.025
+
+		particle.Name = "SellAllCoinFlyout"
+		particle.AnchorPoint = Vector2.new(0.5, 0.5)
+		particle.Size = UDim2.fromOffset(size, size)
+		particle.Position = UDim2.fromOffset(startCenter.X + startOffset.X, startCenter.Y + startOffset.Y)
+		particle.BackgroundColor3 = index % 4 == 0 and Color3.fromRGB(255, 247, 170) or Color3.fromRGB(255, 205, 54)
+		particle.BackgroundTransparency = 0.06
+		particle.BorderSizePixel = 0
+		particle.Active = false
+		particle.Rotation = math.random(-18, 18)
+		particle.ZIndex = 82
+		particle.Parent = screenGui
+		table.insert(sellAllSummaryUi.particles, particle)
+
+		(function(corner)
+			corner.CornerRadius = UDim.new(1, 0)
+			corner.Parent = particle
+		end)(Instance.new("UICorner"))
+
+		task.delay(delayTime, function()
+			if sequence ~= sellAllSummarySequence or not particle.Parent then
+				return
+			end
+
+			local tween = tweenSellAllSummary(particle, 0.52 + math.random() * 0.16, {
+				Position = UDim2.fromOffset(target.X, target.Y),
+				Size = UDim2.fromOffset(math.max(3, size - 3), math.max(3, size - 3)),
+				BackgroundTransparency = 1,
+				Rotation = particle.Rotation + math.random(70, 145),
+			}, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+
+			tween.Completed:Connect(function()
+				if sequence ~= sellAllSummarySequence then
+					return
+				end
+				if particle.Parent then
+					particle:Destroy()
+				end
+			end)
+		end)
+	end
 end
 
 function showSellAllSummaryBurst(payload)
@@ -4488,6 +4576,12 @@ function showSellAllSummaryBurst(payload)
 	tweenSellAllSummary(sellAllSummaryUi.title, 0.14, { TextTransparency = 0 })
 	tweenSellAllSummary(sellAllSummaryUi.coins, 0.18, { TextTransparency = 0 })
 	tweenSellAllSummary(sellAllSummaryUi.detail, 0.22, { TextTransparency = 0 })
+	task.delay(0.1, function()
+		if sequence ~= sellAllSummarySequence then
+			return
+		end
+		playSellAllCoinFlyout(coinsEarned, sequence)
+	end)
 
 	task.delay(wasBackpackFull and 2.8 or 2.3, function()
 		if sequence ~= sellAllSummarySequence then
