@@ -798,8 +798,8 @@ do
 
 	activeEventHud.detail = Instance.new("TextLabel")
 	activeEventHud.detail.Name = "Detail"
-	activeEventHud.detail.Size = UDim2.new(1, -72, 0, 15)
-	activeEventHud.detail.Position = UDim2.new(0, 11, 0, 21)
+	activeEventHud.detail.Size = UDim2.new(1, -72, 0, 13)
+	activeEventHud.detail.Position = UDim2.new(0, 11, 0, 22)
 	activeEventHud.detail.BackgroundTransparency = 1
 	activeEventHud.detail.Text = ""
 	activeEventHud.detail.TextColor3 = Color3.fromRGB(220, 225, 235)
@@ -821,12 +821,51 @@ do
 	activeEventHud.timer.TextXAlignment = Enum.TextXAlignment.Right
 	activeEventHud.timer.Parent = activeEventHud.frame
 
+	activeEventHud.progressTrack = Instance.new("Frame")
+	activeEventHud.progressTrack.Name = "DurationTrack"
+	activeEventHud.progressTrack.Size = UDim2.new(1, -22, 0, 3)
+	activeEventHud.progressTrack.Position = UDim2.new(0, 11, 0, 34)
+	activeEventHud.progressTrack.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+	activeEventHud.progressTrack.BackgroundTransparency = 0.82
+	activeEventHud.progressTrack.BorderSizePixel = 0
+	activeEventHud.progressTrack.Visible = false
+	activeEventHud.progressTrack.ClipsDescendants = true
+	activeEventHud.progressTrack.Parent = activeEventHud.frame
+
+	activeEventHud.progressCorner = Instance.new("UICorner")
+	activeEventHud.progressCorner.CornerRadius = UDim.new(0, 2)
+	activeEventHud.progressCorner.Parent = activeEventHud.progressTrack
+
+	activeEventHud.progressFill = Instance.new("Frame")
+	activeEventHud.progressFill.Name = "DurationFill"
+	activeEventHud.progressFill.Size = UDim2.new(1, 0, 1, 0)
+	activeEventHud.progressFill.Position = UDim2.new(0, 0, 0, 0)
+	activeEventHud.progressFill.BackgroundColor3 = activeEventHud.styles.fallback.accent
+	activeEventHud.progressFill.BackgroundTransparency = 0
+	activeEventHud.progressFill.BorderSizePixel = 0
+	activeEventHud.progressFill.Parent = activeEventHud.progressTrack
+
+	activeEventHud.progressFillCorner = Instance.new("UICorner")
+	activeEventHud.progressFillCorner.CornerRadius = UDim.new(0, 2)
+	activeEventHud.progressFillCorner.Parent = activeEventHud.progressFill
+
 	local function restoreActiveEventPillTransparency()
 		activeEventHud.frame.BackgroundTransparency = 0.08
 		activeEventHud.stroke.Transparency = 0.15
 		activeEventHud.title.TextTransparency = 0
 		activeEventHud.detail.TextTransparency = 0
 		activeEventHud.timer.TextTransparency = 0
+		activeEventHud.progressTrack.BackgroundTransparency = 0.82
+		activeEventHud.progressFill.BackgroundTransparency = 0
+	end
+
+	local function cancelActiveEventFadeTweens()
+		if activeEventHud.fadeTweens then
+			for _, tween in ipairs(activeEventHud.fadeTweens) do
+				tween:Cancel()
+			end
+			activeEventHud.fadeTweens = nil
+		end
 	end
 
 	local function fadeActiveEventPill(token)
@@ -843,17 +882,32 @@ do
 		local titleFade = TweenService:Create(activeEventHud.title, TweenInfo.new(0.35), { TextTransparency = 1 })
 		local detailFade = TweenService:Create(activeEventHud.detail, TweenInfo.new(0.35), { TextTransparency = 1 })
 		local timerFade = TweenService:Create(activeEventHud.timer, TweenInfo.new(0.35), { TextTransparency = 1 })
+		local trackFade = TweenService:Create(activeEventHud.progressTrack, TweenInfo.new(0.35), { BackgroundTransparency = 1 })
+		local fillFade = TweenService:Create(activeEventHud.progressFill, TweenInfo.new(0.35), { BackgroundTransparency = 1 })
+		activeEventHud.fadeTweens = {
+			activeEventHud.fadeTween,
+			strokeFade,
+			titleFade,
+			detailFade,
+			timerFade,
+			trackFade,
+			fillFade,
+		}
 
 		activeEventHud.fadeTween:Play()
 		strokeFade:Play()
 		titleFade:Play()
 		detailFade:Play()
 		timerFade:Play()
+		trackFade:Play()
+		fillFade:Play()
 		activeEventHud.fadeTween.Completed:Connect(function()
 			if token ~= activeEventHud.token then
 				return
 			end
 			activeEventHud.frame.Visible = false
+			activeEventHud.progressTrack.Visible = false
+			activeEventHud.fadeTweens = nil
 			restoreActiveEventPillTransparency()
 		end)
 	end
@@ -869,19 +923,39 @@ do
 			activeEventHud.fadeTween:Cancel()
 			activeEventHud.fadeTween = nil
 		end
+		cancelActiveEventFadeTweens()
+
+		if activeEventHud.progressTween then
+			activeEventHud.progressTween:Cancel()
+			activeEventHud.progressTween = nil
+		end
 
 		restoreActiveEventPillTransparency()
 		activeEventHud.frame.BackgroundColor3 = style.background
 		activeEventHud.stroke.Color = style.accent
 		activeEventHud.timer.TextColor3 = style.accent
+		activeEventHud.progressFill.BackgroundColor3 = style.accent
 		activeEventHud.title.Text = tostring(eventName or style.title)
 		activeEventHud.detail.Text = style.detail or tostring(message or "Temporary buff")
 		activeEventHud.timer.TextSize = isSeasonalEffect and 12 or 16
 		activeEventHud.timer.Text = isSeasonalEffect and "All month" or tostring(remainingSeconds) .. "s"
+		activeEventHud.progressFill.Size = UDim2.new(1, 0, 1, 0)
+		activeEventHud.progressTrack.Visible = not isSeasonalEffect
 		activeEventHud.frame.Visible = true
 
 		if isSeasonalEffect then
 			return
+		end
+
+		if remainingSeconds > 0 then
+			activeEventHud.progressTween = TweenService:Create(
+				activeEventHud.progressFill,
+				TweenInfo.new(remainingSeconds, Enum.EasingStyle.Linear, Enum.EasingDirection.Out),
+				{ Size = UDim2.new(0, 0, 1, 0) }
+			)
+			activeEventHud.progressTween:Play()
+		else
+			activeEventHud.progressFill.Size = UDim2.new(0, 0, 1, 0)
 		end
 
 		task.spawn(function()
