@@ -149,6 +149,7 @@ local DEFAULT_DATA = {
 	streakReviveProcessedReceiptId = "",
 	ownedGamepasses = {}, -- { [passId] = true }
 	friendReferralRewards = {}, -- { [friendUserIdString] = true }
+	crewMailbox = {}, -- { {id, fromUserId, fromName, fromDisplayName, sentAt, item}, ... }
 	firstSellAffordabilityGrantUsed = false, -- FTUE: one-time first-sell catch-up
 	ftueHintsSeen = false,
 	enemyDangerUnlockedSeen = false,
@@ -212,6 +213,44 @@ local function normalizeBooleanMap(value)
 	return normalized
 end
 
+local function cloneMailboxItem(item)
+	if type(item) ~= "table" or type(item.name) ~= "string" or item.name == "" then
+		return nil
+	end
+
+	return {
+		name = item.name,
+		rarity = type(item.rarity) == "string" and item.rarity or "Common",
+		sellValue = tonumber(item.sellValue) or 0,
+	}
+end
+
+local function normalizeCrewMailbox(value)
+	local normalized = {}
+	if type(value) ~= "table" then
+		return normalized
+	end
+
+	for _, entry in ipairs(value) do
+		if type(entry) == "table" then
+			local id = math.floor(tonumber(entry.id) or 0)
+			local item = cloneMailboxItem(entry.item)
+			if id > 0 and item then
+				table.insert(normalized, {
+					id = id,
+					fromUserId = math.floor(tonumber(entry.fromUserId) or 0),
+					fromName = type(entry.fromName) == "string" and entry.fromName or "Crewmate",
+					fromDisplayName = type(entry.fromDisplayName) == "string" and entry.fromDisplayName or "Crewmate",
+					sentAt = math.floor(tonumber(entry.sentAt) or 0),
+					item = item,
+				})
+			end
+		end
+	end
+
+	return normalized
+end
+
 local function loadPlayerData(player)
 	local success, data = pcall(function()
 		return PlayerDataStore:GetAsync("player_" .. player.UserId)
@@ -230,6 +269,7 @@ local function loadPlayerData(player)
 	end
 
 	playerData[player.UserId].friendReferralRewards = normalizeBooleanMap(playerData[player.UserId].friendReferralRewards)
+	playerData[player.UserId].crewMailbox = normalizeCrewMailbox(playerData[player.UserId].crewMailbox)
 	normalizeRarePity(playerData[player.UserId])
 	if (playerData[player.UserId].deepestBlock or 0) >= ENEMY_DANGER_UNLOCK_DEPTH then
 		playerData[player.UserId].enemyDangerUnlockedSeen = true
@@ -244,6 +284,7 @@ local function savePlayerData(player)
 
 	data.lastSeenAt = os.time()
 	normalizeRarePity(data)
+	data.crewMailbox = normalizeCrewMailbox(data.crewMailbox)
 
 	local success, err = pcall(function()
 		PlayerDataStore:SetAsync("player_" .. player.UserId, data)

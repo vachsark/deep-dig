@@ -93,7 +93,59 @@ local function cloneItem(item)
 	}
 end
 
-local function getMailboxQueue(userId)
+local function cloneMailboxEntry(entry)
+	if type(entry) ~= "table" then
+		return nil
+	end
+
+	local id = math.floor(tonumber(entry.id) or 0)
+	local item = cloneItem(entry.item)
+	if id <= 0 or not item then
+		return nil
+	end
+
+	return {
+		id = id,
+		fromUserId = math.floor(tonumber(entry.fromUserId) or 0),
+		fromName = type(entry.fromName) == "string" and entry.fromName or "Crewmate",
+		fromDisplayName = type(entry.fromDisplayName) == "string" and entry.fromDisplayName or "Crewmate",
+		sentAt = math.floor(tonumber(entry.sentAt) or 0),
+		item = item,
+	}
+end
+
+local function bumpNextMailboxId(queue)
+	if type(queue) ~= "table" then
+		return
+	end
+
+	for _, entry in ipairs(queue) do
+		local id = math.floor(tonumber(entry.id) or 0)
+		if id > nextMailboxId then
+			nextMailboxId = id
+		end
+	end
+end
+
+local function normalizeMailboxQueue(data)
+	local normalized = {}
+	if data and type(data.crewMailbox) == "table" then
+		for _, entry in ipairs(data.crewMailbox) do
+			local clone = cloneMailboxEntry(entry)
+			if clone then
+				table.insert(normalized, clone)
+			end
+		end
+	end
+
+	if data then
+		data.crewMailbox = normalized
+	end
+	bumpNextMailboxId(normalized)
+	return normalized
+end
+
+local function getFallbackMailboxQueue(userId)
 	local queue = mailboxByUserId[userId]
 	if not queue then
 		queue = {}
@@ -103,22 +155,41 @@ local function getMailboxQueue(userId)
 	return queue
 end
 
+local function getMailboxQueue(player)
+	local data = getData(player)
+	if data then
+		local queue = normalizeMailboxQueue(data)
+		local fallback = mailboxByUserId[player.UserId]
+		if fallback and #fallback > 0 then
+			for _, entry in ipairs(fallback) do
+				local clone = cloneMailboxEntry(entry)
+				if clone then
+					table.insert(queue, clone)
+				end
+			end
+			mailboxByUserId[player.UserId] = nil
+			bumpNextMailboxId(queue)
+		end
+		return queue, data
+	end
+
+	local queue = getFallbackMailboxQueue(player.UserId)
+	bumpNextMailboxId(queue)
+	return queue, nil
+end
+
 local function getMailboxPayload(player)
-	local queue = player and mailboxByUserId[player.UserId] or nil
 	local payload = {}
-	if not queue then
+	if not player then
 		return payload
 	end
 
+	local queue = getMailboxQueue(player)
 	for _, entry in ipairs(queue) do
-		table.insert(payload, {
-			id = entry.id,
-			fromUserId = entry.fromUserId,
-			fromName = entry.fromName,
-			fromDisplayName = entry.fromDisplayName,
-			sentAt = entry.sentAt,
-			item = cloneItem(entry.item),
-		})
+		local clone = cloneMailboxEntry(entry)
+		if clone then
+			table.insert(payload, clone)
+		end
 	end
 
 	return payload
@@ -611,6 +682,13 @@ CrewMailboxSendEvent.OnServerEvent:Connect(function(player, recipientUserId, ite
 		return
 	end
 
+	local recipientQueue, recipientData = getMailboxQueue(recipient)
+	if not recipientData then
+		notify(player, recipient.DisplayName .. "'s mailbox is still loading. Try again in a moment.", "Common")
+		sendState(player)
+		return
+	end
+
 	local item = inventory[itemIndex]
 	local clone = cloneItem(item)
 	if not clone then
@@ -621,8 +699,9 @@ CrewMailboxSendEvent.OnServerEvent:Connect(function(player, recipientUserId, ite
 
 	table.remove(inventory, itemIndex)
 	nextMailboxId = nextMailboxId + 1
-	table.insert(getMailboxQueue(recipient.UserId), {
-		id = nextMailboxId,
+	local mailboxId = nextMailboxId
+	table.insert(recipientQueue, {
+		id = mailboxId,
 		fromUserId = player.UserId,
 		fromName = player.Name,
 		fromDisplayName = player.DisplayName,
@@ -635,7 +714,7 @@ CrewMailboxSendEvent.OnServerEvent:Connect(function(player, recipientUserId, ite
 	notify(recipient, player.DisplayName .. " sent you " .. clone.name .. ".", clone.rarity)
 	sendState(player, {
 		mailboxSent = {
-			id = nextMailboxId,
+			id = mailboxId,
 			itemName = clone.name,
 			rarity = clone.rarity,
 			toUserId = recipient.UserId,
@@ -645,7 +724,7 @@ CrewMailboxSendEvent.OnServerEvent:Connect(function(player, recipientUserId, ite
 	})
 	sendState(recipient, {
 		mailboxReceived = {
-			id = nextMailboxId,
+			id = mailboxId,
 			itemName = clone.name,
 			rarity = clone.rarity,
 			fromUserId = player.UserId,
@@ -657,8 +736,8 @@ end)
 
 CrewMailboxClaimEvent.OnServerEvent:Connect(function(player, mailboxId)
 	mailboxId = math.floor(tonumber(mailboxId) or 0)
-	local queue = mailboxByUserId[player.UserId]
-	if not queue then
+	local queue = getMailboxQueue(player)
+	if #queue == 0 then
 		notify(player, "Your crew mailbox is empty.", "Common")
 		sendState(player)
 		return
