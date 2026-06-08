@@ -10,11 +10,19 @@
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local SoundService = game:GetService("SoundService")
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
 
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
+local LOCAL_PLAY_SOUND_NAME = "DeepDigLocalPlaySound"
+local LocalPlaySound = SoundService:FindFirstChild(LOCAL_PLAY_SOUND_NAME)
+if not LocalPlaySound then
+	LocalPlaySound = Instance.new("BindableEvent")
+	LocalPlaySound.Name = LOCAL_PLAY_SOUND_NAME
+	LocalPlaySound.Parent = SoundService
+end
 
 -- ═══════════════════════════════════════════════════════════════════
 -- Remotes — graceful no-op if PetSystem isn't loaded
@@ -107,10 +115,20 @@ local function tweenAndWait(instance, info, props)
 	end
 end
 
+local function playLocalSound(key)
+	if LocalPlaySound and LocalPlaySound:IsA("BindableEvent") then
+		LocalPlaySound:Fire(key)
+	end
+end
+
 local function playRevealAnimation(rarity, name)
 	skipRequested = false
 	local rarityColor = RarityColors[rarity] or RarityColors.Common
 	local petColor = getPetColor(name) or rarityColor
+	local revealSoundKey = "pet_hatch_reveal"
+	if rarity == "Legendary" or rarity == "Mythic" then
+		revealSoundKey = "pet_hatch_reveal_strong"
+	end
 
 	-- ─── ScreenGui scaffold ─────────────────────────────────────
 	local screenGui = Instance.new("ScreenGui")
@@ -286,6 +304,7 @@ local function playRevealAnimation(rarity, name)
 	if skipRequested and bail() then return end
 
 	-- (2) Egg pop — 0% → 100% with Back easing for the bounce — 0.6s
+	playLocalSound("egg_pop")
 	tweenAndWait(
 		eggScale,
 		TweenInfo.new(0.6, Enum.EasingStyle.Back, Enum.EasingDirection.Out),
@@ -320,6 +339,7 @@ local function playRevealAnimation(rarity, name)
 
 	-- (4) White flash — fade IN to fully white, then OUT while the egg
 	-- shrinks to nothing. The crack moment.
+	playLocalSound("egg_crack")
 	local flashIn = TweenService:Create(
 		eggFlash,
 		TweenInfo.new(0.1, Enum.EasingStyle.Linear),
@@ -348,6 +368,7 @@ local function playRevealAnimation(rarity, name)
 
 	-- (5) Pet-name flourish — fade in + scale up to slightly past 1, then
 	-- settle, then hold. 1.0s total display.
+	playLocalSound(revealSoundKey)
 	nameLabel.Visible = true
 	local nameTextIn = TweenService:Create(
 		nameLabel,

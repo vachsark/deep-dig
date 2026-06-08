@@ -142,6 +142,30 @@ local SOUNDS = {
 		volume = 0.8,
 		playbackSpeed = 1.05,
 	},
+	egg_pop = {
+		id = "rbxassetid://9114013169", -- soft compact egg pop
+		volume = 0.28,
+		playbackSpeed = 1.28,
+		pitchRange = { 1.0, 1.08 },
+	},
+	egg_crack = {
+		id = "rbxassetid://9114013169", -- sharper crack-style snap
+		volume = 0.42,
+		playbackSpeed = 1.68,
+		pitchRange = { 1.02, 1.12 },
+	},
+	pet_hatch_reveal = {
+		id = "rbxassetid://4612375287", -- compact pet reveal sparkle
+		volume = 0.62,
+		playbackSpeed = 1.16,
+		pitchRange = { 1.0, 1.06 },
+	},
+	pet_hatch_reveal_strong = {
+		id = "rbxassetid://4612375287", -- stronger Legendary/Mythic reveal sparkle
+		volume = 0.9,
+		playbackSpeed = 0.94,
+		pitchRange = { 0.98, 1.04 },
+	},
 	streak_reward = {
 		id = "rbxassetid://6837730320", -- compact daily claim chime
 		volume = 0.62,
