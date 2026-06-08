@@ -2840,6 +2840,148 @@ local function playLegendaryFindFlash(rarity)
 	end)
 end
 
+do
+	LEGENDARY_FIND_FLASH_RARITIES._anchoredGlint = {
+		sequence = 0,
+		frame = nil,
+	}
+
+	function LEGENDARY_FIND_FLASH_RARITIES.PlayAnchoredGlint(item)
+		if type(item) ~= "table" or not LEGENDARY_FIND_FLASH_RARITIES[item.rarity] then
+			return false
+		end
+		if typeof(item.worldPosition) ~= "Vector3" then
+			return false
+		end
+
+		local camera = workspace.CurrentCamera
+		if not camera then
+			return false
+		end
+
+		local ok, viewportPoint, onScreen = pcall(function()
+			return camera:WorldToViewportPoint(item.worldPosition)
+		end)
+		if not ok or not onScreen or viewportPoint.Z <= 0 then
+			return false
+		end
+
+		local viewportSize = camera.ViewportSize
+		if viewportSize.X <= 0 or viewportSize.Y <= 0 then
+			return false
+		end
+		if viewportPoint.X < 0 or viewportPoint.X > viewportSize.X
+			or viewportPoint.Y < 0 or viewportPoint.Y > viewportSize.Y then
+			return false
+		end
+
+		local state = LEGENDARY_FIND_FLASH_RARITIES._anchoredGlint
+		state.sequence = state.sequence + 1
+		local sequence = state.sequence
+		if state.frame and state.frame.Parent then
+			state.frame:Destroy()
+		end
+
+		local accentColor = item.rarity == "Mythic"
+			and Color3.fromRGB(255, 82, 164)
+			or Color3.fromRGB(255, 218, 82)
+		local glintColor = item.rarity == "Mythic"
+			and Color3.fromRGB(255, 248, 248)
+			or Color3.fromRGB(255, 248, 210)
+		local targetSize = item.rarity == "Mythic" and 118 or 88
+		local maxX = math.max(18, viewportSize.X - 18)
+		local maxY = math.max(18, viewportSize.Y - 18)
+
+		local marker = Instance.new("Frame")
+		marker.Name = "AnchoredFindGlint"
+		marker.Size = UDim2.fromOffset(1, 1)
+		marker.AnchorPoint = Vector2.new(0.5, 0.5)
+		marker.Position = UDim2.fromOffset(
+			math.clamp(viewportPoint.X, 18, maxX),
+			math.clamp(viewportPoint.Y, 18, maxY)
+		)
+		marker.BackgroundTransparency = 1
+		marker.BorderSizePixel = 0
+		marker.ZIndex = 94
+		marker.Parent = findFlashLayer
+		state.frame = marker
+
+		local ring = Instance.new("Frame")
+		ring.Name = "Ring"
+		ring.Size = UDim2.fromOffset(24, 24)
+		ring.AnchorPoint = Vector2.new(0.5, 0.5)
+		ring.Position = UDim2.fromScale(0.5, 0.5)
+		ring.BackgroundTransparency = 1
+		ring.BorderSizePixel = 0
+		ring.ZIndex = 94
+		ring.Parent = marker
+
+		local ringCorner = Instance.new("UICorner")
+		ringCorner.CornerRadius = UDim.new(1, 0)
+		ringCorner.Parent = ring
+
+		local ringStroke = Instance.new("UIStroke")
+		ringStroke.Color = accentColor
+		ringStroke.Thickness = item.rarity == "Mythic" and 4 or 3
+		ringStroke.Transparency = 0
+		ringStroke.Parent = ring
+
+		local horizontalGlint = Instance.new("Frame")
+		horizontalGlint.Name = "Horizontal"
+		horizontalGlint.Size = UDim2.fromOffset(10, 4)
+		horizontalGlint.AnchorPoint = Vector2.new(0.5, 0.5)
+		horizontalGlint.Position = UDim2.fromScale(0.5, 0.5)
+		horizontalGlint.BackgroundColor3 = glintColor
+		horizontalGlint.BackgroundTransparency = 0.02
+		horizontalGlint.BorderSizePixel = 0
+		horizontalGlint.ZIndex = 95
+		horizontalGlint.Parent = marker
+
+		local verticalGlint = Instance.new("Frame")
+		verticalGlint.Name = "Vertical"
+		verticalGlint.Size = UDim2.fromOffset(4, 10)
+		verticalGlint.AnchorPoint = Vector2.new(0.5, 0.5)
+		verticalGlint.Position = UDim2.fromScale(0.5, 0.5)
+		verticalGlint.BackgroundColor3 = glintColor
+		verticalGlint.BackgroundTransparency = 0.02
+		verticalGlint.BorderSizePixel = 0
+		verticalGlint.ZIndex = 95
+		verticalGlint.Parent = marker
+
+		TweenService:Create(ring, TweenInfo.new(0.22, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+			Size = UDim2.fromOffset(targetSize, targetSize),
+		}):Play()
+		TweenService:Create(ringStroke, TweenInfo.new(0.24, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+			Transparency = 1,
+			Thickness = 1,
+		}):Play()
+		TweenService:Create(horizontalGlint, TweenInfo.new(0.14, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+			Size = UDim2.fromOffset(targetSize + 36, 5),
+		}):Play()
+		TweenService:Create(verticalGlint, TweenInfo.new(0.14, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+			Size = UDim2.fromOffset(5, targetSize),
+		}):Play()
+		TweenService:Create(horizontalGlint, TweenInfo.new(0.22, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+			BackgroundTransparency = 1,
+		}):Play()
+		TweenService:Create(verticalGlint, TweenInfo.new(0.22, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+			BackgroundTransparency = 1,
+		}):Play()
+
+		task.delay(0.30, function()
+			if sequence ~= state.sequence then
+				return
+			end
+			if marker.Parent then
+				marker:Destroy()
+			end
+			state.frame = nil
+		end)
+
+		return true
+	end
+end
+
 -- ─── Lighting pulse on rare finds ────────────────────────────────────────────
 -- Briefly tweens Lighting.Brightness up and back. A single guard
 -- (lightingPulseSequence + lightingPulseBaseBrightness) ensures two finds in
@@ -6263,19 +6405,29 @@ do
 end
 
 Remotes.ItemFound.OnClientEvent:Connect(function(item)
-	if item and LEGENDARY_FIND_FLASH_RARITIES[item.rarity] then
-		playLegendaryFindFlash(item.rarity)
+	local function playItemFoundFlow()
+		if item and LEGENDARY_FIND_FLASH_RARITIES[item.rarity] then
+			playLegendaryFindFlash(item.rarity)
+		end
+
+		if item and LIGHTING_PULSE_PROFILES[item.rarity] then
+			playLightingPulse(item.rarity)
+		end
+
+		if item and (item.seasonalExclusive == true or item.seasonId ~= nil) then
+			DeepDigPlaySeasonalExclusiveReveal(item)
+		end
+
+		if item then
+			showNotification("Found: " .. item.name .. " (+" .. item.sellValue .. " coins)", item.rarity)
+		end
 	end
 
-	if item and LIGHTING_PULSE_PROFILES[item.rarity] then
-		playLightingPulse(item.rarity)
+	if item and LEGENDARY_FIND_FLASH_RARITIES.PlayAnchoredGlint(item) then
+		task.delay(0.12, playItemFoundFlow)
+	else
+		playItemFoundFlow()
 	end
-
-	if item and (item.seasonalExclusive == true or item.seasonId ~= nil) then
-		DeepDigPlaySeasonalExclusiveReveal(item)
-	end
-
-	showNotification("Found: " .. item.name .. " (+" .. item.sellValue .. " coins)", item.rarity)
 end)
 
 Remotes.EventTriggered.OnClientEvent:Connect(function(eventName, message, duration, effectId)

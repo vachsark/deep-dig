@@ -1343,6 +1343,14 @@ BlockBrokenEvent.Event:Connect(function(player, blockPosition)
 
 			local wasAlreadyCollected = data.collections[item.name] == true
 
+			local function buildDigItemFoundPayload()
+				local payload = table.clone(item)
+				if item.rarity == "Legendary" or item.rarity == "Mythic" then
+					payload.worldPosition = blockPosition
+				end
+				return payload
+			end
+
 			-- Apply event multipliers
 			if isEventActive("gold_rush") then
 				item.sellValue = item.sellValue * 3
@@ -1389,7 +1397,7 @@ BlockBrokenEvent.Event:Connect(function(player, blockPosition)
 
 				NotifyEvent:FireClient(player, "Auto Collector sold duplicate " .. item.name .. " for " .. earned .. " coins.", item.rarity)
 				if isRareRevealRarity(item.rarity) then
-					ItemFoundEvent:FireClient(player, item)
+					ItemFoundEvent:FireClient(player, buildDigItemFoundPayload())
 					fireItemFindSounds(player, item.rarity)
 				end
 				if PlaySound then
@@ -1416,7 +1424,7 @@ BlockBrokenEvent.Event:Connect(function(player, blockPosition)
 					fireQuestProgress(player, "rarity_found", { amount = 1, rarity = item.rarity })
 
 					-- Notify player
-					ItemFoundEvent:FireClient(player, item)
+					ItemFoundEvent:FireClient(player, buildDigItemFoundPayload())
 					-- Race-free server-side signal for BadgeSystem etc. The client
 					-- toast (ItemFoundEvent above) wins the visual race; this fires
 					-- just after for server consumers that need the find record.
