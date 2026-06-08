@@ -12,7 +12,6 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
-local MarketplaceService = game:GetService("MarketplaceService")
 local Lighting = game:GetService("Lighting")
 local SoundService = game:GetService("SoundService")
 
@@ -2510,15 +2509,9 @@ do
 	end
 end
 
+local showDepthTierUnlockedBurst
+
 updateDepthTone = (function(applyDepthTone)
-	local surfaceTiers = {
-		Modern = true,
-		Surface = true,
-	}
-	local tierColors = {}
-	for _, tier in ipairs(Config.TIERS or {}) do
-		tierColors[tier.name] = tier.color
-	end
 
 	local banner = Instance.new("Frame")
 	banner.Name = "DepthTierArrival"
@@ -2547,7 +2540,7 @@ updateDepthTone = (function(applyDepthTone)
 	title.Size = UDim2.new(1, -40, 0, 30)
 	title.Position = UDim2.fromOffset(20, 18)
 	title.BackgroundTransparency = 1
-	title.Text = "Layer Reached"
+	title.Text = "Layer Discovered"
 	title.TextColor3 = Color3.fromRGB(255, 240, 210)
 	title.TextTransparency = 1
 	title.TextSize = 22
@@ -2570,8 +2563,20 @@ updateDepthTone = (function(applyDepthTone)
 	tierLabel.ZIndex = 85
 	tierLabel.Parent = banner
 
-	local seenTierNames = {}
-	local lastTierName = nil
+	local depthRangeLabel = Instance.new("TextLabel")
+	depthRangeLabel.Name = "DepthRange"
+	depthRangeLabel.Size = UDim2.new(1, -40, 0, 22)
+	depthRangeLabel.Position = UDim2.fromOffset(20, 88)
+	depthRangeLabel.BackgroundTransparency = 1
+	depthRangeLabel.Text = ""
+	depthRangeLabel.TextColor3 = Color3.fromRGB(230, 220, 205)
+	depthRangeLabel.TextTransparency = 1
+	depthRangeLabel.TextSize = 15
+	depthRangeLabel.Font = Enum.Font.GothamBold
+	depthRangeLabel.TextXAlignment = Enum.TextXAlignment.Center
+	depthRangeLabel.ZIndex = 85
+	depthRangeLabel.Parent = banner
+
 	local sequence = 0
 	local activeTweens = {}
 
@@ -2593,27 +2598,25 @@ updateDepthTone = (function(applyDepthTone)
 		return activeTween
 	end
 
-	local function getTierNameFromDepth(depth)
-		if type(depth) ~= "number" then
+	local function getTierRecordFromPayload(payload)
+		if type(payload) ~= "table" then
 			return nil
 		end
 
+		local payloadTierName = type(payload.tierName) == "string" and payload.tierName or nil
+		local payloadDepth = tonumber(payload.depth)
 		for _, tier in ipairs(Config.TIERS or {}) do
-			if depth >= tier.minDepth and depth <= tier.maxDepth then
-				return tier.name
+			if payloadTierName and tier.name == payloadTierName then
+				return tier
 			end
 		end
 
-		return "Modern"
-	end
-
-	local function getTierName(data)
-		if data and type(data.tierName) == "string" and data.tierName ~= "" then
-			return data.tierName
-		end
-
-		if data then
-			return getTierNameFromDepth(data.depth)
+		if payloadDepth then
+			for _, tier in ipairs(Config.TIERS or {}) do
+				if payloadDepth >= tier.minDepth and payloadDepth <= tier.maxDepth then
+					return tier
+				end
+			end
 		end
 
 		return nil
@@ -2623,32 +2626,45 @@ updateDepthTone = (function(applyDepthTone)
 		return tierColor:Lerp(Color3.fromRGB(255, 245, 225), 0.42)
 	end
 
-	local function playBanner(tierName)
+	local function formatDepthRange(tier)
+		return "Depth " .. tostring(tier.minDepth) .. "-" .. tostring(tier.maxDepth)
+	end
+
+	function showDepthTierUnlockedBurst(payload)
+		local tier = getTierRecordFromPayload(payload)
+		if not tier then
+			return
+		end
+
 		sequence = sequence + 1
 		local currentSequence = sequence
-		local tierColor = tierColors[tierName] or Color3.fromRGB(255, 230, 150)
+		local tierColor = tier.color or Color3.fromRGB(255, 230, 150)
 		local readableTierColor = getReadableTierColor(tierColor)
 
 		clearTweens()
 		banner.Visible = true
-		banner.Size = UDim2.fromOffset(392, 104)
+		banner.Size = UDim2.fromOffset(392, 112)
 		banner.Position = UDim2.fromScale(0.5, 0.49)
 		banner.BackgroundTransparency = 1
 		bannerStroke.Color = tierColor
 		bannerStroke.Transparency = 1
 		title.TextTransparency = 1
-		tierLabel.Text = tierName
+		tierLabel.Text = tier.name
 		tierLabel.TextColor3 = readableTierColor
 		tierLabel.TextTransparency = 1
+		depthRangeLabel.Text = formatDepthRange(tier)
+		depthRangeLabel.TextColor3 = readableTierColor:Lerp(Color3.fromRGB(255, 255, 255), 0.12)
+		depthRangeLabel.TextTransparency = 1
 
 		tween(banner, 0.18, {
-			Size = UDim2.fromOffset(430, 116),
+			Size = UDim2.fromOffset(440, 128),
 			Position = UDim2.fromScale(0.5, 0.47),
 			BackgroundTransparency = 0.08,
 		}, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
 		tween(bannerStroke, 0.18, { Transparency = 0.05 })
 		tween(title, 0.14, { TextTransparency = 0 })
 		tween(tierLabel, 0.18, { TextTransparency = 0 })
+		tween(depthRangeLabel, 0.22, { TextTransparency = 0 })
 
 		if LocalPlaySound and LocalPlaySound:IsA("BindableEvent") then
 			LocalPlaySound:Fire("depth_tier_unlock")
@@ -2665,7 +2681,8 @@ updateDepthTone = (function(applyDepthTone)
 			}, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
 			tween(bannerStroke, 0.18, { Transparency = 1 }, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
 			tween(title, 0.16, { TextTransparency = 1 }, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
-			local fadeOut = tween(tierLabel, 0.16, { TextTransparency = 1 }, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+			tween(tierLabel, 0.16, { TextTransparency = 1 }, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+			local fadeOut = tween(depthRangeLabel, 0.16, { TextTransparency = 1 }, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
 			fadeOut.Completed:Connect(function(playbackState)
 				if currentSequence ~= sequence or playbackState ~= Enum.PlaybackState.Completed then
 					return
@@ -2677,30 +2694,6 @@ updateDepthTone = (function(applyDepthTone)
 
 	return function(data)
 		applyDepthTone(data)
-
-		local tierName = getTierName(data)
-		if not tierName then
-			return
-		end
-
-		local wasSeen = seenTierNames[tierName] == true
-		seenTierNames[tierName] = true
-
-		if lastTierName == nil then
-			lastTierName = tierName
-			return
-		end
-
-		if tierName == lastTierName then
-			return
-		end
-
-		lastTierName = tierName
-		if surfaceTiers[tierName] or wasSeen then
-			return
-		end
-
-		playBanner(tierName)
 	end
 end)(updateDepthTone)
 
@@ -6236,6 +6229,16 @@ Remotes.UpdateHUD.OnClientEvent:Connect(function(data)
 	end
 	if data.enemyDangerUnlocked then
 		showEnemyDangerUnlockedBurst(data.enemyDangerUnlocked)
+	end
+	if data.depthTierUnlocked and showDepthTierUnlockedBurst then
+		local depthTierUnlockedPayload = data.depthTierUnlocked
+		if data.badgeUnlock or data.enemyDangerUnlocked then
+			task.delay(3.35, function()
+				showDepthTierUnlockedBurst(depthTierUnlockedPayload)
+			end)
+		else
+			showDepthTierUnlockedBurst(depthTierUnlockedPayload)
+		end
 	end
 	if data.autoCollected then
 		DeepDigShowAutoCollectedBurst(data.autoCollected)

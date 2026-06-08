@@ -107,6 +107,35 @@ local function isRareRevealRarity(rarity)
 	return rarity == "Rare" or rarity == "Epic" or rarity == "Legendary" or rarity == "Mythic"
 end
 
+local function getDepthTierRecord(depth)
+	for index, tier in ipairs(Config.TIERS or {}) do
+		if depth >= tier.minDepth and depth <= tier.maxDepth then
+			return tier, index
+		end
+	end
+
+	return nil, nil
+end
+
+local function buildDepthTierUnlockedPayload(previousDepth, newDepth)
+	local previousTier, previousIndex = getDepthTierRecord(previousDepth)
+	local newTier, newIndex = getDepthTierRecord(newDepth)
+	if not previousTier or not newTier or not previousIndex or not newIndex then
+		return nil
+	end
+	if previousTier.name == newTier.name or newIndex <= previousIndex then
+		return nil
+	end
+
+	return {
+		tierName = newTier.name,
+		minDepth = newTier.minDepth,
+		maxDepth = newTier.maxDepth,
+		color = newTier.color,
+		depth = newDepth,
+	}
+end
+
 local function fireItemFindSounds(player, rarity)
 	if not PlaySound then
 		return
@@ -1162,6 +1191,7 @@ BlockBrokenEvent.Event:Connect(function(player, blockPosition)
 	local tierName = ItemDatabase.getTierForDepth(depth)
 	local previousDeepestBlock = data.deepestBlock or 0
 	local enemyDangerUnlockedPayload = nil
+	local depthTierUnlockedPayload = nil
 
 	-- Update stats
 	data.totalBlocksDug = data.totalBlocksDug + 1
@@ -1182,6 +1212,7 @@ BlockBrokenEvent.Event:Connect(function(player, blockPosition)
 
 	if depth > data.deepestBlock then
 		data.deepestBlock = depth
+		depthTierUnlockedPayload = buildDepthTierUnlockedPayload(previousDeepestBlock, data.deepestBlock)
 		-- Fire depth_reached on each new max so QuestSystem can take max
 		fireQuestProgress(player, "depth_reached", { depth = data.deepestBlock })
 	end
@@ -1444,6 +1475,7 @@ BlockBrokenEvent.Event:Connect(function(player, blockPosition)
 		autoCollected = autoCollectedPayload,
 		artifactDetected = artifactDetectedPayload,
 		enemyDangerUnlocked = enemyDangerUnlockedPayload,
+		depthTierUnlocked = depthTierUnlockedPayload,
 		rarePityTriggered = rarePityTriggeredPayload or nil,
 		-- spring_loot bumps fragments per-block; keep the HUD coherent.
 		fragments = data.fragments,
