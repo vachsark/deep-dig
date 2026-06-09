@@ -4606,6 +4606,176 @@ function showSellAllSummaryBurst(payload)
 end
 end
 
+DeepDigShowMuseumTierCompleteBurst = (function()
+local museumTierCompleteUi = {}
+museumTierCompleteUi.panel = Instance.new("Frame")
+museumTierCompleteUi.panel.Name = "MuseumTierCompleteBurst"
+museumTierCompleteUi.panel.AnchorPoint = Vector2.new(0.5, 0.5)
+museumTierCompleteUi.panel.Size = UDim2.fromOffset(390, 142)
+museumTierCompleteUi.panel.Position = UDim2.fromScale(0.5, 0.44)
+museumTierCompleteUi.panel.BackgroundColor3 = Color3.fromRGB(28, 31, 36)
+museumTierCompleteUi.panel.BackgroundTransparency = 1
+museumTierCompleteUi.panel.BorderSizePixel = 0
+museumTierCompleteUi.panel.Visible = false
+museumTierCompleteUi.panel.ZIndex = 82
+museumTierCompleteUi.panel.Parent = screenGui
+
+museumTierCompleteUi.corner = Instance.new("UICorner")
+museumTierCompleteUi.corner.CornerRadius = UDim.new(0, 12)
+museumTierCompleteUi.corner.Parent = museumTierCompleteUi.panel
+
+museumTierCompleteUi.stroke = Instance.new("UIStroke")
+museumTierCompleteUi.stroke.Color = Color3.fromRGB(255, 216, 92)
+museumTierCompleteUi.stroke.Thickness = 2
+museumTierCompleteUi.stroke.Transparency = 1
+museumTierCompleteUi.stroke.Parent = museumTierCompleteUi.panel
+
+local function constrainMuseumTierCompleteText(label, maxTextSize, minTextSize)
+	label.TextScaled = true
+	label.TextWrapped = true
+
+	local constraint = Instance.new("UITextSizeConstraint")
+	constraint.MaxTextSize = maxTextSize
+	constraint.MinTextSize = minTextSize or 10
+	constraint.Parent = label
+end
+
+museumTierCompleteUi.title = Instance.new("TextLabel")
+museumTierCompleteUi.title.Name = "Title"
+museumTierCompleteUi.title.Size = UDim2.new(1, -30, 0, 30)
+museumTierCompleteUi.title.Position = UDim2.fromOffset(15, 12)
+museumTierCompleteUi.title.BackgroundTransparency = 1
+museumTierCompleteUi.title.Text = "Museum Tier Complete"
+museumTierCompleteUi.title.TextColor3 = Color3.fromRGB(255, 224, 110)
+museumTierCompleteUi.title.TextTransparency = 1
+museumTierCompleteUi.title.Font = Enum.Font.GothamBlack
+museumTierCompleteUi.title.TextXAlignment = Enum.TextXAlignment.Center
+museumTierCompleteUi.title.ZIndex = 83
+constrainMuseumTierCompleteText(museumTierCompleteUi.title, 25, 13)
+museumTierCompleteUi.title.Parent = museumTierCompleteUi.panel
+
+museumTierCompleteUi.tier = Instance.new("TextLabel")
+museumTierCompleteUi.tier.Name = "Tier"
+museumTierCompleteUi.tier.Size = UDim2.new(1, -30, 0, 36)
+museumTierCompleteUi.tier.Position = UDim2.fromOffset(15, 46)
+museumTierCompleteUi.tier.BackgroundTransparency = 1
+museumTierCompleteUi.tier.Text = "Modern Collection"
+museumTierCompleteUi.tier.TextColor3 = Color3.fromRGB(236, 242, 255)
+museumTierCompleteUi.tier.TextTransparency = 1
+museumTierCompleteUi.tier.Font = Enum.Font.GothamBlack
+museumTierCompleteUi.tier.TextXAlignment = Enum.TextXAlignment.Center
+museumTierCompleteUi.tier.ZIndex = 83
+constrainMuseumTierCompleteText(museumTierCompleteUi.tier, 30, 15)
+museumTierCompleteUi.tier.Parent = museumTierCompleteUi.panel
+
+museumTierCompleteUi.bonus = Instance.new("TextLabel")
+museumTierCompleteUi.bonus.Name = "Bonus"
+museumTierCompleteUi.bonus.Size = UDim2.new(1, -30, 0, 30)
+museumTierCompleteUi.bonus.Position = UDim2.fromOffset(15, 88)
+museumTierCompleteUi.bonus.BackgroundTransparency = 1
+museumTierCompleteUi.bonus.Text = "+10% loot value"
+museumTierCompleteUi.bonus.TextColor3 = Color3.fromRGB(255, 236, 132)
+museumTierCompleteUi.bonus.TextTransparency = 1
+museumTierCompleteUi.bonus.Font = Enum.Font.GothamBold
+museumTierCompleteUi.bonus.TextXAlignment = Enum.TextXAlignment.Center
+museumTierCompleteUi.bonus.ZIndex = 83
+constrainMuseumTierCompleteText(museumTierCompleteUi.bonus, 20, 11)
+museumTierCompleteUi.bonus.Parent = museumTierCompleteUi.panel
+
+local museumTierCompleteFx = {
+	sequence = 0,
+	tweens = {},
+}
+
+local function clearMuseumTierCompleteTweens()
+	for _, tween in ipairs(museumTierCompleteFx.tweens) do
+		tween:Cancel()
+	end
+	museumTierCompleteFx.tweens = {}
+end
+
+local function tweenMuseumTierComplete(instance, duration, goal, easingStyle, easingDirection)
+	local tween = TweenService:Create(
+		instance,
+		TweenInfo.new(duration, easingStyle or Enum.EasingStyle.Quad, easingDirection or Enum.EasingDirection.Out),
+		goal
+	)
+	table.insert(museumTierCompleteFx.tweens, tween)
+	tween:Play()
+	return tween
+end
+
+local function formatMuseumBonusPercent(bonus)
+	local percent = math.floor(((tonumber(bonus) or 1) - 1) * 100 + 0.5)
+	return math.max(0, percent)
+end
+
+return function(payload)
+	if type(payload) ~= "table" or payload.complete ~= true then
+		return
+	end
+
+	local tierName = tostring(payload.tierName or "")
+	local bonusPercent = formatMuseumBonusPercent(payload.bonus)
+	if tierName == "" or bonusPercent <= 0 then
+		return
+	end
+
+	museumTierCompleteFx.sequence = museumTierCompleteFx.sequence + 1
+	local sequence = museumTierCompleteFx.sequence
+	clearMuseumTierCompleteTweens()
+
+	museumTierCompleteUi.title.Text = "Museum Tier Complete"
+	museumTierCompleteUi.tier.Text = tierName .. " Collection"
+	museumTierCompleteUi.bonus.Text = "+" .. tostring(bonusPercent) .. "% loot value unlocked"
+
+	museumTierCompleteUi.panel.Visible = true
+	museumTierCompleteUi.panel.Size = UDim2.fromOffset(348, 126)
+	museumTierCompleteUi.panel.Position = UDim2.fromScale(0.5, 0.48)
+	museumTierCompleteUi.panel.BackgroundTransparency = 1
+	museumTierCompleteUi.stroke.Transparency = 1
+	museumTierCompleteUi.stroke.Thickness = 2
+	museumTierCompleteUi.title.TextTransparency = 1
+	museumTierCompleteUi.tier.TextTransparency = 1
+	museumTierCompleteUi.bonus.TextTransparency = 1
+
+	if LocalPlaySound and LocalPlaySound:IsA("BindableEvent") then
+		LocalPlaySound:Fire("rare_reveal")
+	end
+
+	tweenMuseumTierComplete(museumTierCompleteUi.panel, 0.2, {
+		Size = UDim2.fromOffset(408, 148),
+		Position = UDim2.fromScale(0.5, 0.42),
+		BackgroundTransparency = 0.06,
+	}, Enum.EasingStyle.Back)
+	tweenMuseumTierComplete(museumTierCompleteUi.stroke, 0.16, { Transparency = 0, Thickness = 3 })
+	tweenMuseumTierComplete(museumTierCompleteUi.title, 0.16, { TextTransparency = 0 })
+	tweenMuseumTierComplete(museumTierCompleteUi.tier, 0.2, { TextTransparency = 0 })
+	tweenMuseumTierComplete(museumTierCompleteUi.bonus, 0.24, { TextTransparency = 0 })
+
+	task.delay(2.65, function()
+		if sequence ~= museumTierCompleteFx.sequence then
+			return
+		end
+
+		tweenMuseumTierComplete(museumTierCompleteUi.panel, 0.24, {
+			Position = UDim2.fromScale(0.5, 0.36),
+			BackgroundTransparency = 1,
+		}, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+		tweenMuseumTierComplete(museumTierCompleteUi.stroke, 0.22, { Transparency = 1 }, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+		tweenMuseumTierComplete(museumTierCompleteUi.title, 0.18, { TextTransparency = 1 }, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+		tweenMuseumTierComplete(museumTierCompleteUi.tier, 0.18, { TextTransparency = 1 }, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+		local bonusFade = tweenMuseumTierComplete(museumTierCompleteUi.bonus, 0.18, { TextTransparency = 1 }, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+		bonusFade.Completed:Connect(function()
+			if sequence ~= museumTierCompleteFx.sequence then
+				return
+			end
+			museumTierCompleteUi.panel.Visible = false
+		end)
+	end)
+end
+end)()
+
 do
 local enemyDangerUnlockedUi = {}
 enemyDangerUnlockedUi.panel = Instance.new("Frame")
@@ -6569,6 +6739,13 @@ do
 	local offlineIncomeRewardEvent = Remotes:WaitForChild("OfflineIncomeReward", 5)
 	if offlineIncomeRewardEvent then
 		offlineIncomeRewardEvent.OnClientEvent:Connect(showOfflineIncomePopup)
+	end
+end
+
+do
+	local museumUpdateEvent = Remotes:WaitForChild("MuseumUpdate", 5)
+	if museumUpdateEvent then
+		museumUpdateEvent.OnClientEvent:Connect(DeepDigShowMuseumTierCompleteBurst)
 	end
 end
 

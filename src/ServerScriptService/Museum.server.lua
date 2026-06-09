@@ -659,6 +659,25 @@ local function getMuseumLootMultiplier(player, tierName)
 	return bonus
 end
 
+local function isMuseumTierComplete(museum, tierName)
+	if not museum or type(museum.displayedItems) ~= "table" or type(tierName) ~= "string" then
+		return false
+	end
+
+	local tierItems = ItemDatabase.ITEMS[tierName]
+	if type(tierItems) ~= "table" or #tierItems == 0 then
+		return false
+	end
+
+	for _, tierItem in ipairs(tierItems) do
+		if not tierItem.name or not museum.displayedItems[tierItem.name] then
+			return false
+		end
+	end
+
+	return true
+end
+
 _G.DeepDig_getMuseumLootMultiplier = getMuseumLootMultiplier
 
 DisplayItemEvent.OnServerEvent:Connect(function(player, inventoryIndex)
@@ -685,6 +704,8 @@ DisplayItemEvent.OnServerEvent:Connect(function(player, inventoryIndex)
 
 	local pedestal = findPedestalForItem(museum, item.name)
 	if not pedestal then return end
+	local tierName = pedestal:GetAttribute("TierName")
+	local wasTierComplete = isMuseumTierComplete(museum, tierName)
 
 	local rarityColor = RARITY_COLORS[item.rarity] or RARITY_COLORS.Common
 	local display = Instance.new("Part")
@@ -722,11 +743,17 @@ DisplayItemEvent.OnServerEvent:Connect(function(player, inventoryIndex)
 	if UpdateHUDEvent then
 		UpdateHUDEvent:FireClient(player, { inventoryCount = #data.inventory })
 	end
-	MuseumUpdateEvent:FireClient(player, {
+	local museumUpdatePayload = {
 		itemName = item.name,
 		rarity = item.rarity,
+		tierName = tierName,
 		totalDisplayed = countDisplayed(museum),
-	})
+	}
+	if not wasTierComplete and isMuseumTierComplete(museum, tierName) then
+		museumUpdatePayload.complete = true
+		museumUpdatePayload.bonus = TIER_COMPLETION_BONUS[tierName]
+	end
+	MuseumUpdateEvent:FireClient(player, museumUpdatePayload)
 end)
 
 -- ═══════════════════════════════════════════════════════════════════
