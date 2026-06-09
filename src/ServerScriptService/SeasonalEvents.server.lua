@@ -21,32 +21,32 @@ local PlayerDataReady = ServerEvents:WaitForChild("PlayerDataReady")
 local SEASONS = {
 	{
 		id = "halloween",
-		name = "🎃 Bone Hunt",
-		message = "🎃 BONE HUNT! Skeletal items twice as common, all month long.",
+		name = "🎃 The Bone Age",
+		message = "🎃 THE BONE AGE! Loot drops are 50% more likely and ghost fossils can surface all month.",
 		months = { 10 }, -- October
 		effect = "halloween_loot", -- consumed by future GameManager hook
 		announceInterval = 600, -- re-announce every 10 min while active
 	},
 	{
 		id = "winter",
-		name = "❄️ Frozen Depths",
-		message = "❄️ FROZEN DEPTHS! Ice-tier blocks contain rare relics.",
+		name = "❄️ The Ice Age",
+		message = "❄️ THE ICE AGE! Finds have a 25% chance to promote one rarity tier.",
 		months = { 12, 1 }, -- December + January
 		effect = "winter_loot",
 		announceInterval = 600,
 	},
 	{
 		id = "spring",
-		name = "🌱 Bloom Season",
-		message = "🌱 BLOOM SEASON! Soil tier yields extra fragments.",
+		name = "🌱 Fossil Rush",
+		message = "🌱 FOSSIL RUSH! Every block grants +1 fragment and dino eggs can appear.",
 		months = { 3, 4, 5 }, -- March + April + May
 		effect = "spring_loot",
 		announceInterval = 900,
 	},
 	{
 		id = "summer",
-		name = "☀️ Sun-Drenched Dig",
-		message = "☀️ SUN-DRENCHED DIG! Heat haze events twice as likely.",
+		name = "☀️ Volcano Event",
+		message = "☀️ VOLCANO EVENT! Random world events trigger twice as often and obsidian relics can surface.",
 		months = { 6, 7, 8 }, -- June through August
 		effect = "summer_loot",
 		announceInterval = 900,

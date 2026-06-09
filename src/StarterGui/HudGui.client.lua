@@ -593,23 +593,23 @@ groupBenefitCorner.Parent = groupBenefitLabel
 
 local SEASON_BADGE_STYLES = {
 	halloween_loot = {
-		title = "Bone Hunt",
-		detail = "Skeletal items boosted",
+		title = "The Bone Age",
+		detail = "+50% loot drop chance",
 		background = Color3.fromRGB(70, 38, 24),
 		stroke = Color3.fromRGB(255, 130, 45),
 		titleColor = Color3.fromRGB(255, 205, 130),
 		detailColor = Color3.fromRGB(255, 230, 190),
 	},
 	winter_loot = {
-		title = "Frozen Depths",
-		detail = "Ice relics awakened",
+		title = "The Ice Age",
+		detail = "25% rarity promotion",
 		background = Color3.fromRGB(26, 58, 78),
 		stroke = Color3.fromRGB(120, 220, 255),
 		titleColor = Color3.fromRGB(190, 245, 255),
 		detailColor = Color3.fromRGB(220, 250, 255),
 	},
 	spring_loot = {
-		title = "Spring: Fossil Rush",
+		title = "Fossil Rush",
 		detail = "+1 fragment while digging",
 		background = Color3.fromRGB(30, 72, 46),
 		stroke = Color3.fromRGB(95, 230, 120),
@@ -617,8 +617,8 @@ local SEASON_BADGE_STYLES = {
 		detailColor = Color3.fromRGB(225, 255, 220),
 	},
 	summer_loot = {
-		title = "Sun-Drenched Dig",
-		detail = "More world events",
+		title = "Volcano Event",
+		detail = "2x world event chance",
 		background = Color3.fromRGB(86, 54, 22),
 		stroke = Color3.fromRGB(255, 190, 70),
 		titleColor = Color3.fromRGB(255, 230, 150),
