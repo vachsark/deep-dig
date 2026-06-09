@@ -4,6 +4,7 @@
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
 
 local player = Players.LocalPlayer
 local mouse = player:GetMouse()
@@ -15,10 +16,12 @@ local TARGET_DIG_BLOCK = "DigBlock"
 local TARGET_ENEMY = "Enemy"
 local CLIENT_ATTACK_RANGE = 8
 local DEBUG_DIG_CLIENT = false
+local IMPACT_LIFETIME = 0.2
 
 local character = player.Character or player.CharacterAdded:Wait()
 local equippedExcavator = nil
 local playerGui = player:WaitForChild("PlayerGui")
+local moveCloserCueToken = 0
 
 local targetHighlight = Instance.new("Highlight")
 targetHighlight.Name = "DeepDigTargetHighlight"
@@ -58,6 +61,8 @@ end
 local function clearMoveCloserCue()
 	moveCloserCue.Enabled = false
 	moveCloserCue.Adornee = nil
+	moveCloserCue.Size = UDim2.fromOffset(120, 32)
+	moveCloserCue.StudsOffset = Vector3.new(0, 3.2, 0)
 end
 
 local function clearTargetHighlight()
@@ -130,6 +135,145 @@ local function showMoveCloserCue(enemyModel)
 
 	moveCloserCue.Adornee = enemyRoot
 	moveCloserCue.Enabled = true
+end
+
+local function nudgeMoveCloserCue(enemyModel)
+	showMoveCloserCue(enemyModel)
+	if not moveCloserCue.Enabled then
+		return
+	end
+
+	moveCloserCueToken = moveCloserCueToken + 1
+	local cueToken = moveCloserCueToken
+	moveCloserCue.Size = UDim2.fromOffset(132, 36)
+	moveCloserCue.StudsOffset = Vector3.new(0, 3.55, 0)
+
+	local settleTween = TweenService:Create(moveCloserCue, TweenInfo.new(
+		0.14,
+		Enum.EasingStyle.Back,
+		Enum.EasingDirection.Out
+	), {
+		Size = UDim2.fromOffset(120, 32),
+		StudsOffset = Vector3.new(0, 3.2, 0),
+	})
+	settleTween:Play()
+	settleTween.Completed:Connect(function()
+		if cueToken ~= moveCloserCueToken then
+			return
+		end
+
+		moveCloserCue.Size = UDim2.fromOffset(120, 32)
+		moveCloserCue.StudsOffset = Vector3.new(0, 3.2, 0)
+	end)
+end
+
+local function getClickWorldPosition(targetPart)
+	local hit = mouse.Hit
+	if hit then
+		return hit.Position
+	end
+
+	return targetPart.Position
+end
+
+local function showImpactPulse(targetPart, color, isSlash)
+	if not targetPart or not targetPart:IsA("BasePart") then
+		return
+	end
+
+	local pulse = Instance.new("BillboardGui")
+	pulse.Name = "DeepDigImpactPulse"
+	pulse.AlwaysOnTop = true
+	pulse.LightInfluence = 0
+	pulse.MaxDistance = 120
+	pulse.Size = UDim2.fromOffset(18, 18)
+	pulse.Adornee = targetPart
+	pulse.StudsOffsetWorldSpace = getClickWorldPosition(targetPart) - targetPart.Position
+	pulse.Parent = playerGui
+
+	local ring = Instance.new("Frame")
+	ring.Name = "Ring"
+	ring.AnchorPoint = Vector2.new(0.5, 0.5)
+	ring.BackgroundColor3 = color
+	ring.BackgroundTransparency = 0.82
+	ring.BorderSizePixel = 0
+	ring.Position = UDim2.fromScale(0.5, 0.5)
+	ring.Size = UDim2.fromScale(1, 1)
+	ring.Parent = pulse
+
+	local corner = Instance.new("UICorner")
+	corner.CornerRadius = UDim.new(1, 0)
+	corner.Parent = ring
+
+	local stroke = Instance.new("UIStroke")
+	stroke.Color = color
+	stroke.Thickness = 2
+	stroke.Transparency = 0.08
+	stroke.Parent = ring
+
+	local slash = nil
+	if isSlash then
+		slash = Instance.new("TextLabel")
+		slash.Name = "Slash"
+		slash.BackgroundTransparency = 1
+		slash.Font = Enum.Font.GothamBlack
+		slash.Text = "/"
+		slash.TextColor3 = color
+		slash.TextScaled = true
+		slash.TextStrokeColor3 = Color3.fromRGB(45, 10, 10)
+		slash.TextStrokeTransparency = 0.35
+		slash.Rotation = -12
+		slash.Size = UDim2.fromScale(1, 1)
+		slash.Parent = pulse
+	end
+
+	local growTween = TweenService:Create(pulse, TweenInfo.new(
+		IMPACT_LIFETIME,
+		Enum.EasingStyle.Quad,
+		Enum.EasingDirection.Out
+	), {
+		Size = UDim2.fromOffset(42, 42),
+	})
+	local fadeTween = TweenService:Create(ring, TweenInfo.new(
+		IMPACT_LIFETIME,
+		Enum.EasingStyle.Quad,
+		Enum.EasingDirection.Out
+	), {
+		BackgroundTransparency = 1,
+	})
+	local strokeTween = TweenService:Create(stroke, TweenInfo.new(
+		IMPACT_LIFETIME,
+		Enum.EasingStyle.Quad,
+		Enum.EasingDirection.Out
+	), {
+		Transparency = 1,
+		Thickness = 0,
+	})
+
+	growTween:Play()
+	fadeTween:Play()
+	strokeTween:Play()
+	if slash then
+		TweenService:Create(slash, TweenInfo.new(
+			IMPACT_LIFETIME,
+			Enum.EasingStyle.Quad,
+			Enum.EasingDirection.Out
+		), {
+			TextTransparency = 1,
+			TextStrokeTransparency = 1,
+		}):Play()
+	end
+
+	growTween.Completed:Connect(function()
+		if pulse then
+			pulse:Destroy()
+		end
+	end)
+	task.delay(IMPACT_LIFETIME + 0.1, function()
+		if pulse and pulse.Parent then
+			pulse:Destroy()
+		end
+	end)
 end
 
 local function classifyTarget(target)
@@ -205,11 +349,13 @@ local function onToolActivated()
 		local isInRange = isEnemyInClientAttackRange(targetInstance)
 		if not isInRange then
 			debugLog("[DeepDig dig] enemy hit ignored: move closer:", targetInstance.Name)
-			showMoveCloserCue(targetInstance)
+			nudgeMoveCloserCue(targetInstance)
 			return
 		end
 
 		debugLog("[DeepDig dig] enemy hit:", targetInstance.Name)
+		local _, enemyRoot = isEnemyInClientAttackRange(targetInstance)
+		showImpactPulse(enemyRoot, Color3.fromRGB(255, 70, 70), true)
 		EnemyHitEvent:FireServer(targetInstance)
 		return
 	end
@@ -221,6 +367,7 @@ local function onToolActivated()
 
 	-- Send the block reference to the server
 	debugLog(("[DeepDig dig] firing DigRequest for %s (depth=%s)"):format(targetInstance.Name, tostring(targetInstance:GetAttribute("Depth"))))
+	showImpactPulse(targetInstance, Color3.fromRGB(255, 185, 65), false)
 	DigRequest:FireServer(targetInstance)
 end
 
