@@ -94,8 +94,17 @@ local UNKNOWN_DEPTH_GOAL = 188
 
 local BADGE_MILESTONES = {
 	{
+		id = "first_dig",
+		name = "First Dig",
+		description = "Dig your first block",
+		target = 1,
+		field = "totalBlocksDug",
+		color = ACCENT_BLUE,
+	},
+	{
 		id = "hundred_blocks",
 		name = "Dig 100",
+		description = "Dig 100 blocks",
 		target = 100,
 		field = "totalBlocksDug",
 		color = ACCENT_BLUE,
@@ -103,13 +112,31 @@ local BADGE_MILESTONES = {
 	{
 		id = "thousand_blocks",
 		name = "Dig 1,000",
+		description = "Dig 1,000 blocks",
 		target = 1000,
 		field = "totalBlocksDug",
 		color = ACCENT_BLUE,
 	},
 	{
+		id = "first_rare_find",
+		name = "First Rare Find",
+		description = "Discover your first Rare item",
+		target = 1,
+		eventOnly = true,
+		color = ACCENT_GOLD,
+	},
+	{
+		id = "first_legendary",
+		name = "First Legendary",
+		description = "Discover your first Legendary item",
+		target = 1,
+		eventOnly = true,
+		color = ACCENT_PURPLE,
+	},
+	{
 		id = "depth_unknown_tier",
 		name = "Unknown Depth",
+		description = "Reach the Unknown depth tier",
 		target = UNKNOWN_DEPTH_GOAL,
 		field = "deepestBlock",
 		color = ACCENT_PURPLE,
@@ -117,13 +144,23 @@ local BADGE_MILESTONES = {
 	{
 		id = "first_resurface",
 		name = "First Resurface",
+		description = "Resurface for the first time",
 		target = 1,
 		field = "resurfaceCount",
 		color = ACCENT_GOLD,
 	},
 	{
+		id = "first_museum_display",
+		name = "First Museum Display",
+		description = "Display your first item in the museum",
+		target = 1,
+		eventOnly = true,
+		color = ACCENT_BLUE,
+	},
+	{
 		id = "first_enemy_kill",
 		name = "First Enemy Kill",
+		description = "Defeat your first buried enemy",
 		target = 1,
 		field = "enemyKills",
 		color = ACCENT_RED,
@@ -131,6 +168,7 @@ local BADGE_MILESTONES = {
 	{
 		id = "enemy_count_100",
 		name = "100 Enemy Kills",
+		description = "Defeat 100 buried enemies",
 		target = 100,
 		field = "enemyKills",
 		color = ACCENT_RED,
@@ -430,7 +468,9 @@ local function getMilestoneCurrent(data, milestone)
 		return 0
 	end
 
-	if milestone.field == "totalBlocksDug" then
+	if milestone.eventOnly then
+		return hasBadgeAwarded(data, milestone.id) and 1 or 0
+	elseif milestone.field == "totalBlocksDug" then
 		return clampNumber(data.totalBlocksDug or data.blocksDug)
 	elseif milestone.field == "deepestBlock" then
 		return clampNumber(data.deepestBlock or data.currentDepth)
@@ -887,7 +927,7 @@ local equippedLabel = makeLine(petsCard, 48, "Equipped: Loading...", TEXT_SOFT)
 local petHintLabel = makeLine(petsCard, 68, "No pets yet - hatch one!", TEXT_MUTED)
 
 -- Badges card
-local badgeCard, badgeStroke = makeCard(content, 234)
+local badgeCard, badgeStroke = makeCard(content, 346)
 badgeCard.LayoutOrder = 8
 badgeStroke.Color = Color3.fromRGB(95, 85, 55)
 addCardTitle(badgeCard, "Badges", ACCENT_GOLD)
