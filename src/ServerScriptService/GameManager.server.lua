@@ -876,6 +876,25 @@ local function getResurfaceLootMultiplier(data)
 	return 1 + (rebirths * bonusPerRebirth)
 end
 
+local function getMuseumLootMultiplier(player, tierName)
+	local fn = _G.DeepDig_getMuseumLootMultiplier
+	if type(fn) ~= "function" then
+		return 1
+	end
+
+	local ok, result = pcall(fn, player, tierName)
+	if not ok then
+		return 1
+	end
+
+	local multiplier = tonumber(result) or 1
+	if multiplier <= 0 then
+		return 1
+	end
+
+	return multiplier
+end
+
 function getEquippedPetRecord(data)
 	if not data or not data.equippedPet or type(data.pets) ~= "table" then
 		return nil
@@ -1361,14 +1380,15 @@ BlockBrokenEvent.Event:Connect(function(player, blockPosition)
 				item.sellValue = item.sellValue * 2
 			end
 
-			-- Apply resurface, equipped pet loot_value, and chain-combo
+			-- Apply resurface, museum, equipped pet loot_value, and chain-combo
 			-- multipliers. Mutating `item.sellValue` here propagates to
 			-- both the inventory record below AND the ItemFoundEvent
 			-- :FireClient payload, so the client toast shows the bumped
 			-- value.
 			local getCombo = _G.DeepDig_getChainComboMultiplier
 			local comboMult = (type(getCombo) == "function" and getCombo(player)) or 1.0
-			item.sellValue = math.floor(item.sellValue * getResurfaceLootMultiplier(data) * petLoot * comboMult)
+			local museumMult = getMuseumLootMultiplier(player, tierName)
+			item.sellValue = math.floor(item.sellValue * getResurfaceLootMultiplier(data) * museumMult * petLoot * comboMult)
 
 			local autoCollectDuplicate = wasAlreadyCollected and hasOwnedGamepass(
 				data,

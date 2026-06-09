@@ -630,6 +630,37 @@ local function findPedestalForItem(museum, itemName)
 	return nil
 end
 
+local function getMuseumLootMultiplier(player, tierName)
+	if not player or not player.UserId or type(tierName) ~= "string" then
+		return 1
+	end
+
+	local bonus = TIER_COMPLETION_BONUS[tierName]
+	if not bonus then
+		return 1
+	end
+
+	local museum = playerMuseums[player.UserId]
+	if not museum or type(museum.displayedItems) ~= "table" then
+		return 1
+	end
+
+	local tierItems = ItemDatabase.ITEMS[tierName]
+	if type(tierItems) ~= "table" or #tierItems == 0 then
+		return 1
+	end
+
+	for _, item in ipairs(tierItems) do
+		if not item.name or not findPedestalForItem(museum, item.name) or not museum.displayedItems[item.name] then
+			return 1
+		end
+	end
+
+	return bonus
+end
+
+_G.DeepDig_getMuseumLootMultiplier = getMuseumLootMultiplier
+
 DisplayItemEvent.OnServerEvent:Connect(function(player, inventoryIndex)
 	local museum = playerMuseums[player.UserId]
 	if not museum then return end
