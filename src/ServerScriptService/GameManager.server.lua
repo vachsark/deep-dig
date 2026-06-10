@@ -1626,6 +1626,9 @@ RecycleItemEvent.OnServerEvent:Connect(function(player, inventoryIndex)
 	data.fragments = (data.fragments or 0) + fragValue
 	table.remove(data.inventory, inventoryIndex)
 
+	if PlaySound then
+		PlaySound:FireClient(player, "fragment_recycle")
+	end
 	NotifyEvent:FireClient(player, "Recycled " .. item.name .. " → +" .. fragValue .. " fragments (" .. data.fragments .. " total)", "Uncommon")
 	UpdateHUDEvent:FireClient(player, addStandardHudFields({
 		coins = data.coins,
@@ -1661,6 +1664,9 @@ RecycleAllDupesEvent.OnServerEvent:Connect(function(player)
 	data.fragments = (data.fragments or 0) + totalFrags
 
 	if recycled > 0 then
+		if PlaySound then
+			PlaySound:FireClient(player, "fragment_recycle")
+		end
 		NotifyEvent:FireClient(player, "Recycled " .. recycled .. " duplicates → +" .. totalFrags .. " fragments!", "Rare")
 	else
 		NotifyEvent:FireClient(player, "No duplicates to recycle", "Common")
@@ -1729,6 +1735,9 @@ CraftFromFragsEvent.OnServerEvent:Connect(function(player, targetRarity, tierNam
 	data.fragments = data.fragments - cost
 	data.collections[chosen.name] = true
 
+	if PlaySound then
+		PlaySound:FireClient(player, "fragment_craft")
+	end
 	NotifyEvent:FireClient(player, "Crafted: " .. chosen.name .. " (" .. chosen.rarity .. ")!", targetRarity)
 	ItemFoundEvent:FireClient(player, {
 		name = chosen.name,

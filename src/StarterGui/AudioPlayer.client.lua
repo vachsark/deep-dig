@@ -56,6 +56,18 @@ local SOUNDS = {
 		playbackSpeed = 1.06,
 		pitchRange = { 0.98, 1.04 },
 	},
+	fragment_recycle = {
+		id = "rbxassetid://6837730320", -- compact fragment recycling chime
+		volume = 0.54,
+		playbackSpeed = 1.34,
+		pitchRange = { 1.02, 1.1 },
+	},
+	fragment_craft = {
+		id = "rbxassetid://5852285683", -- bright fragment craft payoff shimmer
+		volume = 0.84,
+		playbackSpeed = 0.96,
+		pitchRange = { 0.98, 1.04 },
+	},
 	trade_complete = {
 		id = "rbxassetid://6837730320", -- compact positive swap-complete chime
 		volume = 0.62,
