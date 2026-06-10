@@ -5867,8 +5867,9 @@ upgradeButton.BackgroundColor3 = Color3.fromRGB(40, 80, 200)
 upgradeButton.BorderSizePixel = 0
 upgradeButton.Text = "⬆️ Upgrade: ???"
 upgradeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-upgradeButton.TextSize = 14
+upgradeButton.TextSize = 13
 upgradeButton.Font = Enum.Font.GothamBold
+upgradeButton.TextWrapped = true
 upgradeButton.Parent = screenGui
 
 local upCorner = Instance.new("UICorner")
@@ -5877,6 +5878,55 @@ upCorner.Parent = upgradeButton
 
 local currentToolTier = 1
 local updateUpgradeAffordance = function() end
+DeepDigToolHud = {
+	currentToolName = "Rusty Shovel",
+}
+
+function DeepDigToolHud.getToolDamage(toolTier)
+	local toolConfig = Config.TOOLS[tonumber(toolTier)]
+	if not toolConfig then
+		return nil
+	end
+
+	return toolConfig.damage
+end
+
+function DeepDigToolHud.updateToolReadout(toolName, toolTier)
+	if toolName then
+		DeepDigToolHud.currentToolName = toolName
+	end
+	if toolTier then
+		currentToolTier = toolTier
+	end
+
+	local damage = DeepDigToolHud.getToolDamage(currentToolTier)
+	if damage then
+		toolLabel.Text = "🔧 " .. DeepDigToolHud.currentToolName .. " - DMG " .. tostring(damage)
+	else
+		toolLabel.Text = "🔧 " .. DeepDigToolHud.currentToolName
+	end
+end
+
+function DeepDigToolHud.setUpgradeButtonText(nextToolName, nextToolCost, atMaxLevel)
+	local currentDamage = DeepDigToolHud.getToolDamage(currentToolTier)
+
+	if atMaxLevel then
+		if currentDamage then
+			upgradeButton.Text = "⬆️ MAX LEVEL\nDMG " .. tostring(currentDamage)
+		else
+			upgradeButton.Text = "⬆️ MAX LEVEL"
+		end
+		return
+	end
+
+	local nextDamage = DeepDigToolHud.getToolDamage(currentToolTier + 1)
+	local damageText = ""
+	if currentDamage and nextDamage then
+		damageText = "\nDMG " .. tostring(currentDamage) .. "->" .. tostring(nextDamage)
+	end
+
+	upgradeButton.Text = "⬆️ " .. nextToolName .. " ($" .. tostring(nextToolCost) .. ")" .. damageText
+end
 
 do
 	local upgradeStroke = Instance.new("UIStroke")
@@ -6649,11 +6699,8 @@ Remotes.UpdateHUD.OnClientEvent:Connect(function(data)
 	if data.depth or data.tierName then
 		updateDepthTone(data)
 	end
-	if data.toolName then
-		toolLabel.Text = "🔧 " .. data.toolName
-	end
-	if data.toolTier then
-		currentToolTier = data.toolTier
+	if data.toolName or data.toolTier then
+		DeepDigToolHud.updateToolReadout(data.toolName, data.toolTier)
 	end
 	if data.blocksDug then
 		blocksLabel.Text = "Blocks: " .. tostring(data.blocksDug)
@@ -6673,12 +6720,12 @@ Remotes.UpdateHUD.OnClientEvent:Connect(function(data)
 		DeepDigUpdateRareMeter(data.rarePity, data.rarePityThreshold, data.rarePityTriggered == true)
 	end
 	if data.nextToolCost ~= nil and data.nextToolName then
-		upgradeButton.Text = "⬆️ " .. data.nextToolName .. " ($" .. data.nextToolCost .. ")"
+		DeepDigToolHud.setUpgradeButtonText(data.nextToolName, data.nextToolCost, false)
 		affordanceNextToolCost = tonumber(data.nextToolCost)
 		affordanceAtMaxLevel = false
 		upgradeAffordanceChanged = true
 	elseif data.nextToolCost == nil and data.toolTier then
-		upgradeButton.Text = "⬆️ MAX LEVEL"
+		DeepDigToolHud.setUpgradeButtonText(nil, nil, true)
 		affordanceAtMaxLevel = true
 		upgradeAffordanceChanged = true
 	end
@@ -6986,7 +7033,7 @@ task.spawn(function()
 	if data then
 		coinsLabel.Text = "🪙 " .. tostring(math.floor(data.coins))
 		previousCoinValue = math.floor(data.coins)
-		toolLabel.Text = "🔧 " .. data.toolName
+		DeepDigToolHud.updateToolReadout(data.toolName, data.toolTier)
 		blocksLabel.Text = "Blocks: " .. tostring(data.totalBlocksDug)
 		setInventoryDisplay(#data.inventory, data.inventoryCapacity)
 		if data.fragments ~= nil then
@@ -6994,7 +7041,6 @@ task.spawn(function()
 			fragLabel.Text = "Fragments: " .. tostring(previousFragmentValue)
 		end
 		DeepDigUpdateRareMeter(data.rarePity, data.rarePityThreshold, false)
-		currentToolTier = data.toolTier
 		initializeFtueGuide(data)
 		refreshStreakRevivePrompt(data)
 		refreshFriendBoostIndicator(data)
@@ -7008,10 +7054,10 @@ task.spawn(function()
 		end
 
 		if data.nextToolCost ~= nil and data.nextToolName then
-			upgradeButton.Text = "⬆️ " .. data.nextToolName .. " ($" .. data.nextToolCost .. ")"
+			DeepDigToolHud.setUpgradeButtonText(data.nextToolName, data.nextToolCost, false)
 			updateUpgradeAffordance(previousCoinValue, tonumber(data.nextToolCost), false)
 		elseif data.nextToolCost == nil and data.toolTier then
-			upgradeButton.Text = "⬆️ MAX LEVEL"
+			DeepDigToolHud.setUpgradeButtonText(nil, nil, true)
 			updateUpgradeAffordance(previousCoinValue, nil, true)
 		else
 			updateUpgradeAffordance(previousCoinValue, nil, nil)
