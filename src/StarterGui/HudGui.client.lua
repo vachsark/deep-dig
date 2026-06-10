@@ -5643,7 +5643,7 @@ do
 		playOfflineIncomeSparkleBurst(reward, sequence)
 
 		if LocalPlaySound and LocalPlaySound:IsA("BindableEvent") then
-			LocalPlaySound:Fire("sell_coins")
+			LocalPlaySound:Fire("offline_income")
 		end
 
 		task.delay(7, function()
