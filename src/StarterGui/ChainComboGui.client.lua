@@ -9,12 +9,14 @@
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
+local SoundService = game:GetService("SoundService")
 local TweenService = game:GetService("TweenService")
 
 local player = Players.LocalPlayer
 local Remotes = ReplicatedStorage:WaitForChild("Remotes")
 local ChainComboUpdate = Remotes:WaitForChild("ChainComboUpdate", 10)
 if not ChainComboUpdate then return end
+local LOCAL_PLAY_SOUND_NAME = "DeepDigLocalPlaySound"
 
 local SHOW_THRESHOLD = 5 -- match ChainCombo.server.lua's first tier
 local URGENCY_WINDOW = 0.75
@@ -106,6 +108,20 @@ local state = {
 }
 
 local urgencyActive = false
+local chainExpiringSoundArmed = true
+
+local LocalPlaySound = SoundService:FindFirstChild(LOCAL_PLAY_SOUND_NAME)
+if not LocalPlaySound then
+	LocalPlaySound = Instance.new("BindableEvent")
+	LocalPlaySound.Name = LOCAL_PLAY_SOUND_NAME
+	LocalPlaySound.Parent = SoundService
+end
+
+local function playChainExpiringSound()
+	if LocalPlaySound and LocalPlaySound:IsA("BindableEvent") then
+		LocalPlaySound:Fire("chain_expiring")
+	end
+end
 
 local function setUrgency(active)
 	if urgencyActive == active then return end
@@ -113,9 +129,14 @@ local function setUrgency(active)
 
 	if active then
 		barFill.BackgroundColor3 = BAR_FILL_URGENCY_COLOR
+		if chainExpiringSoundArmed then
+			chainExpiringSoundArmed = false
+			playChainExpiringSound()
+		end
 	else
 		barFill.BackgroundColor3 = BAR_FILL_BASE_COLOR
 		frame.Position = FRAME_BASE_POSITION
+		chainExpiringSoundArmed = true
 	end
 end
 

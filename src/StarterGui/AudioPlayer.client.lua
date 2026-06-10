@@ -38,6 +38,12 @@ local SOUNDS = {
 		volume = 0.6,
 		pitchRange = { 0.92, 1.08 },
 	},
+	chain_expiring = {
+		id = "rbxassetid://9114013169", -- compact warning tick as the combo decay closes
+		volume = 0.24,
+		playbackSpeed = 1.82,
+		pitchRange = { 1.04, 1.12 },
+	},
 	item_found = {
 		id = "rbxassetid://4612375287", -- soft sparkle chime
 		volume = 0.7,
