@@ -62,12 +62,15 @@ local KILL_STREAK_WINDOW = 20
 local KILL_STREAK_BONUS_PER_KILL = 0.1
 local KILL_STREAK_MAX_BONUS = 0.5
 local COMBAT_GRACE_ATTRIBUTE = "DeepDig_CombatGraceUntil"
+local HOLLOW_KING_ID = "hollow_king"
+local HOLLOW_KING_COOLDOWN = 5 * 60
 
 local liveEnemies = {}
 local enemiesByPlayer = {}
 local nextAttackAtByUserId = {}
 local killStreaksByUserId = {}
 local deathConnectionsByUserId = {}
+local hollowKingCooldownsByUserId = {}
 local sharedGlobals = getfenv()._G
 
 local function isRareRevealRarity(rarity)
@@ -357,7 +360,25 @@ local function isMinibossDefeat(record)
 		return true
 	end
 
-	return record.model and record.model:GetAttribute("EnemyId") == "hollow_king"
+	return record.model and record.model:GetAttribute("EnemyId") == HOLLOW_KING_ID
+end
+
+local function startHollowKingCooldown(player)
+	hollowKingCooldownsByUserId[player.UserId] = os.clock() + HOLLOW_KING_COOLDOWN
+end
+
+local function isHollowKingCooldownActive(player)
+	local expiresAt = hollowKingCooldownsByUserId[player.UserId]
+	if not expiresAt then
+		return false
+	end
+
+	if os.clock() >= expiresAt then
+		hollowKingCooldownsByUserId[player.UserId] = nil
+		return false
+	end
+
+	return true
 end
 
 local function notifyMinibossDefeat(record, rewardedPlayer)
@@ -409,6 +430,10 @@ local function onEnemyDied(record)
 	end
 
 	record.dead = true
+	if record.enemy.id == HOLLOW_KING_ID and record.owner and record.owner.Parent == Players then
+		startHollowKingCooldown(record.owner)
+	end
+
 	local rewardedPlayer, rewardSummary = payEnemyReward(record)
 	local feedbackPlayer = rewardedPlayer or record.lastAttacker or record.owner
 	fireEnemyCombatFeedback(feedbackPlayer, "defeated", record.model, nil, rewardSummary)
@@ -589,6 +614,17 @@ local function hasLivingEnemyById(player, enemyId)
 	end
 
 	return false
+end
+
+local function getBlockedEnemyIds(player)
+	local blockedEnemyIds = nil
+	if hasLivingEnemyById(player, HOLLOW_KING_ID) or isHollowKingCooldownActive(player) then
+		blockedEnemyIds = {
+			[HOLLOW_KING_ID] = true,
+		}
+	end
+
+	return blockedEnemyIds
 end
 
 local function getPlayerRoot(player)
@@ -869,18 +905,14 @@ local function spawnEnemyForPlayer(player)
 	end
 
 	local tierName = ItemDatabase.getTierForDepth(data.deepestBlock or 0)
-	local blockedEnemyIds = nil
-	if hasLivingEnemyById(player, "hollow_king") then
-		blockedEnemyIds = {
-			hollow_king = true,
-		}
-	end
-
 	local enemy = EnemyDatabase.getEnemyForTier(tierName, {
-		blockedEnemyIds = blockedEnemyIds,
+		blockedEnemyIds = getBlockedEnemyIds(player),
 	})
 	if not enemy then
 		return
+	end
+	if enemy.id == HOLLOW_KING_ID then
+		startHollowKingCooldown(player)
 	end
 
 	local spawnScale = enemy.spawnScale or 1
@@ -1101,6 +1133,7 @@ end
 
 Players.PlayerRemoving:Connect(function(player)
 	nextAttackAtByUserId[player.UserId] = nil
+	hollowKingCooldownsByUserId[player.UserId] = nil
 	clearEnemyKillStreak(player)
 	local deathConnection = deathConnectionsByUserId[player.UserId]
 	if deathConnection then
