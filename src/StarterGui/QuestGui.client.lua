@@ -400,6 +400,7 @@ rewardBurstAmount.ZIndex = 81
 rewardBurstAmount.Parent = rewardBurst
 
 local rewardBurstTweens = {}
+local rewardBurstChips = {}
 local rewardBurstSequence = 0
 local questReadyBurstTweens = {}
 local questReadyBurstSequence = 0
@@ -454,6 +455,13 @@ local function clearRewardBurstTweens()
 		tween:Cancel()
 	end
 	rewardBurstTweens = {}
+
+	for _, chip in ipairs(rewardBurstChips) do
+		if chip and chip.Parent then
+			chip:Destroy()
+		end
+	end
+	rewardBurstChips = {}
 end
 
 local function tweenRewardBurst(instance, duration, goal, easingStyle, easingDirection)
@@ -465,6 +473,102 @@ local function tweenRewardBurst(instance, duration, goal, easingStyle, easingDir
 	table.insert(rewardBurstTweens, tween)
 	tween:Play()
 	return tween
+end
+
+local function makeRewardChip(text, color, strokeColor, startOffset, endOffset, delaySeconds)
+	local chip = Instance.new("TextLabel")
+	chip.Name = "RewardChip"
+	chip.AnchorPoint = Vector2.new(0.5, 0.5)
+	chip.Size = UDim2.fromOffset(58, 24)
+	chip.Position = UDim2.new(0.5, startOffset.X, 0.38, startOffset.Y)
+	chip.BackgroundColor3 = Color3.fromRGB(28, 26, 36)
+	chip.BackgroundTransparency = 0.08
+	chip.BorderSizePixel = 0
+	chip.Text = text
+	chip.TextColor3 = color
+	chip.TextTransparency = 0
+	chip.TextSize = 14
+	chip.Font = Enum.Font.GothamBlack
+	chip.ZIndex = 86
+	chip.Parent = screenGui
+
+	local chipCorner = Instance.new("UICorner")
+	chipCorner.CornerRadius = UDim.new(0, 8)
+	chipCorner.Parent = chip
+
+	local chipStroke = Instance.new("UIStroke")
+	chipStroke.Color = strokeColor
+	chipStroke.Thickness = 1
+	chipStroke.Transparency = 0.18
+	chipStroke.Parent = chip
+
+	rewardBurstChips[#rewardBurstChips + 1] = chip
+
+	task.delay(delaySeconds, function()
+		if not chip.Parent then
+			return
+		end
+
+		tweenRewardBurst(chip, 0.55, {
+			Position = UDim2.new(0.5, endOffset.X, 0.38, endOffset.Y),
+			BackgroundTransparency = 1,
+			TextTransparency = 1,
+		}, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+
+		local strokeTween = tweenRewardBurst(chipStroke, 0.44, { Transparency = 1 })
+		strokeTween.Completed:Once(function()
+			if chip.Parent then
+				chip:Destroy()
+			end
+		end)
+	end)
+end
+
+local function showRewardChips(reward)
+	if type(reward) ~= "table" then
+		return
+	end
+
+	local coins = math.floor(safeNumber(reward.coins))
+	local fragments = math.floor(safeNumber(reward.fragments))
+	local chipIndex = 0
+
+	if coins > 0 then
+		local coinCount = math.clamp(math.floor(coins / 300) + 3, 3, 6)
+		local coinText = "+" .. coins
+
+		for index = 1, coinCount do
+			local spread = (index - ((coinCount + 1) / 2)) * 34
+			local lift = -78 - (index % 2) * 14
+			makeRewardChip(
+				coinText,
+				Color3.fromRGB(255, 232, 112),
+				Color3.fromRGB(255, 204, 65),
+				Vector2.new(0, 18),
+				Vector2.new(spread, lift),
+				chipIndex * 0.035
+			)
+			chipIndex = chipIndex + 1
+		end
+	end
+
+	if fragments > 0 then
+		local fragmentCount = math.clamp(math.floor(fragments / 6) + 1, 1, 3)
+		local fragmentText = "+" .. fragments .. "F"
+
+		for index = 1, fragmentCount do
+			local spread = (index - ((fragmentCount + 1) / 2)) * 42
+			makeRewardChip(
+				fragmentText,
+				Color3.fromRGB(112, 238, 255),
+				Color3.fromRGB(76, 190, 255),
+				Vector2.new(0, 30),
+				Vector2.new(spread + 18, -108 - index * 8),
+				chipIndex * 0.04
+			)
+			chipIndex = chipIndex + 1
+		end
+	end
 end
 
 local function clearQuestReadyBurstTweens()
@@ -677,6 +781,7 @@ local function showQuestClaimReward(payload)
 	tweenRewardBurst(rewardBurstTitle, 0.16, { TextTransparency = 0 })
 	tweenRewardBurst(rewardBurstDescription, 0.2, { TextTransparency = 0.02 })
 	tweenRewardBurst(rewardBurstAmount, 0.22, { TextTransparency = 0 })
+	showRewardChips(payload.reward)
 
 	task.delay(1.55, function()
 		if sequence ~= rewardBurstSequence or not rewardBurst.Parent then
