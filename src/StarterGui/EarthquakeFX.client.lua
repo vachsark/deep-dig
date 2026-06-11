@@ -45,6 +45,12 @@ local EVENT_PULSE_RING_THICKNESS = 8
 local EVENT_PULSE_HAPTIC_DURATION = 0.1
 local EVENT_PULSE_HAPTIC_SMALL_STRENGTH = 0.1
 local EVENT_PULSE_HAPTIC_LARGE_STRENGTH = 0.18
+local VOLCANO_VENT_MAX_DURATION = 24
+local VOLCANO_VENT_DEFAULT_DURATION = 8
+local VOLCANO_VENT_PULSE_DURATION = 0.65
+local VOLCANO_VENT_CRACK_COUNT = 9
+local VOLCANO_VENT_EMBER_COUNT = 14
+local VOLCANO_VENT_HEAT_STEP = 0.55
 local HAPTIC_INPUT_TYPE = Enum.UserInputType.Gamepad1
 local HAPTIC_SMALL_MOTOR = Enum.VibrationMotor.Small
 local HAPTIC_LARGE_MOTOR = Enum.VibrationMotor.Large
@@ -128,6 +134,16 @@ local eventPulseRingStroke = nil
 local eventPulseTween = nil
 local eventPulseRingTween = nil
 local eventPulseRingStrokeTween = nil
+local volcanoVentActive = false
+local volcanoVentSession = 0
+local volcanoVentEndTime = 0
+local volcanoVentGui = nil
+local volcanoHeatFrame = nil
+local volcanoSurgeFrame = nil
+local volcanoCrackFrames = {}
+local volcanoCrackStrokes = {}
+local volcanoEmberFrames = {}
+local volcanoTweens = {}
 local hapticSupportChecked = false
 local hapticSupported = false
 local hapticMotorSupport = {}
@@ -336,6 +352,116 @@ local function ensureEventPulseUi()
 	eventPulseRingStroke.Parent = eventPulseRing
 end
 
+local function addVolcanoTween(tween)
+	table.insert(volcanoTweens, tween)
+	tween:Play()
+	return tween
+end
+
+local function cancelVolcanoTweens()
+	for _, tween in ipairs(volcanoTweens) do
+		if tween then
+			tween:Cancel()
+		end
+	end
+
+	volcanoTweens = {}
+end
+
+local function ensureVolcanoVentUi()
+	if volcanoVentGui then
+		return
+	end
+
+	local playerGui = player:FindFirstChildOfClass("PlayerGui") or player:WaitForChild("PlayerGui")
+
+	volcanoVentGui = Instance.new("ScreenGui")
+	volcanoVentGui.Name = "VolcanoVentFX"
+	volcanoVentGui.ResetOnSpawn = false
+	volcanoVentGui.IgnoreGuiInset = true
+	volcanoVentGui.DisplayOrder = 10002
+	volcanoVentGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+	volcanoVentGui.Parent = playerGui
+
+	volcanoHeatFrame = Instance.new("Frame")
+	volcanoHeatFrame.Name = "HeatHaze"
+	volcanoHeatFrame.Size = UDim2.fromScale(1, 1)
+	volcanoHeatFrame.Position = UDim2.fromScale(0.5, 0.5)
+	volcanoHeatFrame.AnchorPoint = Vector2.new(0.5, 0.5)
+	volcanoHeatFrame.BackgroundColor3 = Color3.fromRGB(255, 83, 28)
+	volcanoHeatFrame.BackgroundTransparency = 1
+	volcanoHeatFrame.BorderSizePixel = 0
+	volcanoHeatFrame.ZIndex = 120
+	volcanoHeatFrame.Parent = volcanoVentGui
+
+	volcanoSurgeFrame = Instance.new("Frame")
+	volcanoSurgeFrame.Name = "LavaSurge"
+	volcanoSurgeFrame.Size = UDim2.fromScale(1, 1)
+	volcanoSurgeFrame.Position = UDim2.fromScale(0.5, 0.5)
+	volcanoSurgeFrame.AnchorPoint = Vector2.new(0.5, 0.5)
+	volcanoSurgeFrame.BackgroundColor3 = Color3.fromRGB(255, 36, 10)
+	volcanoSurgeFrame.BackgroundTransparency = 1
+	volcanoSurgeFrame.BorderSizePixel = 0
+	volcanoSurgeFrame.ZIndex = 121
+	volcanoSurgeFrame.Parent = volcanoVentGui
+
+	local crackSpecs = {
+		{ position = UDim2.fromScale(0.12, 0.16), size = UDim2.fromScale(0.009, 0.22), rotation = -38 },
+		{ position = UDim2.fromScale(0.2, 0.34), size = UDim2.fromScale(0.007, 0.14), rotation = 23 },
+		{ position = UDim2.fromScale(0.78, 0.18), size = UDim2.fromScale(0.008, 0.18), rotation = 32 },
+		{ position = UDim2.fromScale(0.88, 0.38), size = UDim2.fromScale(0.006, 0.14), rotation = -28 },
+		{ position = UDim2.fromScale(0.1, 0.78), size = UDim2.fromScale(0.008, 0.18), rotation = 30 },
+		{ position = UDim2.fromScale(0.32, 0.88), size = UDim2.fromScale(0.007, 0.15), rotation = -62 },
+		{ position = UDim2.fromScale(0.72, 0.84), size = UDim2.fromScale(0.009, 0.2), rotation = 49 },
+		{ position = UDim2.fromScale(0.92, 0.74), size = UDim2.fromScale(0.007, 0.16), rotation = -44 },
+		{ position = UDim2.fromScale(0.53, 0.12), size = UDim2.fromScale(0.006, 0.13), rotation = 68 },
+	}
+
+	for i = 1, VOLCANO_VENT_CRACK_COUNT do
+		local spec = crackSpecs[i]
+		local crack = Instance.new("Frame")
+		crack.Name = "LavaCrack" .. i
+		crack.Size = spec.size
+		crack.Position = spec.position
+		crack.AnchorPoint = Vector2.new(0.5, 0.5)
+		crack.Rotation = spec.rotation
+		crack.BackgroundColor3 = Color3.fromRGB(42, 9, 4)
+		crack.BackgroundTransparency = 1
+		crack.BorderSizePixel = 0
+		crack.ZIndex = 122
+		crack.Parent = volcanoVentGui
+
+		local stroke = Instance.new("UIStroke")
+		stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+		stroke.Color = Color3.fromRGB(255, 128, 24)
+		stroke.Thickness = 2
+		stroke.Transparency = 1
+		stroke.Parent = crack
+
+		table.insert(volcanoCrackFrames, crack)
+		table.insert(volcanoCrackStrokes, stroke)
+	end
+
+	for i = 1, VOLCANO_VENT_EMBER_COUNT do
+		local ember = Instance.new("Frame")
+		ember.Name = "Ember" .. i
+		ember.Size = UDim2.fromOffset(5 + (i % 4) * 2, 5 + (i % 4) * 2)
+		ember.Position = UDim2.fromScale((i % 7 + 1) / 8, 1.05)
+		ember.AnchorPoint = Vector2.new(0.5, 0.5)
+		ember.BackgroundColor3 = i % 3 == 0 and Color3.fromRGB(255, 214, 96) or Color3.fromRGB(255, 91, 31)
+		ember.BackgroundTransparency = 1
+		ember.BorderSizePixel = 0
+		ember.ZIndex = 123
+		ember.Parent = volcanoVentGui
+
+		local corner = Instance.new("UICorner")
+		corner.CornerRadius = UDim.new(1, 0)
+		corner.Parent = ember
+
+		table.insert(volcanoEmberFrames, ember)
+	end
+end
+
 local function getDustRate()
 	return getIsLowEndDevice() and 18 or 50
 end
@@ -473,6 +599,27 @@ local function cleanupEventPulse(session)
 		eventPulseRing = nil
 		eventPulseRingStroke = nil
 	end
+end
+
+local function cleanupVolcanoVent(session)
+	if session and session ~= volcanoVentSession then
+		return
+	end
+
+	volcanoVentActive = false
+	volcanoVentEndTime = 0
+	cancelVolcanoTweens()
+
+	if volcanoVentGui then
+		volcanoVentGui:Destroy()
+		volcanoVentGui = nil
+		volcanoHeatFrame = nil
+		volcanoSurgeFrame = nil
+	end
+
+	volcanoCrackFrames = {}
+	volcanoCrackStrokes = {}
+	volcanoEmberFrames = {}
 end
 
 local function startEventImpactRing(settings)
@@ -729,9 +876,155 @@ local function beginEventPulse(effectId)
 	startEventPulseLoop(eventPulseSession)
 end
 
+local function getVolcanoVentDuration(duration)
+	local effectiveDuration = tonumber(duration) or VOLCANO_VENT_DEFAULT_DURATION
+	if effectiveDuration <= 0 then
+		effectiveDuration = VOLCANO_VENT_DEFAULT_DURATION
+	end
+
+	return math.min(effectiveDuration, VOLCANO_VENT_MAX_DURATION)
+end
+
+local function startVolcanoVentPulse(session)
+	if not volcanoHeatFrame or not volcanoSurgeFrame then
+		return
+	end
+
+	volcanoHeatFrame.BackgroundTransparency = 0.88
+	volcanoSurgeFrame.BackgroundTransparency = 0.38
+
+	addVolcanoTween(TweenService:Create(
+		volcanoSurgeFrame,
+		TweenInfo.new(VOLCANO_VENT_PULSE_DURATION, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+		{ BackgroundTransparency = 1 }
+	))
+
+	for i, crack in ipairs(volcanoCrackFrames) do
+		local stroke = volcanoCrackStrokes[i]
+		crack.BackgroundTransparency = 0.16
+		if stroke then
+			stroke.Transparency = 0.08
+		end
+
+		addVolcanoTween(TweenService:Create(
+			crack,
+			TweenInfo.new(1.15, Enum.EasingStyle.Sine, Enum.EasingDirection.Out),
+			{ BackgroundTransparency = 0.6 }
+		))
+
+		if stroke then
+			addVolcanoTween(TweenService:Create(
+				stroke,
+				TweenInfo.new(1.15, Enum.EasingStyle.Sine, Enum.EasingDirection.Out),
+				{ Transparency = 0.46 }
+			))
+		end
+	end
+
+	task.delay(VOLCANO_VENT_PULSE_DURATION, function()
+		if session ~= volcanoVentSession or not volcanoVentActive or not volcanoSurgeFrame then
+			return
+		end
+
+		volcanoSurgeFrame.BackgroundTransparency = 1
+	end)
+end
+
+local function startVolcanoVentLoop(session)
+	task.spawn(function()
+		local useBrightHeat = false
+		while volcanoVentActive and session == volcanoVentSession and os.clock() < volcanoVentEndTime do
+			useBrightHeat = not useBrightHeat
+
+			if volcanoHeatFrame then
+				local heatTransparency = useBrightHeat and 0.88 or 0.94
+				addVolcanoTween(TweenService:Create(
+					volcanoHeatFrame,
+					TweenInfo.new(VOLCANO_VENT_HEAT_STEP, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut),
+					{ BackgroundTransparency = heatTransparency }
+				))
+			end
+
+			for i, crack in ipairs(volcanoCrackFrames) do
+				local stroke = volcanoCrackStrokes[i]
+				local crackTransparency = useBrightHeat and 0.52 or 0.66
+				local strokeTransparency = useBrightHeat and 0.34 or 0.55
+
+				addVolcanoTween(TweenService:Create(
+					crack,
+					TweenInfo.new(VOLCANO_VENT_HEAT_STEP, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut),
+					{ BackgroundTransparency = crackTransparency }
+				))
+
+				if stroke then
+					addVolcanoTween(TweenService:Create(
+						stroke,
+						TweenInfo.new(VOLCANO_VENT_HEAT_STEP, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut),
+						{ Transparency = strokeTransparency }
+					))
+				end
+			end
+
+			for i, ember in ipairs(volcanoEmberFrames) do
+				if ember then
+					local size = 4 + math.random(0, 6)
+					local startX = math.random(8, 92) / 100
+					local endX = math.clamp(startX + (math.random(-10, 10) / 100), 0.04, 0.96)
+					local endY = math.random(12, 82) / 100
+					local travelTime = 0.8 + math.random() * 0.7
+
+					ember.Size = UDim2.fromOffset(size, size)
+					ember.Position = UDim2.fromScale(startX, 1.04)
+					ember.BackgroundTransparency = i % 2 == 0 and 0.12 or 0.28
+
+					addVolcanoTween(TweenService:Create(
+						ember,
+						TweenInfo.new(travelTime, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+						{
+							Position = UDim2.fromScale(endX, endY),
+							BackgroundTransparency = 1,
+						}
+					))
+				end
+			end
+
+			task.wait(VOLCANO_VENT_HEAT_STEP)
+		end
+
+		if session == volcanoVentSession then
+			cleanupVolcanoVent(session)
+		end
+	end)
+end
+
+local function beginVolcanoVent(duration)
+	if volcanoVentActive then
+		cleanupVolcanoVent(volcanoVentSession)
+	end
+
+	volcanoVentSession = volcanoVentSession + 1
+	volcanoVentActive = true
+	volcanoVentEndTime = os.clock() + getVolcanoVentDuration(duration)
+
+	playEventAlarmSound()
+	ensureVolcanoVentUi()
+	startVolcanoVentPulse(volcanoVentSession)
+	playHapticPulse(
+		EVENT_PULSE_HAPTIC_SMALL_STRENGTH,
+		EVENT_PULSE_HAPTIC_LARGE_STRENGTH,
+		EVENT_PULSE_HAPTIC_DURATION
+	)
+	startVolcanoVentLoop(volcanoVentSession)
+end
+
 EventTriggered.OnClientEvent:Connect(function(eventName, message, duration, effectId)
 	if isEarthquakeTrigger(eventName, message, effectId) then
 		beginEarthquake(duration)
+		return
+	end
+
+	if effectId == "volcano_vent" then
+		beginVolcanoVent(duration)
 		return
 	end
 
@@ -742,5 +1035,6 @@ player.AncestryChanged:Connect(function(_, parent)
 	if parent == nil then
 		cleanup(effectSession)
 		cleanupEventPulse(eventPulseSession)
+		cleanupVolcanoVent(volcanoVentSession)
 	end
 end)
