@@ -3267,6 +3267,85 @@ local function playEventCameraShake(eventName, effectId)
 	end)
 end
 
+LEGENDARY_FIND_FLASH_RARITIES._cameraBump = {
+	bindingName = "DeepDigLegendaryFindCameraBump",
+	sequence = 0,
+	bound = false,
+	state = nil,
+}
+
+function LEGENDARY_FIND_FLASH_RARITIES._cameraBump.clear(sequence)
+	local bump = LEGENDARY_FIND_FLASH_RARITIES._cameraBump
+	if sequence and sequence ~= bump.sequence then
+		return
+	end
+
+	local camera = workspace.CurrentCamera
+	local state = bump.state
+	if camera and state and state.appliedOffset then
+		camera.CFrame = camera.CFrame * state.appliedOffset:Inverse()
+	end
+
+	bump.state = nil
+
+	if bump.bound then
+		RunService:UnbindFromRenderStep(bump.bindingName)
+		bump.bound = false
+	end
+end
+
+function LEGENDARY_FIND_FLASH_RARITIES._cameraBump.play(rarity)
+	local bump = LEGENDARY_FIND_FLASH_RARITIES._cameraBump
+	local isMythic = rarity == "Mythic"
+
+	bump.clear()
+	bump.sequence = bump.sequence + 1
+
+	local sequence = bump.sequence
+	bump.state = {
+		sequence = sequence,
+		startTime = os.clock(),
+		duration = isMythic and 0.20 or 0.16,
+		positionStrength = isMythic and 0.045 or 0.035,
+		rotationStrength = isMythic and 0.11 or 0.08,
+		appliedOffset = nil,
+	}
+
+	bump.bound = true
+	RunService:BindToRenderStep(
+		bump.bindingName,
+		Enum.RenderPriority.Camera.Value + 2,
+		function()
+			local camera = workspace.CurrentCamera
+			local state = bump.state
+
+			if not camera or not state then
+				bump.clear()
+				return
+			end
+
+			if state.appliedOffset then
+				camera.CFrame = camera.CFrame * state.appliedOffset:Inverse()
+				state.appliedOffset = nil
+			end
+
+			local progress = (os.clock() - state.startTime) / state.duration
+			if progress >= 1 then
+				bump.clear(state.sequence)
+				return
+			end
+
+			local punch = math.sin(math.clamp(progress, 0, 1) * math.pi) * (1 - math.clamp(progress, 0, 1) * 0.35)
+			local positionOffset = Vector3.new(0, 0, -state.positionStrength * punch)
+			local rotationOffset = CFrame.Angles(math.rad(-state.rotationStrength * punch), 0, 0)
+			local offset = CFrame.new(positionOffset) * rotationOffset
+
+			state.appliedOffset = offset
+			camera.CFrame = camera.CFrame * offset
+		end
+	)
+end
+
 local function showNotification(text, rarity)
 	local color = RARITY_COLORS[rarity] or Color3.fromRGB(200, 200, 200)
 
@@ -6800,6 +6879,7 @@ Remotes.ItemFound.OnClientEvent:Connect(function(item)
 	local function playItemFoundFlow()
 		if item and LEGENDARY_FIND_FLASH_RARITIES[item.rarity] then
 			playLegendaryFindFlash(item.rarity)
+			LEGENDARY_FIND_FLASH_RARITIES._cameraBump.play(item.rarity)
 		end
 
 		if item and LIGHTING_PULSE_PROFILES[item.rarity] then
