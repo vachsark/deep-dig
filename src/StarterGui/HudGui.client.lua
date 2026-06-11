@@ -6467,6 +6467,65 @@ local function isPassInfoAvailable(passInfo)
 	return passInfo.available ~= false and passInfo.status ~= "unavailable"
 end
 
+function DeepDigClearPassShopCards()
+	for _, child in ipairs(cardsFrame:GetChildren()) do
+		if child ~= cardsLayout then
+			child:Destroy()
+		end
+	end
+	passCards = {}
+end
+
+function DeepDigBuildPassComingSoonState()
+	local emptyState = Instance.new("Frame")
+	emptyState.Name = "PassesComingSoon"
+	emptyState.Size = UDim2.new(1, 0, 0, 108)
+	emptyState.BackgroundColor3 = Color3.fromRGB(32, 31, 38)
+	emptyState.BorderSizePixel = 0
+	emptyState.LayoutOrder = 1
+	emptyState.ZIndex = 11
+	emptyState.Parent = cardsFrame
+
+	local emptyCorner = Instance.new("UICorner")
+	emptyCorner.CornerRadius = UDim.new(0, 10)
+	emptyCorner.Parent = emptyState
+
+	local emptyStroke = Instance.new("UIStroke")
+	emptyStroke.Color = Color3.fromRGB(92, 90, 104)
+	emptyStroke.Thickness = 1
+	emptyStroke.Transparency = 0.15
+	emptyStroke.Parent = emptyState
+
+	local titleLabel = Instance.new("TextLabel")
+	titleLabel.Name = "Title"
+	titleLabel.Size = UDim2.new(1, -28, 0, 30)
+	titleLabel.Position = UDim2.new(0, 14, 0, 18)
+	titleLabel.BackgroundTransparency = 1
+	titleLabel.Text = Config.UNAVAILABLE_GAMEPASS_LABEL or "Coming Soon"
+	titleLabel.TextColor3 = Color3.fromRGB(225, 220, 240)
+	titleLabel.TextSize = 18
+	titleLabel.Font = Enum.Font.GothamBlack
+	titleLabel.TextXAlignment = Enum.TextXAlignment.Center
+	titleLabel.ZIndex = 12
+	titleLabel.Parent = emptyState
+
+	local bodyLabel = Instance.new("TextLabel")
+	bodyLabel.Name = "Body"
+	bodyLabel.Size = UDim2.new(1, -36, 0, 40)
+	bodyLabel.Position = UDim2.new(0, 18, 0, 52)
+	bodyLabel.BackgroundTransparency = 1
+	bodyLabel.Text = "Gamepasses are being prepared for launch. Check back soon."
+	bodyLabel.TextColor3 = Color3.fromRGB(170, 166, 188)
+	bodyLabel.TextSize = 13
+	bodyLabel.Font = Enum.Font.GothamBold
+	bodyLabel.TextWrapped = true
+	bodyLabel.TextXAlignment = Enum.TextXAlignment.Center
+	bodyLabel.ZIndex = 12
+	bodyLabel.Parent = emptyState
+
+	return emptyState
+end
+
 local function setCardButtonState(card)
 	if not card.available then
 		card.buyBtn.Text = card.unavailableReason or Config.UNAVAILABLE_GAMEPASS_LABEL
@@ -6606,19 +6665,29 @@ end
 shopButton.MouseButton1Click:Connect(function()
 	shopPanel.Visible = not shopPanel.Visible
 	if shopPanel.Visible then
-		-- Populate cards if not yet built
-		if #cardsFrame:GetChildren() <= 1 then -- only layout child
-			task.spawn(function()
-				local GetPassInfo = Remotes:FindFirstChild("GetGamepassInfo")
-				if not GetPassInfo then return end
-				local info = GetPassInfo:InvokeServer()
-				if not info then return end
-				for _, passInfo in ipairs(info) do
+		local populateSequence = (cardsFrame:GetAttribute("PopulateSequence") or 0) + 1
+		cardsFrame:SetAttribute("PopulateSequence", populateSequence)
+		DeepDigClearPassShopCards()
+		task.spawn(function()
+			local GetPassInfo = Remotes:FindFirstChild("GetGamepassInfo")
+			if not GetPassInfo then return end
+			local info = GetPassInfo:InvokeServer()
+			if not info then return end
+			if cardsFrame:GetAttribute("PopulateSequence") ~= populateSequence then return end
+
+			local availableCount = 0
+			for _, passInfo in ipairs(info) do
+				if isPassInfoAvailable(passInfo) then
 					buildPassCard(passInfo)
 					setCardOwned(passInfo.id, passInfo.owned)
+					availableCount = availableCount + 1
 				end
-			end)
-		end
+			end
+
+			if availableCount == 0 then
+				DeepDigBuildPassComingSoonState()
+			end
+		end)
 	end
 end)
 
