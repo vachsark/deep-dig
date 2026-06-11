@@ -24,7 +24,7 @@ Config.TOOLS = {
 	{
 		name = "Rusty Shovel",
 		power = 1,
-		speed = 1.0,
+		speed = 0.7,
 		cost = 0,
 		tier = 1,
 		damage = 1,
@@ -37,8 +37,8 @@ Config.TOOLS = {
 	{
 		name = "Iron Pickaxe",
 		power = 2,
-		speed = 0.8,
-		cost = 500,
+		speed = 0.5,
+		cost = 250,
 		tier = 2,
 		damage = 5,
 		visual = {
@@ -50,8 +50,8 @@ Config.TOOLS = {
 	{
 		name = "Steel Drill",
 		power = 3,
-		speed = 0.6,
-		cost = 2500,
+		speed = 0.38,
+		cost = 1500,
 		tier = 3,
 		damage = 9,
 		visual = {
@@ -63,7 +63,7 @@ Config.TOOLS = {
 	{
 		name = "Dynamite Kit",
 		power = 5,
-		speed = 0.4,
+		speed = 0.28,
 		cost = 10000,
 		tier = 4,
 		damage = 14,
@@ -76,7 +76,7 @@ Config.TOOLS = {
 	{
 		name = "Laser Cutter",
 		power = 8,
-		speed = 0.25,
+		speed = 0.2,
 		cost = 50000,
 		tier = 5,
 		damage = 19,
@@ -103,8 +103,13 @@ Config.TOOLS = {
 
 -- Loot
 Config.BASE_SELL_MULTIPLIER = 1
-Config.LOOT_DROP_CHANCE = 0.35  -- 35% chance per block
+Config.LOOT_DROP_CHANCE = 0.5   -- 50% chance per block
 Config.RARE_PITY_THRESHOLD = 8
+
+-- Per-dig payout: every broken block pays a little directly (on top of
+-- loot drops) so progress is felt block-by-block. Scales slowly with depth.
+Config.DIG_COINS_BASE = 1
+Config.DIG_COINS_DEPTH_DIVISOR = 20 -- +1 coin per 20 blocks of depth
 
 -- Economy
 Config.STARTING_COINS = 50

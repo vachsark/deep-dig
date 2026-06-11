@@ -1478,6 +1478,17 @@ BlockBrokenEvent.Event:Connect(function(player, blockPosition)
 		end
 	end
 
+	-- Per-dig payout: every block pays a small amount of coins directly
+	-- (scaling slowly with depth) so progress is felt block-by-block even
+	-- on no-drop rolls. No toast — the HUD coin counter carries it.
+	local digPayout = (Config.DIG_COINS_BASE or 0)
+		+ math.floor(depth / (Config.DIG_COINS_DEPTH_DIVISOR or 20))
+	if digPayout > 0 then
+		data.coins = data.coins + digPayout
+		data.totalEarned = data.totalEarned + digPayout
+		fireQuestProgress(player, "coins_earned", { amount = digPayout })
+	end
+
 	-- earthquake world event: 5-15 bonus "rumble" coins on EVERY block break,
 	-- regardless of whether the loot roll yielded an item. No toast (event fires
 	-- often) — the HUD coin counter animates via the UpdateHUDEvent below.
@@ -1541,6 +1552,9 @@ SellItemEvent.OnServerEvent:Connect(function(player, inventoryIndex)
 		coins = data.coins,
 		totalEarned = data.totalEarned,
 		rebirths = data.rebirths or 0,
+		-- Marker so the FTUE objective tracker can detect any sale
+		-- (SellAll has sellAllSummary; this covers single-item sells).
+		soldItem = true,
 	}, data, player))
 end)
 
