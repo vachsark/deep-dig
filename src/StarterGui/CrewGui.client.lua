@@ -3,6 +3,7 @@
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
 local SoundService = game:GetService("SoundService")
 local TweenService = game:GetService("TweenService")
 
@@ -49,6 +50,10 @@ local ACCENT_RED = Color3.fromRGB(235, 95, 95)
 local ACCENT_GOLD = Color3.fromRGB(255, 200, 70)
 local CREW_MARKER_GUI_NAME = "DeepDigCrewMarker"
 local CREW_MARKER_HIGHLIGHT_NAME = "DeepDigCrewHighlight"
+local COOP_RADIUS_MARKER_NAME = "DeepDigLocalCoopRadius"
+local COOP_RADIUS_MARKER_HEIGHT = 0.08
+local COOP_RADIUS_MARKER_Y_OFFSET = 0.04
+local COOP_RADIUS_INACTIVE_COLOR = Color3.fromRGB(90, 108, 118)
 
 local RARITY_COLORS = {
 	Common = Color3.fromRGB(180, 180, 180),
@@ -86,6 +91,7 @@ local activeMailboxReceivedBurst = nil
 local lastMailboxReceivedKey = nil
 local activeCrewMembersByUserId = {}
 local crewMarkerConnections = {}
+local coopRadiusMarker = nil
 local refreshCoopBonusState
 
 local LocalPlaySound = SoundService:FindFirstChild(LOCAL_PLAY_SOUND_NAME)
@@ -1286,6 +1292,71 @@ local function getRootPart(targetPlayer)
 	return character:FindFirstChild("HumanoidRootPart")
 end
 
+local function clearCoopRadiusMarker()
+	if coopRadiusMarker then
+		coopRadiusMarker:Destroy()
+		coopRadiusMarker = nil
+	end
+end
+
+local function ensureCoopRadiusMarker()
+	if coopRadiusMarker and coopRadiusMarker.Parent then
+		return coopRadiusMarker
+	end
+
+	coopRadiusMarker = Instance.new("Part")
+	coopRadiusMarker.Name = COOP_RADIUS_MARKER_NAME
+	coopRadiusMarker.Shape = Enum.PartType.Cylinder
+	coopRadiusMarker.Anchored = true
+	coopRadiusMarker.CanCollide = false
+	coopRadiusMarker.CanQuery = false
+	coopRadiusMarker.CanTouch = false
+	coopRadiusMarker.CastShadow = false
+	coopRadiusMarker.Material = Enum.Material.Neon
+	coopRadiusMarker.TopSurface = Enum.SurfaceType.Smooth
+	coopRadiusMarker.BottomSurface = Enum.SurfaceType.Smooth
+	coopRadiusMarker.Parent = workspace
+
+	return coopRadiusMarker
+end
+
+local function getLocalGroundY(root)
+	local character = player.Character
+	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+	local rootHalfHeight = root.Size.Y * 0.5
+	local hipHeight = humanoid and humanoid.HipHeight or 2
+
+	return root.Position.Y - rootHalfHeight - hipHeight + COOP_RADIUS_MARKER_Y_OFFSET
+end
+
+local function updateCoopRadiusMarker()
+	if not state.inCrew then
+		clearCoopRadiusMarker()
+		return
+	end
+
+	local radius = tonumber(state.coopRadius) or 0
+	local root = getRootPart(player)
+	if radius <= 0 or not root then
+		clearCoopRadiusMarker()
+		return
+	end
+
+	local marker = ensureCoopRadiusMarker()
+	local diameter = math.max(radius * 2, 1)
+
+	marker.Size = Vector3.new(diameter, COOP_RADIUS_MARKER_HEIGHT, diameter)
+	marker.CFrame = CFrame.new(root.Position.X, getLocalGroundY(root), root.Position.Z)
+
+	if coopBonusState.active then
+		marker.Color = ACCENT_GREEN
+		marker.Transparency = 0.74
+	else
+		marker.Color = COOP_RADIUS_INACTIVE_COLOR
+		marker.Transparency = 0.88
+	end
+end
+
 local function getCoopBonusPartner()
 	if not state.inCrew then
 		return nil
@@ -1322,6 +1393,7 @@ refreshCoopBonusState = function(shouldRender)
 
 	coopBonusState.active = isActive
 	coopBonusState.partnerName = partnerName
+	updateCoopRadiusMarker()
 
 	if changed and shouldRender and render then
 		render()
@@ -1441,6 +1513,7 @@ render = function()
 
 	refreshCoopBonusState(false)
 	refreshCrewMarkers(members)
+	updateCoopRadiusMarker()
 
 	pendingDot.Visible = pendingInvite ~= nil or mailboxCount > 0
 	coopBadge.Visible = state.inCrew
@@ -1681,7 +1754,10 @@ end)
 
 player.CharacterAdded:Connect(function()
 	refreshCoopBonusStateSoon(0.35)
+	task.delay(0.35, updateCoopRadiusMarker)
 end)
+
+RunService.RenderStepped:Connect(updateCoopRadiusMarker)
 
 task.spawn(function()
 	while true do
