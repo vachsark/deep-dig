@@ -277,6 +277,12 @@ local SOUNDS = {
 		volume = 0.9,
 		playbackSpeed = 0.82,
 	},
+	depth_milestone = {
+		id = "rbxassetid://4612375287", -- restrained depth checkpoint chime
+		volume = 0.38,
+		playbackSpeed = 1.08,
+		pitchRange = { 0.98, 1.04 },
+	},
 	resurface_fanfare = {
 		id = "rbxassetid://6079316752", -- triumphant fanfare
 		volume = 1.0,

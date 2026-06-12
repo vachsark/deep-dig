@@ -2771,6 +2771,137 @@ updateDepthTone = (function(applyDepthTone)
 	end
 end)(updateDepthTone)
 
+DeepDigDepthMilestoneUi = {}
+DeepDigDepthMilestoneTweens = {}
+DeepDigDepthMilestoneSequence = 0
+
+DeepDigDepthMilestoneUi.burst = Instance.new("Frame")
+DeepDigDepthMilestoneUi.burst.Name = "DepthMilestoneBurst"
+DeepDigDepthMilestoneUi.burst.AnchorPoint = Vector2.new(0.5, 0)
+DeepDigDepthMilestoneUi.burst.Size = UDim2.fromOffset(242, 34)
+DeepDigDepthMilestoneUi.burst.Position = UDim2.new(0.5, 0, 0, 52)
+DeepDigDepthMilestoneUi.burst.BackgroundColor3 = Color3.fromRGB(18, 20, 24)
+DeepDigDepthMilestoneUi.burst.BackgroundTransparency = 1
+DeepDigDepthMilestoneUi.burst.BorderSizePixel = 0
+DeepDigDepthMilestoneUi.burst.Visible = false
+DeepDigDepthMilestoneUi.burst.ZIndex = 82
+DeepDigDepthMilestoneUi.burst.Parent = screenGui
+
+DeepDigDepthMilestoneUi.corner = Instance.new("UICorner")
+DeepDigDepthMilestoneUi.corner.CornerRadius = UDim.new(0, 8)
+DeepDigDepthMilestoneUi.corner.Parent = DeepDigDepthMilestoneUi.burst
+
+DeepDigDepthMilestoneUi.stroke = Instance.new("UIStroke")
+DeepDigDepthMilestoneUi.stroke.Color = Color3.fromRGB(255, 230, 150)
+DeepDigDepthMilestoneUi.stroke.Thickness = 1.5
+DeepDigDepthMilestoneUi.stroke.Transparency = 1
+DeepDigDepthMilestoneUi.stroke.Parent = DeepDigDepthMilestoneUi.burst
+
+DeepDigDepthMilestoneUi.label = Instance.new("TextLabel")
+DeepDigDepthMilestoneUi.label.Name = "Label"
+DeepDigDepthMilestoneUi.label.Size = UDim2.new(1, -18, 1, 0)
+DeepDigDepthMilestoneUi.label.Position = UDim2.fromOffset(9, 0)
+DeepDigDepthMilestoneUi.label.BackgroundTransparency = 1
+DeepDigDepthMilestoneUi.label.Text = ""
+DeepDigDepthMilestoneUi.label.TextColor3 = Color3.fromRGB(255, 245, 210)
+DeepDigDepthMilestoneUi.label.TextTransparency = 1
+DeepDigDepthMilestoneUi.label.TextSize = 16
+DeepDigDepthMilestoneUi.label.Font = Enum.Font.GothamBlack
+DeepDigDepthMilestoneUi.label.TextXAlignment = Enum.TextXAlignment.Center
+DeepDigDepthMilestoneUi.label.ZIndex = 83
+DeepDigDepthMilestoneUi.label.Parent = DeepDigDepthMilestoneUi.burst
+
+function DeepDigClearDepthMilestoneTweens()
+	for _, tween in ipairs(DeepDigDepthMilestoneTweens) do
+		tween:Cancel()
+	end
+	DeepDigDepthMilestoneTweens = {}
+end
+
+function DeepDigTweenDepthMilestone(instance, duration, goal, easingStyle, easingDirection)
+	local tween = TweenService:Create(
+		instance,
+		TweenInfo.new(duration, easingStyle or Enum.EasingStyle.Quad, easingDirection or Enum.EasingDirection.Out),
+		goal
+	)
+	table.insert(DeepDigDepthMilestoneTweens, tween)
+	tween:Play()
+	return tween
+end
+
+function DeepDigGetDepthMilestoneColor(payload)
+	if type(payload) == "table" and typeof(payload.color) == "Color3" then
+		return payload.color
+	end
+
+	local depth = type(payload) == "table" and tonumber(payload.depth) or nil
+	if depth then
+		for _, tier in ipairs(Config.TIERS or {}) do
+			if depth >= tier.minDepth and depth <= tier.maxDepth then
+				return tier.color
+			end
+		end
+	end
+
+	return Color3.fromRGB(255, 230, 150)
+end
+
+function DeepDigShowDepthMilestoneBurst(payload)
+	if type(payload) ~= "table" then
+		return
+	end
+
+	local depth = math.floor(tonumber(payload.depth) or 0)
+	if depth <= 0 then
+		return
+	end
+
+	DeepDigDepthMilestoneSequence = DeepDigDepthMilestoneSequence + 1
+	local currentSequence = DeepDigDepthMilestoneSequence
+	local tierColor = DeepDigGetDepthMilestoneColor(payload)
+	local readableColor = tierColor:Lerp(Color3.fromRGB(255, 255, 255), 0.36)
+
+	DeepDigClearDepthMilestoneTweens()
+	DeepDigDepthMilestoneUi.burst.Visible = true
+	DeepDigDepthMilestoneUi.burst.Position = UDim2.new(0.5, 0, 0, 50)
+	DeepDigDepthMilestoneUi.burst.BackgroundTransparency = 1
+	DeepDigDepthMilestoneUi.stroke.Color = tierColor
+	DeepDigDepthMilestoneUi.stroke.Transparency = 1
+	DeepDigDepthMilestoneUi.label.Text = "Depth " .. tostring(depth) .. " reached"
+	DeepDigDepthMilestoneUi.label.TextColor3 = readableColor
+	DeepDigDepthMilestoneUi.label.TextTransparency = 1
+
+	DeepDigTweenDepthMilestone(DeepDigDepthMilestoneUi.burst, 0.16, {
+		Position = UDim2.new(0.5, 0, 0, 56),
+		BackgroundTransparency = 0.08,
+	}, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
+	DeepDigTweenDepthMilestone(DeepDigDepthMilestoneUi.stroke, 0.16, { Transparency = 0.08 })
+	DeepDigTweenDepthMilestone(DeepDigDepthMilestoneUi.label, 0.14, { TextTransparency = 0 })
+
+	if LocalPlaySound and LocalPlaySound:IsA("BindableEvent") then
+		LocalPlaySound:Fire("depth_milestone")
+	end
+
+	task.delay(1.35, function()
+		if currentSequence ~= DeepDigDepthMilestoneSequence then
+			return
+		end
+
+		DeepDigTweenDepthMilestone(DeepDigDepthMilestoneUi.burst, 0.2, {
+			Position = UDim2.new(0.5, 0, 0, 48),
+			BackgroundTransparency = 1,
+		}, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+		DeepDigTweenDepthMilestone(DeepDigDepthMilestoneUi.stroke, 0.18, { Transparency = 1 }, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+		local fade = DeepDigTweenDepthMilestone(DeepDigDepthMilestoneUi.label, 0.16, { TextTransparency = 1 }, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+		fade.Completed:Connect(function(playbackState)
+			if currentSequence ~= DeepDigDepthMilestoneSequence or playbackState ~= Enum.PlaybackState.Completed then
+				return
+			end
+			DeepDigDepthMilestoneUi.burst.Visible = false
+		end)
+	end)
+end
+
 local findFlashLayer = Instance.new("Frame")
 findFlashLayer.Name = "LegendaryFindFlash"
 findFlashLayer.Size = UDim2.new(1, 0, 1, 0)
@@ -7096,6 +7227,16 @@ Remotes.UpdateHUD.OnClientEvent:Connect(function(data)
 			end)
 		else
 			showDepthTierUnlockedBurst(depthTierUnlockedPayload)
+		end
+	end
+	if data.depthMilestone then
+		local depthMilestonePayload = data.depthMilestone
+		if data.depthTierUnlocked then
+			task.delay(2.65, function()
+				DeepDigShowDepthMilestoneBurst(depthMilestonePayload)
+			end)
+		else
+			DeepDigShowDepthMilestoneBurst(depthMilestonePayload)
 		end
 	end
 	if data.autoCollected then

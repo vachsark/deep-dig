@@ -136,6 +136,23 @@ local function buildDepthTierUnlockedPayload(previousDepth, newDepth)
 	}
 end
 
+local function buildDepthMilestonePayload(previousDepth, newDepth)
+	local previousMilestone = math.floor((previousDepth or 0) / 25)
+	local newMilestone = math.floor((newDepth or 0) / 25)
+	if newMilestone <= previousMilestone then
+		return nil
+	end
+
+	local milestoneDepth = newMilestone * 25
+	local tier = getDepthTierRecord(milestoneDepth)
+
+	return {
+		depth = milestoneDepth,
+		tierName = tier and tier.name or ItemDatabase.getTierForDepth(milestoneDepth),
+		color = tier and tier.color or nil,
+	}
+end
+
 local function fireItemFindSounds(player, rarity)
 	if not PlaySound then
 		return
@@ -1211,6 +1228,7 @@ BlockBrokenEvent.Event:Connect(function(player, blockPosition)
 	local previousDeepestBlock = data.deepestBlock or 0
 	local enemyDangerUnlockedPayload = nil
 	local depthTierUnlockedPayload = nil
+	local depthMilestonePayload = nil
 
 	-- Update stats
 	data.totalBlocksDug = data.totalBlocksDug + 1
@@ -1232,6 +1250,7 @@ BlockBrokenEvent.Event:Connect(function(player, blockPosition)
 	if depth > data.deepestBlock then
 		data.deepestBlock = depth
 		depthTierUnlockedPayload = buildDepthTierUnlockedPayload(previousDeepestBlock, data.deepestBlock)
+		depthMilestonePayload = buildDepthMilestonePayload(previousDeepestBlock, data.deepestBlock)
 		-- Fire depth_reached on each new max so QuestSystem can take max
 		fireQuestProgress(player, "depth_reached", { depth = data.deepestBlock })
 	end
@@ -1515,6 +1534,7 @@ BlockBrokenEvent.Event:Connect(function(player, blockPosition)
 		artifactDetected = artifactDetectedPayload,
 		enemyDangerUnlocked = enemyDangerUnlockedPayload,
 		depthTierUnlocked = depthTierUnlockedPayload,
+		depthMilestone = depthMilestonePayload,
 		rarePityTriggered = rarePityTriggeredPayload or nil,
 		-- spring_loot bumps fragments per-block; keep the HUD coherent.
 		fragments = data.fragments,
