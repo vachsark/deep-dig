@@ -116,6 +116,12 @@ local SOUNDS = {
 		volume = 0.36,
 		playbackSpeed = 1.65,
 	},
+	enemy_proximity_warning = {
+		id = "rbxassetid://9114013169", -- restrained offscreen proximity tick
+		volume = 0.22,
+		playbackSpeed = 1.95,
+		pitchRange = { 1.04, 1.1 },
+	},
 	low_health_warning = {
 		id = "rbxassetid://5982968246", -- subtle repeated danger pulse while critically hurt
 		volume = 0.16,

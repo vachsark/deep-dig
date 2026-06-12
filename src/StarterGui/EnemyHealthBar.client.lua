@@ -108,6 +108,14 @@ local HAPTIC_LARGE_MOTOR = Enum.VibrationMotor.Large
 local trackedEnemies = {}
 local trackedEnemyOrder = {}
 local activeFeedback = {}
+activeFeedback.enemyThreatState = {
+	stroke = nil,
+	urgentActive = false,
+	lastWarningAt = 0,
+	urgentDistance = 28,
+	warningCooldown = 2.6,
+	urgentPulseSpeed = 8,
+}
 local bossBarGui = nil
 local bossBarFrame = nil
 local bossBarFill = nil
@@ -320,6 +328,7 @@ local function ensureEnemyThreatIndicator()
 	stroke.Transparency = 0.16
 	stroke.Thickness = 1
 	stroke.Parent = enemyThreatFrame
+	activeFeedback.enemyThreatState.stroke = stroke
 
 	enemyThreatArrow = Instance.new("TextLabel")
 	enemyThreatArrow.Name = "Direction"
@@ -363,10 +372,35 @@ local function ensureEnemyThreatIndicator()
 	enemyThreatDistanceLabel.Parent = enemyThreatFrame
 end
 
+activeFeedback.resetEnemyThreatIndicatorVisuals = function()
+	local threatState = activeFeedback.enemyThreatState
+	threatState.urgentActive = false
+
+	if enemyThreatFrame then
+		enemyThreatFrame.BackgroundColor3 = Color3.fromRGB(34, 20, 18)
+		enemyThreatFrame.BackgroundTransparency = 0.08
+	end
+	if threatState.stroke then
+		threatState.stroke.Color = ATTACK_WARNING_COLOR
+		threatState.stroke.Transparency = 0.16
+		threatState.stroke.Thickness = 1
+	end
+	if enemyThreatArrow then
+		enemyThreatArrow.TextColor3 = ATTACK_WARNING_COLOR
+		enemyThreatArrow.TextStrokeTransparency = 0.22
+		enemyThreatArrow.TextSize = 25
+	end
+	if enemyThreatDistanceLabel then
+		enemyThreatDistanceLabel.TextColor3 = Color3.fromRGB(255, 190, 158)
+		enemyThreatDistanceLabel.TextStrokeTransparency = 0.52
+	end
+end
+
 local function hideEnemyThreatIndicator()
 	if enemyThreatFrame then
 		enemyThreatFrame.Visible = false
 	end
+	activeFeedback.resetEnemyThreatIndicatorVisuals()
 end
 
 local function getPlayerReferencePosition(camera)
@@ -539,7 +573,35 @@ local function updateEnemyThreatIndicator()
 	enemyThreatFrame.Position = UDim2.fromOffset(position.X, position.Y)
 	enemyThreatFrame.Visible = true
 	enemyThreatArrow.Rotation = getDirectionAngle(direction)
-	enemyThreatDistanceLabel.Text = string.format("%d studs", math.floor(nearestDistance + 0.5))
+
+	local roundedDistance = math.floor(nearestDistance + 0.5)
+	local threatState = activeFeedback.enemyThreatState
+	local isUrgent = nearestDistance <= threatState.urgentDistance
+	if isUrgent then
+		local now = os.clock()
+		if not threatState.urgentActive and now - threatState.lastWarningAt >= threatState.warningCooldown then
+			threatState.lastWarningAt = now
+			if LocalPlaySound and LocalPlaySound:IsA("BindableEvent") then
+				LocalPlaySound:Fire("enemy_proximity_warning")
+			end
+		end
+
+		threatState.urgentActive = true
+		local pulse = (math.sin(now * threatState.urgentPulseSpeed) + 1) * 0.5
+		enemyThreatFrame.BackgroundColor3 = Color3.fromRGB(62, 12, 10):Lerp(Color3.fromRGB(124, 20, 14), pulse)
+		enemyThreatFrame.BackgroundTransparency = 0.02
+		threatState.stroke.Color = Color3.fromRGB(255, 92, 55):Lerp(Color3.fromRGB(255, 222, 116), pulse)
+		threatState.stroke.Transparency = 0.02 + (1 - pulse) * 0.1
+		threatState.stroke.Thickness = 2
+		enemyThreatArrow.TextColor3 = Color3.fromRGB(255, 82, 48):Lerp(Color3.fromRGB(255, 238, 126), pulse)
+		enemyThreatArrow.TextStrokeTransparency = 0.08
+		enemyThreatDistanceLabel.TextColor3 = Color3.fromRGB(255, 238, 126)
+		enemyThreatDistanceLabel.TextStrokeTransparency = 0.28
+		enemyThreatDistanceLabel.Text = string.format("CLOSE %d studs", roundedDistance)
+	else
+		activeFeedback.resetEnemyThreatIndicatorVisuals()
+		enemyThreatDistanceLabel.Text = string.format("%d studs", roundedDistance)
+	end
 end
 
 local function ensureBossBar()
