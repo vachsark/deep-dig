@@ -2793,7 +2793,185 @@ local findFlashSequence = 0
 local findFlashInTween = nil
 local findFlashOutTween = nil
 
-local function playLegendaryFindFlash(rarity)
+function LEGENDARY_FIND_FLASH_RARITIES.FadeRareFindRevealDescendants(root, transparency, duration)
+	for _, descendant in ipairs(root:GetDescendants()) do
+		if descendant:IsA("TextLabel") then
+			TweenService:Create(descendant, TweenInfo.new(duration, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+				TextTransparency = transparency,
+				TextStrokeTransparency = transparency == 0 and 0.75 or 1,
+			}):Play()
+		elseif descendant:IsA("Frame") then
+			local targetTransparency = transparency
+			if descendant.Name == "RevealPanel" then
+				targetTransparency = transparency == 0 and 0.08 or 1
+			elseif descendant.Name == "AccentBar" then
+				targetTransparency = transparency == 0 and 0.12 or 1
+			end
+			TweenService:Create(descendant, TweenInfo.new(duration, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+				BackgroundTransparency = targetTransparency,
+			}):Play()
+		elseif descendant:IsA("UIStroke") then
+			TweenService:Create(descendant, TweenInfo.new(duration, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+				Transparency = transparency == 0 and 0.08 or 1,
+			}):Play()
+		end
+	end
+end
+
+function LEGENDARY_FIND_FLASH_RARITIES.ShowRareFindRevealBanner(item, rarity, flashProfile, sequence)
+	if type(item) ~= "table" then
+		return
+	end
+
+	local itemName = tostring(item.name or "Rare Artifact")
+	local coinValue = tostring(item.sellValue or item.baseValue or 0)
+	local rarityColor = RARITY_COLORS[rarity] or flashProfile.overlayColor
+
+	local banner = Instance.new("Frame")
+	banner.Name = "RareFindReveal"
+	banner.Size = UDim2.new(0.82, 0, 0, 116)
+	banner.AnchorPoint = Vector2.new(0.5, 0.5)
+	banner.Position = UDim2.new(0.5, 0, 0.44, 0)
+	banner.BackgroundTransparency = 1
+	banner.BorderSizePixel = 0
+	banner.ZIndex = 95
+	banner.Parent = findFlashLayer
+
+	local bannerSize = Instance.new("UISizeConstraint")
+	bannerSize.MinSize = Vector2.new(260, 104)
+	bannerSize.MaxSize = Vector2.new(560, 126)
+	bannerSize.Parent = banner
+
+	local scale = Instance.new("UIScale")
+	scale.Scale = 0.9
+	scale.Parent = banner
+
+	local panel = Instance.new("Frame")
+	panel.Name = "RevealPanel"
+	panel.Size = UDim2.new(1, 0, 1, 0)
+	panel.BackgroundColor3 = Color3.fromRGB(18, 16, 22)
+	panel.BackgroundTransparency = 1
+	panel.BorderSizePixel = 0
+	panel.ZIndex = 95
+	panel.Parent = banner
+
+	local panelCorner = Instance.new("UICorner")
+	panelCorner.CornerRadius = UDim.new(0, 8)
+	panelCorner.Parent = panel
+
+	local panelStroke = Instance.new("UIStroke")
+	panelStroke.Color = rarityColor
+	panelStroke.Thickness = rarity == "Mythic" and 3 or 2
+	panelStroke.Transparency = 1
+	panelStroke.Parent = panel
+
+	local accentBar = Instance.new("Frame")
+	accentBar.Name = "AccentBar"
+	accentBar.Size = UDim2.new(1, -22, 0, 4)
+	accentBar.Position = UDim2.new(0, 11, 0, 10)
+	accentBar.BackgroundColor3 = flashProfile.overlayColor
+	accentBar.BackgroundTransparency = 1
+	accentBar.BorderSizePixel = 0
+	accentBar.ZIndex = 96
+	accentBar.Parent = panel
+
+	local accentCorner = Instance.new("UICorner")
+	accentCorner.CornerRadius = UDim.new(1, 0)
+	accentCorner.Parent = accentBar
+
+	local rarityLabel = Instance.new("TextLabel")
+	rarityLabel.Name = "Rarity"
+	rarityLabel.Size = UDim2.new(1, -28, 0, 26)
+	rarityLabel.Position = UDim2.new(0, 14, 0, 20)
+	rarityLabel.BackgroundTransparency = 1
+	rarityLabel.Text = rarity .. " FIND"
+	rarityLabel.TextColor3 = rarityColor
+	rarityLabel.TextTransparency = 1
+	rarityLabel.TextStrokeTransparency = 1
+	rarityLabel.TextSize = 20
+	rarityLabel.TextScaled = true
+	rarityLabel.Font = Enum.Font.GothamBlack
+	rarityLabel.TextXAlignment = Enum.TextXAlignment.Center
+	rarityLabel.TextTruncate = Enum.TextTruncate.AtEnd
+	rarityLabel.ZIndex = 97
+	rarityLabel.Parent = panel
+
+	local rarityTextSize = Instance.new("UITextSizeConstraint")
+	rarityTextSize.MinTextSize = 11
+	rarityTextSize.MaxTextSize = 20
+	rarityTextSize.Parent = rarityLabel
+
+	local nameLabel = Instance.new("TextLabel")
+	nameLabel.Name = "ItemName"
+	nameLabel.Size = UDim2.new(1, -32, 0, 40)
+	nameLabel.Position = UDim2.new(0, 16, 0, 45)
+	nameLabel.BackgroundTransparency = 1
+	nameLabel.Text = itemName
+	nameLabel.TextColor3 = Color3.fromRGB(255, 250, 230)
+	nameLabel.TextTransparency = 1
+	nameLabel.TextStrokeTransparency = 1
+	nameLabel.TextSize = 30
+	nameLabel.TextScaled = true
+	nameLabel.Font = Enum.Font.GothamBlack
+	nameLabel.TextXAlignment = Enum.TextXAlignment.Center
+	nameLabel.TextTruncate = Enum.TextTruncate.AtEnd
+	nameLabel.ZIndex = 97
+	nameLabel.Parent = panel
+
+	local nameTextSize = Instance.new("UITextSizeConstraint")
+	nameTextSize.MinTextSize = 16
+	nameTextSize.MaxTextSize = 30
+	nameTextSize.Parent = nameLabel
+
+	local valueLabel = Instance.new("TextLabel")
+	valueLabel.Name = "CoinValue"
+	valueLabel.Size = UDim2.new(1, -32, 0, 22)
+	valueLabel.Position = UDim2.new(0, 16, 1, -30)
+	valueLabel.BackgroundTransparency = 1
+	valueLabel.Text = "+" .. coinValue .. " coins"
+	valueLabel.TextColor3 = Color3.fromRGB(255, 218, 92)
+	valueLabel.TextTransparency = 1
+	valueLabel.TextStrokeTransparency = 1
+	valueLabel.TextSize = 18
+	valueLabel.TextScaled = true
+	valueLabel.Font = Enum.Font.GothamBold
+	valueLabel.TextXAlignment = Enum.TextXAlignment.Center
+	valueLabel.TextTruncate = Enum.TextTruncate.AtEnd
+	valueLabel.ZIndex = 97
+	valueLabel.Parent = panel
+
+	local valueTextSize = Instance.new("UITextSizeConstraint")
+	valueTextSize.MinTextSize = 10
+	valueTextSize.MaxTextSize = 18
+	valueTextSize.Parent = valueLabel
+
+	LEGENDARY_FIND_FLASH_RARITIES.FadeRareFindRevealDescendants(banner, 0, 0.12)
+	TweenService:Create(scale, TweenInfo.new(0.18, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+		Scale = rarity == "Mythic" and 1.05 or 1,
+	}):Play()
+
+	task.delay(1.28, function()
+		if sequence ~= findFlashSequence or not banner.Parent then
+			return
+		end
+
+		LEGENDARY_FIND_FLASH_RARITIES.FadeRareFindRevealDescendants(banner, 1, 0.22)
+		local shrink = TweenService:Create(scale, TweenInfo.new(0.22, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+			Scale = 0.96,
+		})
+		shrink:Play()
+		shrink.Completed:Connect(function(playbackState)
+			if sequence ~= findFlashSequence or playbackState ~= Enum.PlaybackState.Completed then
+				return
+			end
+			if banner.Parent then
+				banner:Destroy()
+			end
+		end)
+	end)
+end
+
+local function playLegendaryFindFlash(rarity, item)
 	local flashProfile = LEGENDARY_FIND_FLASH_RARITIES[rarity] or LEGENDARY_FIND_FLASH_RARITIES.Legendary
 	LEGENDARY_FIND_FLASH_RARITIES.PlayHaptics(rarity)
 
@@ -2803,6 +2981,10 @@ local function playLegendaryFindFlash(rarity)
 	local previousGlint = findFlashLayer:FindFirstChild("Glint")
 	if previousGlint then
 		previousGlint:Destroy()
+	end
+	local previousReveal = findFlashLayer:FindFirstChild("RareFindReveal")
+	if previousReveal then
+		previousReveal:Destroy()
 	end
 
 	if findFlashInTween then
@@ -2814,6 +2996,7 @@ local function playLegendaryFindFlash(rarity)
 
 	findFlashOverlay.BackgroundTransparency = 1
 	findFlashOverlay.BackgroundColor3 = flashProfile.overlayColor
+	LEGENDARY_FIND_FLASH_RARITIES.ShowRareFindRevealBanner(item, rarity, flashProfile, sequence)
 
 	local glint = Instance.new("Frame")
 	glint.Name = "Glint"
@@ -6947,7 +7130,7 @@ end
 Remotes.ItemFound.OnClientEvent:Connect(function(item)
 	local function playItemFoundFlow()
 		if item and LEGENDARY_FIND_FLASH_RARITIES[item.rarity] then
-			playLegendaryFindFlash(item.rarity)
+			playLegendaryFindFlash(item.rarity, item)
 			LEGENDARY_FIND_FLASH_RARITIES._cameraBump.play(item.rarity)
 		end
 
