@@ -371,24 +371,23 @@ local function processLoginStreak(player)
 		grantDailyStreakReward(player, data)
 		return
 	elseif days == 2 and (data.loginStreak or 0) >= 2 then
-		-- Missed exactly one day. Offer a one-time revive before resetting.
-		data.streakReviveEligible = true
-		data.streakRevivePending = true
-		data.streakReviveBaseStreak = data.loginStreak or 0
-		data.streakReviveOfferDate = today
-		applyStreakHudUpdate(player, data)
 		if isStreakReviveProductAvailable() then
+			-- Missed exactly one day. Offer a one-time revive before resetting.
+			data.streakReviveEligible = true
+			data.streakRevivePending = true
+			data.streakReviveBaseStreak = data.loginStreak or 0
+			data.streakReviveOfferDate = today
+			applyStreakHudUpdate(player, data)
 			NotifyEvent:FireClient(
 				player,
 				"Missed one day. Revive your streak for " .. STREAK_REVIVE_PRICE .. " Robux to keep your momentum.",
 				"Epic"
 			)
 		else
-			NotifyEvent:FireClient(
-				player,
-				"Missed one day. Streak revive purchases are unavailable right now; start over to claim today's reward.",
-				"Rare"
-			)
+			data.loginStreak = 1
+			data.lastLoginDate = today
+			clearStreakReviveState(data)
+			grantDailyStreakReward(player, data)
 		end
 		return
 	else
