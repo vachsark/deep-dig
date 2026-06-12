@@ -22,6 +22,11 @@ local character = player.Character or player.CharacterAdded:Wait()
 local equippedExcavator = nil
 local playerGui = player:WaitForChild("PlayerGui")
 local moveCloserCueToken = 0
+local combatState = {
+	attackCooldown = 0.5,
+	nextAttackAt = 0,
+	recoveryCueUntil = 0,
+}
 
 local targetHighlight = Instance.new("Highlight")
 targetHighlight.Name = "DeepDigTargetHighlight"
@@ -63,6 +68,9 @@ local function clearMoveCloserCue()
 	moveCloserCue.Adornee = nil
 	moveCloserCue.Size = UDim2.fromOffset(120, 32)
 	moveCloserCue.StudsOffset = Vector3.new(0, 3.2, 0)
+	moveCloserLabel.Text = "Move closer"
+	moveCloserLabel.TextColor3 = Color3.fromRGB(255, 210, 190)
+	moveCloserLabel.TextStrokeColor3 = Color3.fromRGB(45, 25, 20)
 end
 
 local function clearTargetHighlight()
@@ -134,6 +142,9 @@ local function showMoveCloserCue(enemyModel)
 	end
 
 	moveCloserCue.Adornee = enemyRoot
+	moveCloserLabel.Text = "Move closer"
+	moveCloserLabel.TextColor3 = Color3.fromRGB(255, 210, 190)
+	moveCloserLabel.TextStrokeColor3 = Color3.fromRGB(45, 25, 20)
 	moveCloserCue.Enabled = true
 end
 
@@ -164,6 +175,60 @@ local function nudgeMoveCloserCue(enemyModel)
 
 		moveCloserCue.Size = UDim2.fromOffset(120, 32)
 		moveCloserCue.StudsOffset = Vector3.new(0, 3.2, 0)
+	end)
+end
+
+local function showRecoveryCue(enemyModel)
+	local enemyRoot = getModelRoot(enemyModel)
+	if not enemyRoot then
+		clearMoveCloserCue()
+		return
+	end
+
+	moveCloserCue.Adornee = enemyRoot
+	moveCloserLabel.Text = "Recovering"
+	moveCloserLabel.TextColor3 = Color3.fromRGB(255, 242, 150)
+	moveCloserLabel.TextStrokeColor3 = Color3.fromRGB(62, 42, 8)
+	moveCloserCue.Enabled = true
+end
+
+local function nudgeRecoveryCue(enemyModel)
+	combatState.recoveryCueUntil = os.clock() + 0.35
+	showRecoveryCue(enemyModel)
+	if not moveCloserCue.Enabled then
+		return
+	end
+
+	moveCloserCueToken = moveCloserCueToken + 1
+	local cueToken = moveCloserCueToken
+	moveCloserCue.Size = UDim2.fromOffset(136, 36)
+	moveCloserCue.StudsOffset = Vector3.new(0, 3.55, 0)
+
+	local settleTween = TweenService:Create(moveCloserCue, TweenInfo.new(
+		0.16,
+		Enum.EasingStyle.Back,
+		Enum.EasingDirection.Out
+	), {
+		Size = UDim2.fromOffset(120, 32),
+		StudsOffset = Vector3.new(0, 3.2, 0),
+	})
+	settleTween:Play()
+	settleTween.Completed:Connect(function()
+		if cueToken ~= moveCloserCueToken then
+			return
+		end
+
+		moveCloserCue.Size = UDim2.fromOffset(120, 32)
+		moveCloserCue.StudsOffset = Vector3.new(0, 3.2, 0)
+	end)
+
+	task.delay(0.35, function()
+		if cueToken ~= moveCloserCueToken or moveCloserLabel.Text ~= "Recovering" then
+			return
+		end
+
+		combatState.recoveryCueUntil = 0
+		clearMoveCloserCue()
 	end)
 end
 
@@ -310,11 +375,19 @@ local function updateTargetHighlight()
 		local isInRange = isEnemyInClientAttackRange(targetInstance)
 		targetHighlight.Adornee = targetInstance
 		if isInRange then
-			targetHighlight.FillColor = Color3.fromRGB(255, 65, 65)
-			targetHighlight.OutlineColor = Color3.fromRGB(255, 35, 35)
-			targetHighlight.FillTransparency = 0.86
-			targetHighlight.OutlineTransparency = 0.12
-			clearMoveCloserCue()
+			if os.clock() < combatState.recoveryCueUntil then
+				targetHighlight.FillColor = Color3.fromRGB(255, 172, 70)
+				targetHighlight.OutlineColor = Color3.fromRGB(255, 222, 110)
+				targetHighlight.FillTransparency = 0.82
+				targetHighlight.OutlineTransparency = 0.08
+				showRecoveryCue(targetInstance)
+			else
+				targetHighlight.FillColor = Color3.fromRGB(255, 65, 65)
+				targetHighlight.OutlineColor = Color3.fromRGB(255, 35, 35)
+				targetHighlight.FillTransparency = 0.86
+				targetHighlight.OutlineTransparency = 0.12
+				clearMoveCloserCue()
+			end
 		else
 			targetHighlight.FillColor = Color3.fromRGB(120, 78, 78)
 			targetHighlight.OutlineColor = Color3.fromRGB(150, 110, 110)
@@ -353,8 +426,16 @@ local function onToolActivated()
 			return
 		end
 
+		local now = os.clock()
+		if now < combatState.nextAttackAt then
+			debugLog("[DeepDig dig] enemy hit ignored: recovering:", targetInstance.Name)
+			nudgeRecoveryCue(targetInstance)
+			return
+		end
+
 		debugLog("[DeepDig dig] enemy hit:", targetInstance.Name)
 		local _, enemyRoot = isEnemyInClientAttackRange(targetInstance)
+		combatState.nextAttackAt = now + combatState.attackCooldown
 		showImpactPulse(enemyRoot, Color3.fromRGB(255, 70, 70), true)
 		EnemyHitEvent:FireServer(targetInstance)
 		return
