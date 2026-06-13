@@ -2913,6 +2913,100 @@ local function showMinibossDefeatCelebration(model)
 	local sequence = minibossDefeatSequence
 	gui:ClearAllChildren()
 
+	local root = model:FindFirstChild("HumanoidRootPart")
+	if root and root:IsA("BasePart") and root:IsDescendantOf(workspace) then
+		local raycastParams = RaycastParams.new()
+		raycastParams.FilterType = Enum.RaycastFilterType.Exclude
+		raycastParams.FilterDescendantsInstances = { model }
+
+		local origin = root.Position - Vector3.new(0, root.Size.Y * 0.5, 0)
+		local raycastResult = workspace:Raycast(root.Position, Vector3.new(0, -14, 0), raycastParams)
+		if raycastResult then
+			origin = raycastResult.Position + Vector3.new(0, 0.08, 0)
+		else
+			origin = origin + Vector3.new(0, 0.08, 0)
+		end
+
+		local folder = Instance.new("Folder")
+		folder.Name = "DeepDigMinibossDefeatShockwave"
+		folder.Parent = workspace
+
+		local ringSegments = 20
+		local startRadius = 1.4
+		local endRadius = 7.2
+		local startSegmentLength = (math.pi * startRadius * 2 / ringSegments) * 0.72
+		local endSegmentLength = (math.pi * endRadius * 2 / ringSegments) * 0.72
+		for index = 1, ringSegments do
+			local angle = ((index - 1) / ringSegments) * math.pi * 2
+			local radial = Vector3.new(math.cos(angle), 0, math.sin(angle))
+			local tangent = Vector3.new(-math.sin(angle), 0, math.cos(angle))
+			local startCenter = origin + radial * startRadius
+			local endCenter = origin + radial * endRadius
+
+			local segment = Instance.new("Part")
+			segment.Name = "ShockwaveSegment" .. index
+			segment.Anchored = true
+			segment.CanCollide = false
+			segment.CanQuery = false
+			segment.CanTouch = false
+			segment.CastShadow = false
+			segment.Material = Enum.Material.Neon
+			segment.Color = index % 2 == 0 and MINIBOSS_DEFEAT_COLOR or MINIBOSS_VOID_COLOR
+			segment.Size = Vector3.new(startSegmentLength, 0.05, 0.14)
+			segment.Transparency = 0.18
+			segment.CFrame = CFrame.fromMatrix(startCenter, tangent, Vector3.new(0, 1, 0), radial)
+			segment.Parent = folder
+
+			TweenService:Create(segment, TweenInfo.new(
+				0.48,
+				Enum.EasingStyle.Quad,
+				Enum.EasingDirection.Out
+			), {
+				Size = Vector3.new(endSegmentLength, 0.035, 0.08),
+				Transparency = 1,
+				CFrame = CFrame.fromMatrix(endCenter, tangent, Vector3.new(0, 1, 0), radial),
+			}):Play()
+		end
+
+		for index = 1, 8 do
+			local angle = ((index - 1) / 8) * math.pi * 2 + math.rad(math.random(-12, 12))
+			local radial = Vector3.new(math.cos(angle), 0, math.sin(angle))
+			local startOffset = radial * math.random(8, 16) * 0.1
+			local endOffset = radial * math.random(18, 34) * 0.1
+			local shard = Instance.new("Part")
+			shard.Name = "VoidGoldShard" .. index
+			shard.Anchored = true
+			shard.CanCollide = false
+			shard.CanQuery = false
+			shard.CanTouch = false
+			shard.CastShadow = false
+			shard.Material = Enum.Material.Neon
+			shard.Color = index % 2 == 0 and MINIBOSS_DEFEAT_COLOR or MINIBOSS_VOID_COLOR
+			shard.Size = Vector3.new(0.16, math.random(26, 42) * 0.01, 0.16)
+			shard.Transparency = 0.04
+			shard.CFrame = CFrame.new(origin + startOffset + Vector3.new(0, 0.18, 0))
+				* CFrame.Angles(math.rad(math.random(18, 72)), math.rad(math.random(0, 360)), math.rad(math.random(18, 72)))
+			shard.Parent = folder
+
+			TweenService:Create(shard, TweenInfo.new(
+				0.62,
+				Enum.EasingStyle.Quad,
+				Enum.EasingDirection.Out
+			), {
+				Transparency = 1,
+				Size = Vector3.new(0.04, 0.12, 0.04),
+				CFrame = CFrame.new(origin + endOffset + Vector3.new(0, math.random(24, 42) * 0.1, 0))
+					* CFrame.Angles(math.rad(math.random(80, 170)), math.rad(math.random(0, 360)), math.rad(math.random(80, 170))),
+			}):Play()
+		end
+
+		task.delay(0.76, function()
+			if folder.Parent then
+				folder:Destroy()
+			end
+		end)
+	end
+
 	local goldFlash = Instance.new("Frame")
 	goldFlash.Name = "GoldFlash"
 	goldFlash.Size = UDim2.fromScale(1, 1)
