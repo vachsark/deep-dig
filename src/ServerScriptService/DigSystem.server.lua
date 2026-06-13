@@ -357,7 +357,7 @@ end
 local function hasBlockingEnemyNearDig(player, playerRoot, block)
 	local enemiesFolder = workspace:FindFirstChild("Enemies")
 	if not enemiesFolder then
-		return false
+		return false, nil
 	end
 
 	for _, enemyModel in ipairs(enemiesFolder:GetChildren()) do
@@ -367,15 +367,15 @@ local function hasBlockingEnemyNearDig(player, playerRoot, block)
 			local nearPlayer = playerRoot and (enemyPosition - playerRoot.Position).Magnitude <= BLOCKED_DIG_ENEMY_RANGE_STUDS
 			local nearBlock = (enemyPosition - block.Position).Magnitude <= BLOCKED_DIG_ENEMY_RANGE_STUDS
 			if nearPlayer or nearBlock then
-				return true
+				return true, enemyModel
 			end
 		end
 	end
 
-	return false
+	return false, nil
 end
 
-local function notifyDigBlockedByEnemy(player)
+local function notifyDigBlockedByEnemy(player, blockingEnemyModel)
 	local userId = player.UserId
 	local now = os.clock()
 	local nextNotifyAt = enemyBlockedNotifyByUserId[userId] or 0
@@ -391,9 +391,17 @@ local function notifyDigBlockedByEnemy(player)
 		Notify:FireClient(player, "Defeat this enemy first before digging.", "Rare")
 	end
 
-	local PlaySound = Remotes:FindFirstChild("PlaySound")
-	if PlaySound then
-		PlaySound:FireClient(player, "enemy_aggro")
+	local EnemyCombatFeedback = Remotes:FindFirstChild("EnemyCombatFeedback")
+	if EnemyCombatFeedback and blockingEnemyModel and blockingEnemyModel.Parent then
+		EnemyCombatFeedback:FireClient(player, {
+			type = "aggro",
+			model = blockingEnemyModel,
+		})
+	else
+		local PlaySound = Remotes:FindFirstChild("PlaySound")
+		if PlaySound then
+			PlaySound:FireClient(player, "enemy_aggro")
+		end
 	end
 end
 
@@ -409,8 +417,9 @@ local function breakBlock(player, block)
 		return false
 	end
 
-	if hasBlockingEnemyNearDig(player, hrp, block) then
-		notifyDigBlockedByEnemy(player)
+	local hasBlockingEnemy, blockingEnemyModel = hasBlockingEnemyNearDig(player, hrp, block)
+	if hasBlockingEnemy then
+		notifyDigBlockedByEnemy(player, blockingEnemyModel)
 		return false
 	end
 
