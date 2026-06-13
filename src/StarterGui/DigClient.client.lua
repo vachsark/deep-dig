@@ -5,6 +5,7 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
+local Debris = game:GetService("Debris")
 
 local player = Players.LocalPlayer
 local mouse = player:GetMouse()
@@ -17,6 +18,7 @@ local TARGET_ENEMY = "Enemy"
 local CLIENT_ATTACK_RANGE = 8
 local DEBUG_DIG_CLIENT = false
 local IMPACT_LIFETIME = 0.2
+local ENEMY_SPARK_LIFETIME = 0.28
 
 local character = player.Character or player.CharacterAdded:Wait()
 local equippedExcavator = nil
@@ -341,6 +343,49 @@ local function showImpactPulse(targetPart, color, isSlash)
 	end)
 end
 
+local function showEnemySparkBurst(enemyRoot)
+	if not enemyRoot or not enemyRoot:IsA("BasePart") then
+		return
+	end
+
+	local origin = getClickWorldPosition(enemyRoot)
+	for index = 1, 6 do
+		local shard = Instance.new("Part")
+		shard.Name = "DeepDigEnemyHitSpark"
+		shard.Anchored = true
+		shard.CanCollide = false
+		shard.CanQuery = false
+		shard.CanTouch = false
+		shard.Material = Enum.Material.Neon
+		shard.Color = index % 2 == 0 and Color3.fromRGB(255, 196, 74) or Color3.fromRGB(255, 76, 58)
+		shard.Size = Vector3.new(0.08, 0.08, 0.34)
+		shard.CFrame = CFrame.new(origin) * CFrame.Angles(
+			math.rad(math.random(-35, 35)),
+			math.rad(math.random(0, 360)),
+			math.rad(math.random(-35, 35))
+		)
+		shard.Parent = workspace
+
+		local drift = Vector3.new(
+			math.random(-100, 100) / 100,
+			math.random(20, 95) / 100,
+			math.random(-100, 100) / 100
+		).Unit * (math.random(5, 10) / 10)
+		local targetCFrame = shard.CFrame + drift
+		local shardTween = TweenService:Create(shard, TweenInfo.new(
+			ENEMY_SPARK_LIFETIME,
+			Enum.EasingStyle.Quad,
+			Enum.EasingDirection.Out
+		), {
+			CFrame = targetCFrame,
+			Transparency = 1,
+			Size = Vector3.new(0.03, 0.03, 0.18),
+		})
+		shardTween:Play()
+		Debris:AddItem(shard, ENEMY_SPARK_LIFETIME + 0.08)
+	end
+end
+
 local function classifyTarget(target)
 	if not target or not DigRequest or not EnemyHitEvent then
 		return nil
@@ -437,6 +482,7 @@ local function onToolActivated()
 		local _, enemyRoot = isEnemyInClientAttackRange(targetInstance)
 		combatState.nextAttackAt = now + combatState.attackCooldown
 		showImpactPulse(enemyRoot, Color3.fromRGB(255, 70, 70), true)
+		showEnemySparkBurst(enemyRoot)
 		EnemyHitEvent:FireServer(targetInstance)
 		return
 	end
