@@ -14,6 +14,7 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local SoundService = game:GetService("SoundService")
 local TweenService = game:GetService("TweenService")
+local Debris = game:GetService("Debris")
 
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
@@ -679,6 +680,176 @@ local function pulsePetCard(card, stroke, leveledUp)
 	end)
 end
 
+local function getLocalPetCompanion()
+	local companionsFolder = workspace:FindFirstChild("PetCompanions")
+	if not companionsFolder then
+		return nil
+	end
+
+	local companion = companionsFolder:FindFirstChild("PetCompanion_" .. tostring(player.UserId))
+	if companion and companion:IsA("BasePart") then
+		return companion
+	end
+
+	return nil
+end
+
+local function playEquippedPetLevelUpBurst(result)
+	if type(result) ~= "table" or result.leveledUp ~= true then
+		return
+	end
+	if result.targetPetId ~= equippedPetId then
+		return
+	end
+
+	local companion = getLocalPetCompanion()
+	if not companion then
+		return
+	end
+
+	local rarityColor = RarityColors[result.rarity] or RarityColors.Common
+
+	local labelBillboard = Instance.new("BillboardGui")
+	labelBillboard.Name = "PetLevelUpBurst"
+	labelBillboard.Adornee = companion
+	labelBillboard.AlwaysOnTop = true
+	labelBillboard.LightInfluence = 0
+	labelBillboard.MaxDistance = 140
+	labelBillboard.Size = UDim2.fromOffset(94, 28)
+	labelBillboard.StudsOffset = Vector3.new(0, 2.35, 0)
+	labelBillboard.Parent = playerGui
+	Debris:AddItem(labelBillboard, 1.4)
+
+	local label = Instance.new("TextLabel")
+	label.Name = "Text"
+	label.Size = UDim2.fromScale(1, 1)
+	label.BackgroundTransparency = 1
+	label.Text = "LEVEL UP"
+	label.TextColor3 = rarityColor
+	label.TextStrokeColor3 = Color3.fromRGB(35, 25, 10)
+	label.TextStrokeTransparency = 0.18
+	label.TextScaled = true
+	label.Font = Enum.Font.GothamBlack
+	label.Parent = labelBillboard
+
+	local textSize = Instance.new("UITextSizeConstraint")
+	textSize.MinTextSize = 10
+	textSize.MaxTextSize = 24
+	textSize.Parent = label
+
+	local ringBillboard = Instance.new("BillboardGui")
+	ringBillboard.Name = "PetLevelUpRing"
+	ringBillboard.Adornee = companion
+	ringBillboard.AlwaysOnTop = true
+	ringBillboard.LightInfluence = 0
+	ringBillboard.MaxDistance = 140
+	ringBillboard.Size = UDim2.fromOffset(22, 22)
+	ringBillboard.StudsOffset = Vector3.new(0, 0.05, 0)
+	ringBillboard.Parent = playerGui
+	Debris:AddItem(ringBillboard, 1.1)
+
+	local ring = Instance.new("Frame")
+	ring.Name = "Ring"
+	ring.AnchorPoint = Vector2.new(0.5, 0.5)
+	ring.BackgroundColor3 = rarityColor
+	ring.BackgroundTransparency = 0.82
+	ring.BorderSizePixel = 0
+	ring.Position = UDim2.fromScale(0.5, 0.5)
+	ring.Size = UDim2.fromScale(1, 1)
+	ring.Parent = ringBillboard
+
+	local ringCorner = Instance.new("UICorner")
+	ringCorner.CornerRadius = UDim.new(1, 0)
+	ringCorner.Parent = ring
+
+	local ringStroke = Instance.new("UIStroke")
+	ringStroke.Color = rarityColor
+	ringStroke.Thickness = 3
+	ringStroke.Transparency = 0.05
+	ringStroke.Parent = ring
+
+	local sparkle = Instance.new("ParticleEmitter")
+	sparkle.Name = "PetLevelUpSparkle"
+	sparkle.Color = ColorSequence.new(rarityColor)
+	sparkle.LightEmission = 0.9
+	sparkle.LightInfluence = 0.1
+	sparkle.Lifetime = NumberRange.new(0.45, 0.85)
+	sparkle.Speed = NumberRange.new(2.5, 5.5)
+	sparkle.SpreadAngle = Vector2.new(360, 360)
+	sparkle.Size = NumberSequence.new({
+		NumberSequenceKeypoint.new(0, 0.22),
+		NumberSequenceKeypoint.new(0.65, 0.12),
+		NumberSequenceKeypoint.new(1, 0),
+	})
+	sparkle.Transparency = NumberSequence.new({
+		NumberSequenceKeypoint.new(0, 0.08),
+		NumberSequenceKeypoint.new(0.75, 0.35),
+		NumberSequenceKeypoint.new(1, 1),
+	})
+	sparkle.Rotation = NumberRange.new(0, 360)
+	sparkle.RotSpeed = NumberRange.new(-110, 110)
+	sparkle.Drag = 2
+	sparkle.Rate = 0
+	sparkle.Texture = "rbxasset://textures/particles/sparkles_main.dds"
+	sparkle.Parent = companion
+	Debris:AddItem(sparkle, 1.4)
+	sparkle:Emit(28)
+
+	local flash = Instance.new("PointLight")
+	flash.Name = "PetLevelUpFlash"
+	flash.Color = rarityColor
+	flash.Brightness = 2.1
+	flash.Range = 8
+	flash.Shadows = false
+	flash.Parent = companion
+	Debris:AddItem(flash, 0.45)
+
+	TweenService:Create(
+		labelBillboard,
+		TweenInfo.new(0.22, Enum.EasingStyle.Back, Enum.EasingDirection.Out),
+		{ Size = UDim2.fromOffset(132, 38), StudsOffset = Vector3.new(0, 3.05, 0) }
+	):Play()
+	TweenService:Create(
+		ringBillboard,
+		TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+		{ Size = UDim2.fromOffset(86, 86) }
+	):Play()
+	TweenService:Create(
+		ring,
+		TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+		{ BackgroundTransparency = 1 }
+	):Play()
+	TweenService:Create(
+		ringStroke,
+		TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+		{ Transparency = 1, Thickness = 1 }
+	):Play()
+	TweenService:Create(
+		flash,
+		TweenInfo.new(0.35, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+		{ Brightness = 0, Range = 3 }
+	):Play()
+
+	task.delay(0.58, function()
+		if labelBillboard.Parent == nil then
+			return
+		end
+
+		local fadeText = TweenService:Create(
+			label,
+			TweenInfo.new(0.28, Enum.EasingStyle.Quad, Enum.EasingDirection.In),
+			{ TextTransparency = 1, TextStrokeTransparency = 1 }
+		)
+		local rise = TweenService:Create(
+			labelBillboard,
+			TweenInfo.new(0.28, Enum.EasingStyle.Quad, Enum.EasingDirection.In),
+			{ StudsOffset = Vector3.new(0, 3.55, 0) }
+		)
+		fadeText:Play()
+		rise:Play()
+	end)
+end
+
 local function findPetById(petId)
 	if petId == nil then return nil end
 	for _, record in ipairs(inventoryPets) do
@@ -1266,6 +1437,7 @@ if PetFeedResultEvent then
 		clearFeedSelection()
 		hideFeedConfirm()
 		showFeedResultOverlay(normalizedResult)
+		playEquippedPetLevelUpBurst(normalizedResult)
 		playLocalPetSound(normalizedResult.leveledUp and "pet_level_up" or "pet_feed")
 		refreshInventory()
 
