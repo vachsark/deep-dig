@@ -247,6 +247,65 @@ local function buildCompanion(player, root, owned, petDef)
 	aura.Texture = "rbxasset://textures/particles/sparkles_main.dds"
 	aura.Parent = companion
 
+	local trailStrength = clamp((auraProfile.particleRate / 6) + (auraProfile.particleSize * 2.5), 0.7, 1.45)
+	local trailFront = Instance.new("Attachment")
+	trailFront.Name = "PetTrailFront"
+	trailFront.Position = Vector3.new(0, 0.12, -0.75)
+	trailFront.Parent = companion
+
+	local trailBack = Instance.new("Attachment")
+	trailBack.Name = "PetTrailBack"
+	trailBack.Position = Vector3.new(0, -0.08, 0.75)
+	trailBack.Parent = companion
+
+	local trail = Instance.new("Trail")
+	trail.Name = "PetCompanionTrail"
+	trail.Attachment0 = trailFront
+	trail.Attachment1 = trailBack
+	trail.Color = ColorSequence.new(auraProfile.color)
+	trail.Lifetime = clamp(0.18 + trailStrength * 0.08, 0.22, 0.32)
+	trail.MinLength = 0.15
+	trail.LightEmission = clamp(0.35 + trailStrength * 0.25, 0.45, 0.75)
+	trail.LightInfluence = 0.2
+	trail.FaceCamera = true
+	trail.WidthScale = NumberSequence.new({
+		NumberSequenceKeypoint.new(0, clamp(0.28 * trailStrength, 0.22, 0.46)),
+		NumberSequenceKeypoint.new(0.55, clamp(0.18 * trailStrength, 0.14, 0.32)),
+		NumberSequenceKeypoint.new(1, 0),
+	})
+	trail.Transparency = NumberSequence.new({
+		NumberSequenceKeypoint.new(0, clamp(0.86 - trailStrength * 0.22, 0.54, 0.72)),
+		NumberSequenceKeypoint.new(0.55, clamp(0.94 - trailStrength * 0.14, 0.72, 0.84)),
+		NumberSequenceKeypoint.new(1, 1),
+	})
+	trail.Parent = companion
+
+	local wake = Instance.new("ParticleEmitter")
+	wake.Name = "PetCompanionWake"
+	wake.Color = ColorSequence.new(auraProfile.color)
+	wake.LightEmission = 0.75
+	wake.LightInfluence = 0.15
+	wake.Rate = math.floor(clamp(auraProfile.particleRate * 0.55, 2, 5))
+	wake.Lifetime = NumberRange.new(0.35, 0.6)
+	wake.Speed = NumberRange.new(0.05, 0.35)
+	wake.SpreadAngle = Vector2.new(45, 45)
+	wake.Size = NumberSequence.new({
+		NumberSequenceKeypoint.new(0, auraProfile.particleSize * 0.85),
+		NumberSequenceKeypoint.new(0.6, auraProfile.particleSize * 0.45),
+		NumberSequenceKeypoint.new(1, 0),
+	})
+	wake.Transparency = NumberSequence.new({
+		NumberSequenceKeypoint.new(0, 0.48),
+		NumberSequenceKeypoint.new(0.65, 0.72),
+		NumberSequenceKeypoint.new(1, 1),
+	})
+	wake.Rotation = NumberRange.new(0, 360)
+	wake.RotSpeed = NumberRange.new(-35, 35)
+	wake.Drag = 2
+	wake.LockedToPart = false
+	wake.Texture = "rbxasset://textures/particles/sparkles_main.dds"
+	wake.Parent = companion
+
 	local weld = Instance.new("WeldConstraint")
 	weld.Part0 = root
 	weld.Part1 = companion
