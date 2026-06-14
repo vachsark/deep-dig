@@ -106,7 +106,8 @@ local function grantOfflineIncome(player)
 	end
 
 	local offlineSecondsCap = getOfflineSecondsCap(data)
-	local elapsed = math.clamp(os.time() - previousLastSeenAt, 0, offlineSecondsCap)
+	local offlineSeconds = math.max(0, os.time() - previousLastSeenAt)
+	local elapsed = math.min(offlineSeconds, offlineSecondsCap)
 	local tool = Config.TOOLS[data.toolTier] or Config.TOOLS[1]
 	local toolDamage = tool and tool.damage or 1
 	local coinsPerMinute = toolDamage * Config.OFFLINE_INCOME_COINS_PER_DAMAGE_PER_MINUTE
@@ -128,16 +129,22 @@ local function grantOfflineIncome(player)
 
 	local countedDuration = formatOfflineDuration(elapsed)
 	local capDuration = formatOfflineDuration(offlineSecondsCap)
+	local totalDuration = formatOfflineDuration(offlineSeconds)
+	local cappedAwayDuration = formatOfflineDuration(math.max(0, offlineSeconds - elapsed))
 	local rewardSummary = {
 		reward = reward,
 		countedDuration = countedDuration,
 		capDuration = capDuration,
-		hitCap = elapsed >= offlineSecondsCap,
+		totalDuration = totalDuration,
+		cappedAwayDuration = cappedAwayDuration,
+		toolName = tool and tool.name or "Tool",
+		coinsPerMinute = coinsPerMinute,
+		hitCap = offlineSeconds >= offlineSecondsCap,
 	}
 
 	NotifyEvent:FireClient(
 		player,
-		"Welcome back! You earned " .. reward .. " coins while offline (" .. countedDuration .. " counted, capped at " .. capDuration .. ").",
+		"Welcome back! " .. rewardSummary.toolName .. " earned " .. reward .. " coins at " .. coinsPerMinute .. "/min while you were away.",
 		"Rare"
 	)
 	UpdateHUDEvent:FireClient(player, {

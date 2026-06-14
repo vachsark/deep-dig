@@ -426,6 +426,10 @@ local function grantOfflineIncome(player, data)
 		reward = reward,
 		countedSeconds = countedSeconds,
 		capSeconds = capSeconds,
+		offlineSeconds = offlineSeconds,
+		cappedAwaySeconds = math.max(0, offlineSeconds - countedSeconds),
+		toolName = tool and tool.name or "Tool",
+		coinsPerMinute = coinsPerMinute,
 		hitCap = offlineSeconds >= capSeconds,
 	}
 end
@@ -448,6 +452,10 @@ local function notifyOfflineIncome(player, data, result)
 				reward = result.reward,
 				countedDuration = formatOfflineDuration(result.countedSeconds),
 				capDuration = formatOfflineDuration(result.capSeconds),
+				totalDuration = formatOfflineDuration(result.offlineSeconds),
+				cappedAwayDuration = formatOfflineDuration(result.cappedAwaySeconds),
+				toolName = result.toolName,
+				coinsPerMinute = result.coinsPerMinute,
 				hitCap = result.hitCap == true,
 			},
 		}, data, player))

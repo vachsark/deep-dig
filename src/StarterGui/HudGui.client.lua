@@ -5946,7 +5946,12 @@ do
 
 		local countedDuration = summary.countedDuration or "0m"
 		local capDuration = summary.capDuration or "8h"
-		local popupKey = tostring(reward) .. "|" .. tostring(countedDuration) .. "|" .. tostring(capDuration) .. "|" .. tostring(summary.hitCap == true)
+		local totalDuration = summary.totalDuration or countedDuration
+		local cappedAwayDuration = summary.cappedAwayDuration or "0m"
+		local toolName = summary.toolName or "Your tool"
+		local coinsPerMinute = math.floor(tonumber(summary.coinsPerMinute) or 0)
+		local sourceLine = toolName .. " earned " .. tostring(coinsPerMinute) .. "/min"
+		local popupKey = tostring(reward) .. "|" .. tostring(countedDuration) .. "|" .. tostring(capDuration) .. "|" .. tostring(totalDuration) .. "|" .. tostring(cappedAwayDuration) .. "|" .. tostring(toolName) .. "|" .. tostring(coinsPerMinute) .. "|" .. tostring(summary.hitCap == true)
 		local showForemanUpsell = summary.hitCap == true and tostring(capDuration) == offlineIncomeState.normalCapDuration
 		local foremanPassAvailable = Config.isGamepassIdAvailable(Config.GAMEPASS_FOREMAN_ID)
 		if popupKey == offlineIncomeState.lastKey then
@@ -5975,8 +5980,8 @@ do
 		offlineIncomeState.foremanUpsell.Text = "Foreman's Pass"
 
 		if showForemanUpsell then
-			offlineIncomeBody.Text = "You hit the " .. offlineIncomeState.normalCapDuration .. " offline cap. Foreman's Pass extends offline earnings to " .. offlineIncomeState.foremanCapDuration .. "."
-			offlineIncomeCap.Text = "Offline time counted: " .. countedDuration .. " of " .. offlineIncomeState.normalCapDuration
+			offlineIncomeBody.Text = sourceLine .. ". Counted " .. countedDuration .. " of " .. totalDuration .. " away."
+			offlineIncomeCap.Text = cappedAwayDuration .. " not counted. Foreman's Pass extends earnings to " .. offlineIncomeState.foremanCapDuration .. "."
 			offlineIncomeClaim.Size = UDim2.new(0, 130, 0, 34)
 			offlineIncomeClaim.Position = UDim2.new(0.5, -140, 1, -44)
 			offlineIncomeState.foremanUpsell.Position = UDim2.new(0.5, -5, 1, -44)
@@ -5990,12 +5995,12 @@ do
 				offlineIncomeState.foremanUpsell.TextColor3 = Color3.fromRGB(190, 184, 170)
 			end
 		else
-			offlineIncomeBody.Text = "Offline time counted: " .. countedDuration
+			offlineIncomeBody.Text = sourceLine .. "."
 		end
 		if summary.hitCap == true and not showForemanUpsell then
-			offlineIncomeCap.Text = "You hit the " .. capDuration .. " offline cap."
+			offlineIncomeCap.Text = "Counted " .. countedDuration .. " of " .. totalDuration .. " away; " .. cappedAwayDuration .. " not counted by the " .. capDuration .. " cap."
 		elseif not showForemanUpsell then
-			offlineIncomeCap.Text = "Cap window: " .. capDuration .. " (not reached)."
+			offlineIncomeCap.Text = "Offline time counted: " .. countedDuration
 		end
 
 		offlineIncomePanel.Visible = true
