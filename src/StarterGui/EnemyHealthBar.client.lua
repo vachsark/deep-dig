@@ -186,6 +186,18 @@ local hapticSupported = false
 local hapticMotorSupport = {}
 local hapticSequence = 0
 
+activeFeedback.enemySpawnRing = {
+	records = {},
+	name = "DeepDigEnemySpawnRing",
+	startDiameter = 3.4,
+	endDiameter = 6.8,
+	thickness = 0.07,
+	segments = 20,
+	segmentWidth = 0.18,
+	pulseDuration = 0.72,
+	fadeDuration = 0.22,
+}
+
 local LocalPlaySound = SoundService:FindFirstChild(LOCAL_PLAY_SOUND_NAME)
 if not LocalPlaySound then
 	LocalPlaySound = Instance.new("BindableEvent")
@@ -755,6 +767,160 @@ local function updateBossBar()
 	bossBarFrame.Visible = true
 end
 
+function activeFeedback.enemySpawnRing.getCFrame(model, root)
+	local config = activeFeedback.enemySpawnRing
+	local modelCFrame, modelSize = model:GetBoundingBox()
+	local y = modelCFrame.Position.Y - modelSize.Y * 0.5 + config.thickness * 0.5
+	return CFrame.new(root.Position.X, y, root.Position.Z)
+end
+
+function activeFeedback.enemySpawnRing.setTransparency(record, transparency)
+	for _, part in ipairs(record.parts) do
+		if part and part.Parent then
+			part.Transparency = transparency
+		end
+	end
+end
+
+function activeFeedback.enemySpawnRing.clear(model)
+	local config = activeFeedback.enemySpawnRing
+	local record = config.records[model]
+	if not record then
+		return
+	end
+
+	config.records[model] = nil
+	if record.connection then
+		record.connection:Disconnect()
+		record.connection = nil
+	end
+
+	if record.folder and record.folder.Parent then
+		config.setTransparency(record, 1)
+		record.folder:Destroy()
+	end
+end
+
+function activeFeedback.enemySpawnRing.fade(model)
+	local config = activeFeedback.enemySpawnRing
+	local record = config.records[model]
+	if not record or record.fading then
+		return
+	end
+
+	config.records[model] = nil
+	record.fading = true
+	if record.connection then
+		record.connection:Disconnect()
+		record.connection = nil
+	end
+
+	for _, part in ipairs(record.parts) do
+		if part and part.Parent then
+			TweenService:Create(part, TweenInfo.new(
+				config.fadeDuration,
+				Enum.EasingStyle.Quad,
+				Enum.EasingDirection.Out
+			), {
+				Transparency = 1,
+			}):Play()
+		end
+	end
+
+	task.delay(config.fadeDuration + 0.04, function()
+		if record.folder and record.folder.Parent then
+			record.folder:Destroy()
+		end
+	end)
+end
+
+function activeFeedback.enemySpawnRing.update(record)
+	local config = activeFeedback.enemySpawnRing
+	local ringCFrame = config.getCFrame(record.model, record.root)
+	local elapsed = os.clock() - record.startTime
+	local pulse = (elapsed % config.pulseDuration) / config.pulseDuration
+	local diameter = config.startDiameter
+		+ (config.endDiameter - config.startDiameter) * pulse
+	local radius = diameter * 0.5
+	local segmentLength = (math.pi * diameter / config.segments) * 0.68
+	local transparency = record.baseTransparency + pulse * 0.34
+	local lift = math.sin(elapsed * math.pi * 4) * 0.03
+
+	for index, part in ipairs(record.parts) do
+		local angle = ((index - 1) / config.segments) * math.pi * 2
+		local radial = Vector3.new(math.cos(angle), 0, math.sin(angle))
+		local tangent = Vector3.new(-math.sin(angle), 0, math.cos(angle))
+		local center = ringCFrame.Position + radial * radius + Vector3.new(0, lift, 0)
+
+		part.Size = Vector3.new(segmentLength, config.thickness, config.segmentWidth)
+		part.Transparency = transparency
+		part.CFrame = CFrame.fromMatrix(center, tangent, Vector3.new(0, 1, 0), radial)
+	end
+end
+
+function activeFeedback.enemySpawnRing.show(model, root)
+	local config = activeFeedback.enemySpawnRing
+	config.clear(model)
+
+	local parent = workspace.CurrentCamera or workspace
+	local folder = Instance.new("Folder")
+	folder.Name = config.name
+	folder.Parent = parent
+
+	local isMiniboss = model:GetAttribute("IsMiniboss") == true
+	local color = ENEMY_SPAWN_COLOR
+	local baseTransparency = 0.36
+	if isMiniboss then
+		color = ENEMY_SPAWN_COLOR:Lerp(MINIBOSS_COLOR, 0.55)
+		baseTransparency = 0.24
+	end
+
+	local parts = {}
+	for index = 1, config.segments do
+		local segment = Instance.new("Part")
+		segment.Name = "Segment" .. index
+		segment.Anchored = true
+		segment.CanCollide = false
+		segment.CanQuery = false
+		segment.CanTouch = false
+		segment.CastShadow = false
+		segment.Material = Enum.Material.Neon
+		segment.Color = color
+		segment.Transparency = 1
+		segment.Parent = folder
+		table.insert(parts, segment)
+	end
+
+	local record = {
+		model = model,
+		root = root,
+		folder = folder,
+		parts = parts,
+		connection = nil,
+		startTime = os.clock(),
+		baseTransparency = baseTransparency,
+		fading = false,
+	}
+	config.records[model] = record
+
+	config.update(record)
+	record.connection = RunService.Heartbeat:Connect(function()
+		if config.records[model] ~= record then
+			return
+		end
+		if not model.Parent or not root.Parent or not folder.Parent then
+			config.clear(model)
+			return
+		end
+		if model:GetAttribute("IsEmerging") ~= true then
+			config.fade(model)
+			return
+		end
+
+		config.update(record)
+	end)
+end
+
 local function getAttackWarningRingCFrame(model, root)
 	local modelCFrame, modelSize = model:GetBoundingBox()
 	local y = modelCFrame.Position.Y - modelSize.Y * 0.5 + ATTACK_WARNING_RING_THICKNESS * 0.5
@@ -882,6 +1048,7 @@ local function cleanupEnemy(model)
 	if enemySpawnCue then
 		enemySpawnCue:Destroy()
 	end
+	activeFeedback.enemySpawnRing.clear(model)
 
 	local aggroWarning = root and root:FindFirstChild(AGGRO_WARNING_NAME)
 	if aggroWarning then
@@ -2323,6 +2490,7 @@ local function showEnemySpawnCue(model)
 	local existing = root:FindFirstChild(ENEMY_SPAWN_CUE_NAME)
 	if existing then
 		existing:Destroy()
+		activeFeedback.enemySpawnRing.clear(model)
 	end
 
 	local billboard = Instance.new("BillboardGui")
@@ -2364,6 +2532,7 @@ local function showEnemySpawnCue(model)
 			attributeConnection:Disconnect()
 			attributeConnection = nil
 		end
+		activeFeedback.enemySpawnRing.fade(model)
 
 		label.Text = "surfaced"
 		label.TextSize = 14
@@ -2399,6 +2568,8 @@ local function showEnemySpawnCue(model)
 	end
 
 	if isEmerging then
+		activeFeedback.enemySpawnRing.show(model, root)
+
 		local pulseTween = TweenService:Create(billboard, TweenInfo.new(
 			0.34,
 			Enum.EasingStyle.Quad,
