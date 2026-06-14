@@ -64,6 +64,8 @@ local KILL_STREAK_MAX_BONUS = 0.5
 local COMBAT_GRACE_ATTRIBUTE = "DeepDig_CombatGraceUntil"
 local HOLLOW_KING_ID = "hollow_king"
 local HOLLOW_KING_COOLDOWN = 5 * 60
+local MINIBOSS_ENRAGE_WALKSPEED_MULTIPLIER = 1.35
+local MINIBOSS_ENRAGE_DAMAGE_MULTIPLIER = 1.3
 
 local liveEnemies = {}
 local enemiesByPlayer = {}
@@ -401,6 +403,33 @@ local function getEnemyMaxHealth(record)
 	return math.max(record.humanoid.MaxHealth, 1)
 end
 
+local function getEnemyWalkSpeed(record)
+	if record.walkSpeed then
+		return record.walkSpeed
+	end
+
+	return record.enemy.walkSpeed or 0
+end
+
+local function getEnemyDamage(record)
+	if record.damage then
+		return record.damage
+	end
+
+	return record.enemy.damage or 0
+end
+
+local function applyMinibossEnrageStats(record)
+	local baseWalkSpeed = record.baseWalkSpeed or record.enemy.walkSpeed or 0
+	local baseDamage = record.baseDamage or record.enemy.damage or 0
+	record.walkSpeed = baseWalkSpeed * MINIBOSS_ENRAGE_WALKSPEED_MULTIPLIER
+	record.damage = math.floor((baseDamage * MINIBOSS_ENRAGE_DAMAGE_MULTIPLIER) + 0.5)
+
+	if record.model and record.model:GetAttribute("IsEmerging") ~= true and record.humanoid and record.humanoid.Health > 0 then
+		record.humanoid.WalkSpeed = getEnemyWalkSpeed(record)
+	end
+end
+
 local function checkMinibossEnrage(record, attacker, previousHealth)
 	if record.enraged or record.dead or not record.enemy.isMiniboss then
 		return
@@ -418,6 +447,7 @@ local function checkMinibossEnrage(record, attacker, previousHealth)
 
 	record.enraged = true
 	record.model:SetAttribute("HasEnraged", true)
+	applyMinibossEnrageStats(record)
 	fireEnemyCombatFeedback(record.owner, "miniboss_enrage", record.model)
 	if attacker and attacker ~= record.owner then
 		fireEnemyCombatFeedback(attacker, "miniboss_enrage", record.model)
@@ -501,7 +531,7 @@ local function releaseEmergingEnemy(record)
 
 	record.model:SetAttribute("IsEmerging", false)
 	record.root.Anchored = false
-	record.humanoid.WalkSpeed = record.enemy.walkSpeed
+	record.humanoid.WalkSpeed = getEnemyWalkSpeed(record)
 end
 
 local function applyPendingTouchAttack(record, player, userId)
@@ -533,10 +563,11 @@ local function applyPendingTouchAttack(record, player, userId)
 	end
 
 	player:SetAttribute("DeepDig_LastEnemyDamageAt", os.clock())
-	humanoid:TakeDamage(record.enemy.damage)
+	local damage = getEnemyDamage(record)
+	humanoid:TakeDamage(damage)
 	EnemyCombatFeedback:FireClient(player, {
 		type = "player_hit",
-		damage = record.enemy.damage,
+		damage = damage,
 		enemyName = record.model:GetAttribute("EnemyName") or record.enemy.name,
 	})
 end
@@ -575,7 +606,7 @@ local function handleTouched(record, hit)
 
 	record.nextTouchDamageAtByUserId[userId] = now + TOUCH_DAMAGE_COOLDOWN
 	record.pendingTouchAttacksByUserId[userId] = true
-	fireEnemyCombatFeedback(player, "enemy_attack_warning", record.model, record.enemy.damage)
+	fireEnemyCombatFeedback(player, "enemy_attack_warning", record.model, getEnemyDamage(record))
 
 	task.delay(TOUCH_ATTACK_WINDUP, function()
 		applyPendingTouchAttack(record, player, userId)
@@ -968,6 +999,10 @@ local function spawnEnemyForPlayer(player)
 		dead = false,
 		inAggroRange = false,
 		enraged = false,
+		baseWalkSpeed = enemy.walkSpeed or 0,
+		baseDamage = enemy.damage or 0,
+		walkSpeed = enemy.walkSpeed or 0,
+		damage = enemy.damage or 0,
 		staggerToken = 0,
 		staggeredUntil = nil,
 		nextTouchDamageAtByUserId = {},
@@ -1038,7 +1073,7 @@ local function staggerEnemy(record, playerRoot, enemyRoot)
 	record.staggeredUntil = os.clock() + STAGGER_DURATION
 
 	local token = record.staggerToken
-	local walkSpeed = record.enemy.walkSpeed or 0
+	local walkSpeed = getEnemyWalkSpeed(record)
 	record.humanoid.WalkSpeed = math.max(0, walkSpeed * STAGGER_WALKSPEED_MULTIPLIER)
 
 	local offset = enemyRoot.Position - playerRoot.Position
@@ -1079,7 +1114,7 @@ local function staggerEnemy(record, playerRoot, enemyRoot)
 		end
 
 		record.staggeredUntil = nil
-		record.humanoid.WalkSpeed = record.enemy.walkSpeed
+		record.humanoid.WalkSpeed = getEnemyWalkSpeed(record)
 	end)
 end
 
@@ -1182,7 +1217,7 @@ task.spawn(function()
 						end
 
 						if not record.staggeredUntil or os.clock() >= record.staggeredUntil then
-							record.humanoid.WalkSpeed = record.enemy.walkSpeed
+							record.humanoid.WalkSpeed = getEnemyWalkSpeed(record)
 						end
 						if targetPosition then
 							record.humanoid:MoveTo(targetPosition)
