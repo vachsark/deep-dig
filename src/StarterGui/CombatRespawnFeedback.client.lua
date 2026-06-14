@@ -28,11 +28,21 @@ local CAMERA_BUMP_DURATION = 0.34
 local CAMERA_POSITION_STRENGTH = 0.11
 local CAMERA_ROTATION_STRENGTH = math.rad(0.34)
 local DEFAULT_GRACE_DURATION = 0
+local AURA_ROOT_WAIT_TIMEOUT = 1.2
+local AURA_FADE_DURATION = 0.24
 
 local effectSequence = 0
 local activeGui = nil
+local activeAuraCleanup = nil
 local cameraBumpBaseCFrame = nil
 local cameraBumpBound = false
+
+local function clearGraceAura()
+	if activeAuraCleanup then
+		activeAuraCleanup(false)
+		activeAuraCleanup = nil
+	end
+end
 
 local function clearCameraBump(sequence)
 	if sequence and sequence ~= effectSequence then
@@ -88,6 +98,161 @@ local function playCameraBump(sequence)
 	end)
 end
 
+local function makeAuraPart(name, shape, size, transparency)
+	local part = Instance.new("Part")
+	part.Name = name
+	part.Shape = shape
+	part.Size = size
+	part.Anchored = true
+	part.CanCollide = false
+	part.CanTouch = false
+	part.CanQuery = false
+	part.CastShadow = false
+	part.Material = Enum.Material.Neon
+	part.Color = Color3.fromRGB(128, 238, 255)
+	part.Transparency = transparency
+	return part
+end
+
+local function playGraceAura(sequence, graceDuration)
+	clearGraceAura()
+
+	if graceDuration <= 0 then
+		return
+	end
+
+	local cleaned = false
+	local auraFolder = nil
+	local auraSphere = nil
+	local auraRing = nil
+	local renderConnection = nil
+	local pulseTweens = {}
+
+	local function cleanup(fadeOut)
+		if cleaned then
+			return
+		end
+
+		cleaned = true
+
+		if activeAuraCleanup == cleanup then
+			activeAuraCleanup = nil
+		end
+
+		if renderConnection then
+			renderConnection:Disconnect()
+			renderConnection = nil
+		end
+
+		for _, tween in ipairs(pulseTweens) do
+			tween:Cancel()
+		end
+
+		if not auraFolder then
+			return
+		end
+
+		if fadeOut and auraFolder.Parent then
+			local fadeInfo = TweenInfo.new(AURA_FADE_DURATION, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+			for _, child in ipairs(auraFolder:GetChildren()) do
+				if child:IsA("BasePart") then
+					TweenService:Create(child, fadeInfo, { Transparency = 1 }):Play()
+				end
+			end
+
+			task.delay(AURA_FADE_DURATION, function()
+				if auraFolder then
+					auraFolder:Destroy()
+					auraFolder = nil
+				end
+			end)
+		else
+			auraFolder:Destroy()
+			auraFolder = nil
+		end
+	end
+
+	activeAuraCleanup = cleanup
+
+	task.spawn(function()
+		local character = player.Character
+		local waited = 0
+		while sequence == effectSequence and not cleaned and (not character or not character.Parent) and waited < AURA_ROOT_WAIT_TIMEOUT do
+			task.wait(0.05)
+			waited = waited + 0.05
+			character = player.Character
+		end
+
+		if sequence ~= effectSequence or cleaned or not character or not character.Parent then
+			cleanup(false)
+			return
+		end
+
+		local root = character:FindFirstChild("HumanoidRootPart")
+		waited = 0
+		while sequence == effectSequence and not cleaned and (not root or not root.Parent) and waited < AURA_ROOT_WAIT_TIMEOUT do
+			task.wait(0.05)
+			waited = waited + 0.05
+			root = character:FindFirstChild("HumanoidRootPart")
+		end
+
+		if sequence ~= effectSequence or cleaned or not root or not root.Parent then
+			cleanup(false)
+			return
+		end
+
+		auraFolder = Instance.new("Folder")
+		auraFolder.Name = "LocalCombatGraceAura"
+		auraFolder.Parent = workspace
+
+		auraSphere = makeAuraPart("ShieldShell", Enum.PartType.Ball, Vector3.new(4.6, 4.6, 4.6), 0.84)
+		auraSphere.Parent = auraFolder
+
+		auraRing = makeAuraPart("ShieldRing", Enum.PartType.Cylinder, Vector3.new(5.2, 0.08, 5.2), 0.5)
+		auraRing.Parent = auraFolder
+
+		local pulseInfo = TweenInfo.new(0.54, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true)
+		pulseTweens = {
+			TweenService:Create(auraSphere, pulseInfo, {
+				Size = Vector3.new(5.4, 5.4, 5.4),
+				Transparency = 0.92,
+			}),
+			TweenService:Create(auraRing, pulseInfo, {
+				Size = Vector3.new(6.4, 0.08, 6.4),
+				Transparency = 0.78,
+			}),
+		}
+
+		for _, tween in ipairs(pulseTweens) do
+			tween:Play()
+		end
+
+		local startedAt = os.clock()
+		renderConnection = RunService.RenderStepped:Connect(function()
+			if sequence ~= effectSequence then
+				cleanup(false)
+				return
+			end
+
+			if not root.Parent or not character.Parent then
+				cleanup(false)
+				return
+			end
+
+			local elapsed = os.clock() - startedAt
+			local remaining = graceDuration - elapsed
+			if remaining <= 0 then
+				cleanup(true)
+				return
+			end
+
+			local pulseOffset = math.sin(elapsed * math.pi * 2) * 0.08
+			auraSphere.CFrame = root.CFrame
+			auraRing.CFrame = CFrame.new(root.Position + Vector3.new(0, -2.45 + pulseOffset, 0))
+		end)
+	end)
+end
+
 local function makeLabel(parent, name, text, position, size, textSize, color)
 	local label = Instance.new("TextLabel")
 	label.Name = name
@@ -117,6 +282,7 @@ local function playResurfaceFeedback(graceDuration)
 		activeGui:Destroy()
 		activeGui = nil
 	end
+	clearGraceAura()
 
 	local screenGui = Instance.new("ScreenGui")
 	screenGui.Name = "CombatRespawnFeedback"
@@ -134,6 +300,7 @@ local function playResurfaceFeedback(graceDuration)
 
 		cleaned = true
 		clearCameraBump(sequence)
+		clearGraceAura()
 
 		if activeGui == screenGui then
 			activeGui = nil
@@ -261,6 +428,7 @@ local function playResurfaceFeedback(graceDuration)
 	scale.Parent = title
 
 	playCameraBump(sequence)
+	playGraceAura(sequence, graceDuration)
 
 	local fadeInInfo = TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
 	local settleInfo = TweenInfo.new(0.22, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
