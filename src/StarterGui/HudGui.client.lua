@@ -6269,10 +6269,72 @@ local upCorner = Instance.new("UICorner")
 upCorner.CornerRadius = UDim.new(0, 8)
 upCorner.Parent = upgradeButton
 
+DeepDigToolUpgradeBurstUi = {}
+DeepDigToolUpgradeBurstSequence = 0
+
+DeepDigToolUpgradeBurstUi.frame = Instance.new("Frame")
+DeepDigToolUpgradeBurstUi.frame.Name = "ToolUpgradeBurst"
+DeepDigToolUpgradeBurstUi.frame.AnchorPoint = Vector2.new(0.5, 0.5)
+DeepDigToolUpgradeBurstUi.frame.Size = UDim2.fromOffset(252, 54)
+DeepDigToolUpgradeBurstUi.frame.Position = UDim2.fromScale(0.5, 0.82)
+DeepDigToolUpgradeBurstUi.frame.BackgroundColor3 = Color3.fromRGB(25, 42, 58)
+DeepDigToolUpgradeBurstUi.frame.BackgroundTransparency = 1
+DeepDigToolUpgradeBurstUi.frame.BorderSizePixel = 0
+DeepDigToolUpgradeBurstUi.frame.Visible = false
+DeepDigToolUpgradeBurstUi.frame.ZIndex = 36
+DeepDigToolUpgradeBurstUi.frame.Parent = screenGui
+
+DeepDigToolUpgradeBurstUi.corner = Instance.new("UICorner")
+DeepDigToolUpgradeBurstUi.corner.CornerRadius = UDim.new(0, 8)
+DeepDigToolUpgradeBurstUi.corner.Parent = DeepDigToolUpgradeBurstUi.frame
+
+DeepDigToolUpgradeBurstUi.stroke = Instance.new("UIStroke")
+DeepDigToolUpgradeBurstUi.stroke.Color = Color3.fromRGB(255, 205, 80)
+DeepDigToolUpgradeBurstUi.stroke.Thickness = 1
+DeepDigToolUpgradeBurstUi.stroke.Transparency = 1
+DeepDigToolUpgradeBurstUi.stroke.Parent = DeepDigToolUpgradeBurstUi.frame
+
+DeepDigToolUpgradeBurstUi.scale = Instance.new("UIScale")
+DeepDigToolUpgradeBurstUi.scale.Scale = 0.88
+DeepDigToolUpgradeBurstUi.scale.Parent = DeepDigToolUpgradeBurstUi.frame
+
+DeepDigToolUpgradeBurstUi.title = Instance.new("TextLabel")
+DeepDigToolUpgradeBurstUi.title.Name = "Title"
+DeepDigToolUpgradeBurstUi.title.Size = UDim2.new(1, -18, 0, 26)
+DeepDigToolUpgradeBurstUi.title.Position = UDim2.fromOffset(9, 5)
+DeepDigToolUpgradeBurstUi.title.BackgroundTransparency = 1
+DeepDigToolUpgradeBurstUi.title.Text = ""
+DeepDigToolUpgradeBurstUi.title.TextColor3 = Color3.fromRGB(255, 235, 160)
+DeepDigToolUpgradeBurstUi.title.TextTransparency = 1
+DeepDigToolUpgradeBurstUi.title.TextSize = 16
+DeepDigToolUpgradeBurstUi.title.Font = Enum.Font.GothamBlack
+DeepDigToolUpgradeBurstUi.title.TextXAlignment = Enum.TextXAlignment.Center
+DeepDigToolUpgradeBurstUi.title.TextYAlignment = Enum.TextYAlignment.Center
+DeepDigToolUpgradeBurstUi.title.TextTruncate = Enum.TextTruncate.AtEnd
+DeepDigToolUpgradeBurstUi.title.ZIndex = 37
+DeepDigToolUpgradeBurstUi.title.Parent = DeepDigToolUpgradeBurstUi.frame
+
+DeepDigToolUpgradeBurstUi.damage = Instance.new("TextLabel")
+DeepDigToolUpgradeBurstUi.damage.Name = "Damage"
+DeepDigToolUpgradeBurstUi.damage.Size = UDim2.new(1, -18, 0, 20)
+DeepDigToolUpgradeBurstUi.damage.Position = UDim2.fromOffset(9, 29)
+DeepDigToolUpgradeBurstUi.damage.BackgroundTransparency = 1
+DeepDigToolUpgradeBurstUi.damage.Text = ""
+DeepDigToolUpgradeBurstUi.damage.TextColor3 = Color3.fromRGB(210, 235, 255)
+DeepDigToolUpgradeBurstUi.damage.TextTransparency = 1
+DeepDigToolUpgradeBurstUi.damage.TextSize = 13
+DeepDigToolUpgradeBurstUi.damage.Font = Enum.Font.GothamBold
+DeepDigToolUpgradeBurstUi.damage.TextXAlignment = Enum.TextXAlignment.Center
+DeepDigToolUpgradeBurstUi.damage.TextYAlignment = Enum.TextYAlignment.Center
+DeepDigToolUpgradeBurstUi.damage.TextTruncate = Enum.TextTruncate.AtEnd
+DeepDigToolUpgradeBurstUi.damage.ZIndex = 37
+DeepDigToolUpgradeBurstUi.damage.Parent = DeepDigToolUpgradeBurstUi.frame
+
 local currentToolTier = 1
 local updateUpgradeAffordance = function() end
 DeepDigToolHud = {
 	currentToolName = "Rusty Shovel",
+	lastObservedToolTier = nil,
 }
 
 function DeepDigToolHud.getToolDamage(toolTier)
@@ -6298,6 +6360,116 @@ function DeepDigToolHud.updateToolReadout(toolName, toolTier)
 	else
 		toolLabel.Text = "🔧 " .. DeepDigToolHud.currentToolName
 	end
+end
+
+function DeepDigToolHud.seedObservedToolTier(toolTier)
+	local nextTier = tonumber(toolTier)
+	if nextTier then
+		DeepDigToolHud.lastObservedToolTier = nextTier
+	end
+end
+
+function DeepDigPositionToolUpgradeBurst()
+	local camera = workspace.CurrentCamera
+	local viewportSize = camera and camera.ViewportSize or Vector2.new(800, 600)
+	local burstWidth = DeepDigToolUpgradeBurstUi.frame.AbsoluteSize.X > 0 and DeepDigToolUpgradeBurstUi.frame.AbsoluteSize.X or 252
+	local buttonCenter = upgradeButton.AbsolutePosition + (upgradeButton.AbsoluteSize / 2)
+	local x = math.clamp(buttonCenter.X, (burstWidth / 2) + 12, math.max((burstWidth / 2) + 12, viewportSize.X - (burstWidth / 2) - 12))
+	local y = math.clamp(upgradeButton.AbsolutePosition.Y - 82, 82, math.max(82, viewportSize.Y - 86))
+
+	DeepDigToolUpgradeBurstUi.frame.Position = UDim2.fromOffset(x, y)
+end
+
+function DeepDigToolHud.playUpgradeBurst(toolName, previousTier, nextTier)
+	previousTier = tonumber(previousTier)
+	nextTier = tonumber(nextTier)
+	if not previousTier or not nextTier then
+		return
+	end
+
+	local nextToolConfig = Config.TOOLS[nextTier]
+	local newToolName = toolName or (nextToolConfig and nextToolConfig.name) or "Tool Upgraded"
+	local previousDamage = DeepDigToolHud.getToolDamage(previousTier)
+	local nextDamage = DeepDigToolHud.getToolDamage(nextTier)
+	local damageText = "Damage upgraded"
+	if previousDamage and nextDamage then
+		local damageDelta = nextDamage - previousDamage
+		damageText = "DMG +" .. tostring(damageDelta) .. " (" .. tostring(previousDamage) .. "->" .. tostring(nextDamage) .. ")"
+	end
+
+	DeepDigToolUpgradeBurstSequence = DeepDigToolUpgradeBurstSequence + 1
+	local sequence = DeepDigToolUpgradeBurstSequence
+
+	DeepDigToolUpgradeBurstUi.title.Text = "⬆️ " .. newToolName
+	DeepDigToolUpgradeBurstUi.damage.Text = damageText
+	DeepDigPositionToolUpgradeBurst()
+
+	DeepDigToolUpgradeBurstUi.frame.Visible = true
+	DeepDigToolUpgradeBurstUi.frame.BackgroundTransparency = 1
+	DeepDigToolUpgradeBurstUi.stroke.Transparency = 1
+	DeepDigToolUpgradeBurstUi.title.TextTransparency = 1
+	DeepDigToolUpgradeBurstUi.damage.TextTransparency = 1
+	DeepDigToolUpgradeBurstUi.scale.Scale = 0.88
+
+	TweenService:Create(DeepDigToolUpgradeBurstUi.frame, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+		BackgroundTransparency = 0.08,
+	}):Play()
+	TweenService:Create(DeepDigToolUpgradeBurstUi.stroke, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+		Transparency = 0.12,
+	}):Play()
+	TweenService:Create(DeepDigToolUpgradeBurstUi.title, TweenInfo.new(0.1, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+		TextTransparency = 0,
+	}):Play()
+	TweenService:Create(DeepDigToolUpgradeBurstUi.damage, TweenInfo.new(0.1, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+		TextTransparency = 0,
+	}):Play()
+	TweenService:Create(DeepDigToolUpgradeBurstUi.scale, TweenInfo.new(0.18, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+		Scale = 1,
+	}):Play()
+
+	task.delay(1.25, function()
+		if sequence ~= DeepDigToolUpgradeBurstSequence then
+			return
+		end
+
+		local fadeFrame = TweenService:Create(DeepDigToolUpgradeBurstUi.frame, TweenInfo.new(0.24, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+			BackgroundTransparency = 1,
+		})
+		TweenService:Create(DeepDigToolUpgradeBurstUi.stroke, TweenInfo.new(0.22, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+			Transparency = 1,
+		}):Play()
+		TweenService:Create(DeepDigToolUpgradeBurstUi.title, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+			TextTransparency = 1,
+		}):Play()
+		TweenService:Create(DeepDigToolUpgradeBurstUi.damage, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+			TextTransparency = 1,
+		}):Play()
+		TweenService:Create(DeepDigToolUpgradeBurstUi.scale, TweenInfo.new(0.24, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+			Scale = 0.95,
+		}):Play()
+
+		fadeFrame:Play()
+		fadeFrame.Completed:Connect(function()
+			if sequence ~= DeepDigToolUpgradeBurstSequence then
+				return
+			end
+			DeepDigToolUpgradeBurstUi.frame.Visible = false
+		end)
+	end)
+end
+
+function DeepDigToolHud.observeToolTier(toolName, toolTier)
+	local nextTier = tonumber(toolTier)
+	if not nextTier then
+		return
+	end
+
+	local previousTier = DeepDigToolHud.lastObservedToolTier
+	if previousTier ~= nil and nextTier > previousTier then
+		DeepDigToolHud.playUpgradeBurst(toolName, previousTier, nextTier)
+	end
+
+	DeepDigToolHud.lastObservedToolTier = nextTier
 end
 
 function DeepDigToolHud.setUpgradeButtonText(nextToolName, nextToolCost, atMaxLevel)
@@ -7162,6 +7334,9 @@ Remotes.UpdateHUD.OnClientEvent:Connect(function(data)
 		updateDepthTone(data)
 	end
 	if data.toolName or data.toolTier then
+		if data.toolTier ~= nil then
+			DeepDigToolHud.observeToolTier(data.toolName, data.toolTier)
+		end
 		DeepDigToolHud.updateToolReadout(data.toolName, data.toolTier)
 	end
 	if data.blocksDug then
@@ -7510,6 +7685,7 @@ task.spawn(function()
 		coinsLabel.Text = "🪙 " .. tostring(math.floor(data.coins))
 		previousCoinValue = math.floor(data.coins)
 		DeepDigToolHud.updateToolReadout(data.toolName, data.toolTier)
+		DeepDigToolHud.seedObservedToolTier(data.toolTier)
 		blocksLabel.Text = "Blocks: " .. tostring(data.totalBlocksDug)
 		setInventoryDisplay(#data.inventory, data.inventoryCapacity)
 		if data.fragments ~= nil then
