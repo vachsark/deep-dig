@@ -366,7 +366,9 @@ local function isMinibossDefeat(record)
 end
 
 local function startHollowKingCooldown(player)
-	hollowKingCooldownsByUserId[player.UserId] = os.clock() + HOLLOW_KING_COOLDOWN
+	local expiresAt = os.clock() + HOLLOW_KING_COOLDOWN
+	hollowKingCooldownsByUserId[player.UserId] = expiresAt
+	return expiresAt
 end
 
 local function isHollowKingCooldownActive(player)
@@ -460,15 +462,31 @@ local function onEnemyDied(record)
 	end
 
 	record.dead = true
+	local hollowKingCooldown = nil
 	if record.enemy.id == HOLLOW_KING_ID and record.owner and record.owner.Parent == Players then
 		startHollowKingCooldown(record.owner)
+		hollowKingCooldown = {
+			enemyId = HOLLOW_KING_ID,
+			enemyName = record.enemy.name or "Hollow King",
+			durationSeconds = HOLLOW_KING_COOLDOWN,
+			expiresAt = workspace:GetServerTimeNow() + HOLLOW_KING_COOLDOWN,
+		}
 	end
 
 	local rewardedPlayer, rewardSummary = payEnemyReward(record)
+	if rewardSummary and hollowKingCooldown then
+		rewardSummary.hollowKingCooldown = hollowKingCooldown
+	end
 	local feedbackPlayer = rewardedPlayer or record.lastAttacker or record.owner
 	fireEnemyCombatFeedback(feedbackPlayer, "defeated", record.model, nil, rewardSummary)
 	if record.enemy.isMiniboss then
-		fireEnemyCombatFeedback(feedbackPlayer, "miniboss_defeated", record.model)
+		local minibossDefeatReward = nil
+		if hollowKingCooldown then
+			minibossDefeatReward = {
+				hollowKingCooldown = hollowKingCooldown,
+			}
+		end
+		fireEnemyCombatFeedback(feedbackPlayer, "miniboss_defeated", record.model, nil, minibossDefeatReward)
 	end
 	notifyMinibossDefeat(record, rewardedPlayer)
 	task.delay(2, function()

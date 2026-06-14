@@ -3074,7 +3074,37 @@ local function pulseBossBarDefeated(model)
 	end)
 end
 
-local function showMinibossDefeatCelebration(model)
+function CombatStreak.getHollowKingCooldownLine(reward)
+	if typeof(reward) ~= "table" then
+		return nil
+	end
+
+	local cooldown = reward.hollowKingCooldown
+	if typeof(cooldown) ~= "table" or cooldown.enemyId ~= "hollow_king" then
+		return nil
+	end
+
+	local seconds = tonumber(cooldown.durationSeconds)
+	if not seconds then
+		local expiresAt = tonumber(cooldown.expiresAt)
+		if expiresAt then
+			seconds = math.max(0, expiresAt - CombatStreak.getSyncedServerTime())
+		end
+	end
+	if not seconds or seconds <= 0 then
+		return nil
+	end
+
+	local minutes = math.max(1, math.floor((seconds + 59) / 60))
+	local enemyName = cooldown.enemyName
+	if type(enemyName) ~= "string" or enemyName == "" then
+		enemyName = "Hollow King"
+	end
+
+	return string.format("%s driven off for %dm", enemyName, minutes)
+end
+
+local function showMinibossDefeatCelebration(model, reward)
 	if not model or not model:IsA("Model") or model:GetAttribute("IsMiniboss") ~= true then
 		return
 	end
@@ -3082,6 +3112,9 @@ local function showMinibossDefeatCelebration(model)
 	local gui = ensureMinibossDefeatGui()
 	minibossDefeatSequence = minibossDefeatSequence + 1
 	local sequence = minibossDefeatSequence
+	local cooldownLine = CombatStreak.getHollowKingCooldownLine(reward)
+	local bannerHeight = cooldownLine and 116 or 92
+	local bannerStartHeight = cooldownLine and 104 or 82
 	gui:ClearAllChildren()
 
 	local root = model:FindFirstChild("HumanoidRootPart")
@@ -3200,7 +3233,7 @@ local function showMinibossDefeatCelebration(model)
 	banner.Name = "BossClearBanner"
 	banner.AnchorPoint = Vector2.new(0.5, 0.5)
 	banner.Position = UDim2.fromScale(0.5, 0.34)
-	banner.Size = UDim2.new(0.86, 0, 0, 92)
+	banner.Size = UDim2.new(0.86, 0, 0, bannerHeight)
 	banner.BackgroundColor3 = Color3.fromRGB(21, 12, 28)
 	banner.BackgroundTransparency = 0.06
 	banner.BorderSizePixel = 0
@@ -3208,8 +3241,8 @@ local function showMinibossDefeatCelebration(model)
 	banner.Parent = gui
 
 	local sizeConstraint = Instance.new("UISizeConstraint")
-	sizeConstraint.MinSize = Vector2.new(280, 82)
-	sizeConstraint.MaxSize = Vector2.new(430, 92)
+	sizeConstraint.MinSize = Vector2.new(280, bannerStartHeight)
+	sizeConstraint.MaxSize = Vector2.new(430, bannerHeight)
 	sizeConstraint.Parent = banner
 
 	local bannerCorner = Instance.new("UICorner")
@@ -3249,7 +3282,24 @@ local function showMinibossDefeatCelebration(model)
 	nameLabel.ZIndex = 4
 	nameLabel.Parent = banner
 
-	local startSize = UDim2.new(0.76, 0, 0, 82)
+	local cooldownLabel = nil
+	if cooldownLine then
+		cooldownLabel = Instance.new("TextLabel")
+		cooldownLabel.Name = "CooldownLine"
+		cooldownLabel.Position = UDim2.fromOffset(18, 76)
+		cooldownLabel.Size = UDim2.new(1, -36, 0, 22)
+		cooldownLabel.BackgroundTransparency = 1
+		cooldownLabel.Text = cooldownLine
+		cooldownLabel.TextColor3 = Color3.fromRGB(255, 210, 138)
+		cooldownLabel.TextStrokeTransparency = 0.42
+		cooldownLabel.TextSize = 16
+		cooldownLabel.Font = Enum.Font.GothamMedium
+		cooldownLabel.TextTruncate = Enum.TextTruncate.AtEnd
+		cooldownLabel.ZIndex = 4
+		cooldownLabel.Parent = banner
+	end
+
+	local startSize = UDim2.new(0.76, 0, 0, bannerStartHeight)
 	banner.Size = startSize
 
 	local flashTween = TweenService:Create(goldFlash, TweenInfo.new(
@@ -3271,7 +3321,7 @@ local function showMinibossDefeatCelebration(model)
 		Enum.EasingStyle.Back,
 		Enum.EasingDirection.Out
 	), {
-		Size = UDim2.new(0.86, 0, 0, 92),
+		Size = UDim2.new(0.86, 0, 0, bannerHeight),
 	})
 	local bannerFadeTween = TweenService:Create(banner, TweenInfo.new(
 		0.38,
@@ -3304,6 +3354,17 @@ local function showMinibossDefeatCelebration(model)
 		TextTransparency = 1,
 		TextStrokeTransparency = 1,
 	})
+	local cooldownFadeTween = nil
+	if cooldownLabel then
+		cooldownFadeTween = TweenService:Create(cooldownLabel, TweenInfo.new(
+			0.38,
+			Enum.EasingStyle.Quad,
+			Enum.EasingDirection.In
+		), {
+			TextTransparency = 1,
+			TextStrokeTransparency = 1,
+		})
+	end
 
 	flashTween:Play()
 	voidTween:Play()
@@ -3317,6 +3378,9 @@ local function showMinibossDefeatCelebration(model)
 		strokeFadeTween:Play()
 		titleFadeTween:Play()
 		nameFadeTween:Play()
+		if cooldownFadeTween then
+			cooldownFadeTween:Play()
+		end
 	end)
 
 	task.delay(MINIBOSS_DEFEAT_DURATION + 0.06, function()
@@ -3502,7 +3566,7 @@ EnemyCombatFeedback.OnClientEvent:Connect(function(payload)
 		pulseBossBarEnrage(payload.model)
 		showMinibossEnrageWarning(payload.model)
 	elseif feedbackType == "miniboss_defeated" then
-		showMinibossDefeatCelebration(payload.model)
+		showMinibossDefeatCelebration(payload.model, payload.reward)
 		return
 	end
 
