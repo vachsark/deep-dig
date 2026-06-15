@@ -152,7 +152,24 @@ local function updateRewardHud(player, data)
 	})
 end
 
-local function addItemReward(player, data, tierName)
+local function getEnemyDropPosition(record)
+	if record.root and record.root.Parent then
+		return record.root.Position
+	end
+
+	if record.model and record.model.Parent then
+		local ok, pivot = pcall(function()
+			return record.model:GetPivot()
+		end)
+		if ok then
+			return pivot.Position
+		end
+	end
+
+	return nil
+end
+
+local function addItemReward(player, data, tierName, dropPosition)
 	local item = ItemDatabase.rollItem(tierName)
 	if not item then
 		return nil
@@ -180,7 +197,11 @@ local function addItemReward(player, data, tierName)
 		fireQuestProgress(player, "items_found", { amount = 1 })
 		fireQuestProgress(player, "rarity_found", { amount = 1, rarity = item.rarity })
 		if ItemFoundEvent then
-			ItemFoundEvent:FireClient(player, item)
+			local clientPayload = table.clone(item)
+			if (item.rarity == "Legendary" or item.rarity == "Mythic") and dropPosition then
+				clientPayload.worldPosition = dropPosition
+			end
+			ItemFoundEvent:FireClient(player, clientPayload)
 		end
 		ItemFoundBindable:Fire(player, item)
 		fireItemFindSounds(player, item.rarity)
@@ -280,7 +301,7 @@ local function payEnemyReward(record)
 
 	local itemReward = nil
 	if math.random() < enemy.itemDropChance then
-		itemReward = addItemReward(player, data, record.tierName)
+		itemReward = addItemReward(player, data, record.tierName, getEnemyDropPosition(record))
 	end
 
 	updateRewardHud(player, data)
