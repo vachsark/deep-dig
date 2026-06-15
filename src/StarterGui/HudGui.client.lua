@@ -777,6 +777,10 @@ do
 	activeEventHud.corner.CornerRadius = UDim.new(0, 7)
 	activeEventHud.corner.Parent = activeEventHud.frame
 
+	activeEventHud.scale = Instance.new("UIScale")
+	activeEventHud.scale.Scale = 1
+	activeEventHud.scale.Parent = activeEventHud.frame
+
 	activeEventHud.stroke = Instance.new("UIStroke")
 	activeEventHud.stroke.Thickness = 2
 	activeEventHud.stroke.Color = activeEventHud.styles.fallback.accent
@@ -849,6 +853,15 @@ do
 	activeEventHud.progressFillCorner.CornerRadius = UDim.new(0, 2)
 	activeEventHud.progressFillCorner.Parent = activeEventHud.progressFill
 
+	local function restoreActiveEventPulseVisuals()
+		local accent = activeEventHud.accentColor or activeEventHud.styles.fallback.accent
+
+		activeEventHud.scale.Scale = 1
+		activeEventHud.stroke.Thickness = 2
+		activeEventHud.stroke.Color = accent
+		activeEventHud.timer.TextColor3 = accent
+	end
+
 	local function restoreActiveEventPillTransparency()
 		activeEventHud.frame.BackgroundTransparency = 0.08
 		activeEventHud.stroke.Transparency = 0.15
@@ -857,6 +870,17 @@ do
 		activeEventHud.timer.TextTransparency = 0
 		activeEventHud.progressTrack.BackgroundTransparency = 0.82
 		activeEventHud.progressFill.BackgroundTransparency = 0
+	end
+
+	local function cancelActiveEventPulseTweens()
+		activeEventHud.pulseSequence = (activeEventHud.pulseSequence or 0) + 1
+		if activeEventHud.pulseTweens then
+			for _, tween in ipairs(activeEventHud.pulseTweens) do
+				tween:Cancel()
+			end
+			activeEventHud.pulseTweens = nil
+		end
+		restoreActiveEventPulseVisuals()
 	end
 
 	local function cancelActiveEventFadeTweens()
@@ -873,6 +897,7 @@ do
 			return
 		end
 
+		cancelActiveEventPulseTweens()
 		activeEventHud.fadeTween = TweenService:Create(
 			activeEventHud.frame,
 			TweenInfo.new(0.35, Enum.EasingStyle.Quad, Enum.EasingDirection.In),
@@ -912,6 +937,57 @@ do
 		end)
 	end
 
+	local function pulseActiveEventFinalSecond(token, accent)
+		if token ~= activeEventHud.token or not activeEventHud.frame.Visible then
+			return
+		end
+
+		cancelActiveEventPulseTweens()
+		activeEventHud.pulseSequence = (activeEventHud.pulseSequence or 0) + 1
+		local sequence = activeEventHud.pulseSequence
+		local pulseColor = Color3.fromRGB(255, 245, 170)
+
+		activeEventHud.scale.Scale = 1.06
+		activeEventHud.stroke.Thickness = 3
+		activeEventHud.stroke.Color = pulseColor
+		activeEventHud.timer.TextColor3 = pulseColor
+
+		local scaleSettle = TweenService:Create(
+			activeEventHud.scale,
+			TweenInfo.new(0.18, Enum.EasingStyle.Back, Enum.EasingDirection.Out),
+			{ Scale = 1 }
+		)
+		local strokeSettle = TweenService:Create(
+			activeEventHud.stroke,
+			TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+			{
+				Thickness = 2,
+				Color = accent,
+			}
+		)
+		local timerSettle = TweenService:Create(
+			activeEventHud.timer,
+			TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+			{ TextColor3 = accent }
+		)
+
+		activeEventHud.pulseTweens = {
+			scaleSettle,
+			strokeSettle,
+			timerSettle,
+		}
+		scaleSettle:Play()
+		strokeSettle:Play()
+		timerSettle:Play()
+		scaleSettle.Completed:Connect(function()
+			if sequence ~= activeEventHud.pulseSequence or token ~= activeEventHud.token then
+				return
+			end
+			activeEventHud.pulseTweens = nil
+			restoreActiveEventPulseVisuals()
+		end)
+	end
+
 	function activeEventHud.show(eventName, message, duration, effectId)
 		activeEventHud.token = activeEventHud.token + 1
 		local token = activeEventHud.token
@@ -924,6 +1000,9 @@ do
 			activeEventHud.fadeTween = nil
 		end
 		cancelActiveEventFadeTweens()
+
+		activeEventHud.accentColor = style.accent
+		cancelActiveEventPulseTweens()
 
 		if activeEventHud.progressTween then
 			activeEventHud.progressTween:Cancel()
@@ -960,12 +1039,18 @@ do
 
 		task.spawn(function()
 			local endsAt = os.clock() + remainingSeconds
+			local lastPulsedSecond = nil
 			while token == activeEventHud.token do
 				remainingSeconds = math.max(0, math.ceil(endsAt - os.clock()))
 				activeEventHud.timer.Text = tostring(remainingSeconds) .. "s"
 
 				if remainingSeconds <= 0 then
 					break
+				end
+
+				if remainingSeconds <= 5 and remainingSeconds ~= lastPulsedSecond then
+					lastPulsedSecond = remainingSeconds
+					pulseActiveEventFinalSecond(token, style.accent)
 				end
 
 				task.wait(0.25)
