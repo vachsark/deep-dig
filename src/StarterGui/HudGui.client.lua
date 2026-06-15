@@ -763,6 +763,10 @@ DeepDigActiveEventHud = {
 do
 	local activeEventHud = DeepDigActiveEventHud
 
+	function activeEventHud.getStyle(effectId)
+		return activeEventHud.styles[effectId] or activeEventHud.styles.fallback
+	end
+
 	activeEventHud.frame = Instance.new("Frame")
 	activeEventHud.frame.Name = "ActiveEventPill"
 	activeEventHud.frame.Size = UDim2.new(0, 270, 0, 38)
@@ -991,7 +995,7 @@ do
 	function activeEventHud.show(eventName, message, duration, effectId)
 		activeEventHud.token = activeEventHud.token + 1
 		local token = activeEventHud.token
-		local style = activeEventHud.styles[effectId] or activeEventHud.styles.fallback
+		local style = activeEventHud.getStyle(effectId)
 		local remainingSeconds = math.max(0, math.floor(tonumber(duration) or 0))
 		local isSeasonalEffect = activeEventHud.seasonalEffects[effectId] == true
 
@@ -1059,6 +1063,62 @@ do
 			fadeActiveEventPill(token)
 		end)
 	end
+end
+
+DeepDigEventStartFlash = {
+	tweens = {},
+	sequence = 0,
+}
+
+DeepDigEventStartFlash.overlay = Instance.new("Frame")
+DeepDigEventStartFlash.overlay.Name = "EventStartFlash"
+DeepDigEventStartFlash.overlay.Size = UDim2.new(1, 0, 1, 0)
+DeepDigEventStartFlash.overlay.Position = UDim2.new(0, 0, 0, 0)
+DeepDigEventStartFlash.overlay.BackgroundColor3 = DeepDigActiveEventHud.styles.fallback.accent
+DeepDigEventStartFlash.overlay.BackgroundTransparency = 1
+DeepDigEventStartFlash.overlay.BorderSizePixel = 0
+DeepDigEventStartFlash.overlay.Active = false
+DeepDigEventStartFlash.overlay.Visible = false
+DeepDigEventStartFlash.overlay.ZIndex = 80
+DeepDigEventStartFlash.overlay.Parent = screenGui
+
+DeepDigEventStartFlash.glint = Instance.new("Frame")
+DeepDigEventStartFlash.glint.Name = "EventStartGlint"
+DeepDigEventStartFlash.glint.Size = UDim2.new(0.18, 0, 1.2, 0)
+DeepDigEventStartFlash.glint.Position = UDim2.new(-0.28, 0, -0.1, 0)
+DeepDigEventStartFlash.glint.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+DeepDigEventStartFlash.glint.BackgroundTransparency = 1
+DeepDigEventStartFlash.glint.BorderSizePixel = 0
+DeepDigEventStartFlash.glint.Active = false
+DeepDigEventStartFlash.glint.Rotation = 8
+DeepDigEventStartFlash.glint.ZIndex = 81
+DeepDigEventStartFlash.glint.Parent = DeepDigEventStartFlash.overlay
+
+DeepDigEventStartFlash.gradient = Instance.new("UIGradient")
+DeepDigEventStartFlash.gradient.Color = ColorSequence.new({
+	ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 255, 255)),
+	ColorSequenceKeypoint.new(0.5, Color3.fromRGB(255, 255, 255)),
+	ColorSequenceKeypoint.new(1, DeepDigActiveEventHud.styles.fallback.accent),
+})
+DeepDigEventStartFlash.gradient.Transparency = NumberSequence.new({
+	NumberSequenceKeypoint.new(0, 1),
+	NumberSequenceKeypoint.new(0.5, 0),
+	NumberSequenceKeypoint.new(1, 1),
+})
+DeepDigEventStartFlash.gradient.Parent = DeepDigEventStartFlash.glint
+
+function DeepDigEventStartFlash.cancelTweens()
+	for _, tween in ipairs(DeepDigEventStartFlash.tweens) do
+		tween:Cancel()
+	end
+	DeepDigEventStartFlash.tweens = {}
+end
+
+function DeepDigEventStartFlash.reset()
+	DeepDigEventStartFlash.overlay.Visible = false
+	DeepDigEventStartFlash.overlay.BackgroundTransparency = 1
+	DeepDigEventStartFlash.glint.BackgroundTransparency = 1
+	DeepDigEventStartFlash.glint.Position = UDim2.new(-0.28, 0, -0.1, 0)
 end
 
 local halloweenAmbienceLayer = Instance.new("Frame")
@@ -3602,6 +3662,66 @@ end
 
 local function shouldPlayEventCameraShake(duration)
 	return type(duration) ~= "number" or duration <= EVENT_SHAKE_MAX_RANDOM_DURATION
+end
+
+function DeepDigEventStartFlash.shouldPlay(eventName, message, duration, effectId)
+	if isEarthquakeEvent(eventName, message, effectId) then
+		return false
+	end
+
+	if DeepDigActiveEventHud.seasonalEffects[effectId] == true then
+		return false
+	end
+
+	return type(duration) ~= "number" or duration <= EVENT_SHAKE_MAX_RANDOM_DURATION
+end
+
+function DeepDigEventStartFlash.play(eventName, message, duration, effectId)
+	if not DeepDigEventStartFlash.shouldPlay(eventName, message, duration, effectId) then
+		return
+	end
+
+	DeepDigEventStartFlash.sequence = DeepDigEventStartFlash.sequence + 1
+	local sequence = DeepDigEventStartFlash.sequence
+	local style = DeepDigActiveEventHud.getStyle(effectId)
+	local accent = style.accent or DeepDigActiveEventHud.styles.fallback.accent
+
+	DeepDigEventStartFlash.cancelTweens()
+	DeepDigEventStartFlash.overlay.Visible = true
+	DeepDigEventStartFlash.overlay.BackgroundColor3 = accent
+	DeepDigEventStartFlash.overlay.BackgroundTransparency = 0.76
+	DeepDigEventStartFlash.glint.BackgroundTransparency = 0.52
+	DeepDigEventStartFlash.glint.Position = UDim2.new(-0.28, 0, -0.1, 0)
+	DeepDigEventStartFlash.gradient.Color = ColorSequence.new({
+		ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 255, 255)),
+		ColorSequenceKeypoint.new(0.5, Color3.fromRGB(255, 255, 255)),
+		ColorSequenceKeypoint.new(1, accent),
+	})
+
+	local tintFade = TweenService:Create(
+		DeepDigEventStartFlash.overlay,
+		TweenInfo.new(0.46, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+		{ BackgroundTransparency = 1 }
+	)
+	local glintSweep = TweenService:Create(
+		DeepDigEventStartFlash.glint,
+		TweenInfo.new(0.34, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+		{
+			BackgroundTransparency = 1,
+			Position = UDim2.new(1.1, 0, -0.1, 0),
+		}
+	)
+
+	DeepDigEventStartFlash.tweens = { tintFade, glintSweep }
+	tintFade:Play()
+	glintSweep:Play()
+	tintFade.Completed:Connect(function()
+		if sequence ~= DeepDigEventStartFlash.sequence then
+			return
+		end
+		DeepDigEventStartFlash.tweens = {}
+		DeepDigEventStartFlash.reset()
+	end)
 end
 
 local function getEventShakeProfile(eventName, effectId)
@@ -7566,6 +7686,7 @@ Remotes.EventTriggered.OnClientEvent:Connect(function(eventName, message, durati
 		LocalPlaySound:Fire("event_alarm")
 	end
 	DeepDigActiveEventHud.show(eventName, message, duration, effectId)
+	DeepDigEventStartFlash.play(eventName, message, duration, effectId)
 
 	if shouldPlayEventCameraShake(duration) and not isEarthquakeEvent(eventName, message, effectId) then
 		playEventCameraShake(eventName, effectId)
