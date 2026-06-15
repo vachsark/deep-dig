@@ -216,9 +216,34 @@ end
 
 local Debris = game:GetService("Debris")
 local TweenService = game:GetService("TweenService")
+local COMBO_BREAK_ACCENT_COLOR = Color3.fromRGB(255, 174, 48)
+local COMBO_BREAK_TOP_MULTIPLIER = 4.0
+
+local function getComboBreakStrength(comboMultiplier)
+	if type(comboMultiplier) ~= "number" or comboMultiplier <= 1 then
+		return 0
+	end
+
+	return math.clamp((math.min(comboMultiplier, COMBO_BREAK_TOP_MULTIPLIER) - 1) / (COMBO_BREAK_TOP_MULTIPLIER - 1), 0, 1)
+end
 
 -- Spawn a satisfying poof: bright flash + a few falling shards that fade.
-local function spawnBreakVFX(blockPos, blockColor)
+local function spawnBreakVFX(blockPos, blockColor, comboMultiplier)
+	local comboStrength = getComboBreakStrength(comboMultiplier)
+	local flashColor = blockColor
+	local flashSizeMultiplier = 1.6
+	local shardCount = 5
+	local shardSpeedMultiplier = 1
+	local shardSizeMultiplier = 1
+
+	if comboStrength > 0 then
+		flashColor = blockColor:Lerp(COMBO_BREAK_ACCENT_COLOR, math.clamp(0.28 + comboStrength * 0.42, 0, 0.75))
+		flashSizeMultiplier = 1.6 + comboStrength * 0.9
+		shardCount = 5 + math.floor(comboStrength * 7 + 0.5)
+		shardSpeedMultiplier = 1 + comboStrength * 0.35
+		shardSizeMultiplier = 1 + comboStrength * 0.25
+	end
+
 	-- Central flash: scales up briefly then fades.
 	local flash = Instance.new("Part")
 	flash.Size = Vector3.new(0.5, 0.5, 0.5)
@@ -226,30 +251,35 @@ local function spawnBreakVFX(blockPos, blockColor)
 	flash.Anchored = true
 	flash.CanCollide = false
 	flash.Material = Enum.Material.Neon
-	flash.Color = blockColor
+	flash.Color = flashColor
 	flash.Transparency = 0.2
 	flash.Parent = workspace
 
 	TweenService:Create(flash, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-		Size = Vector3.new(Config.BLOCK_SIZE * 1.6, Config.BLOCK_SIZE * 1.6, Config.BLOCK_SIZE * 1.6),
+		Size = Vector3.new(Config.BLOCK_SIZE * flashSizeMultiplier, Config.BLOCK_SIZE * flashSizeMultiplier, Config.BLOCK_SIZE * flashSizeMultiplier),
 		Transparency = 1,
 	}):Play()
 	Debris:AddItem(flash, 0.25)
 
 	-- Shards: 5 small bits flying outward + falling under gravity.
-	for i = 1, 5 do
+	for i = 1, shardCount do
 		local shard = Instance.new("Part")
-		local s = 0.5 + math.random() * 0.5
+		local s = (0.5 + math.random() * 0.5) * shardSizeMultiplier
+		local shardColor = blockColor
+		if comboStrength > 0 then
+			shardColor = blockColor:Lerp(COMBO_BREAK_ACCENT_COLOR, math.clamp(0.18 + comboStrength * 0.42 + math.random() * 0.12, 0, 0.75))
+		end
+
 		shard.Size = Vector3.new(s, s, s)
 		shard.CFrame = CFrame.new(blockPos)
 		shard.Anchored = false
 		shard.CanCollide = false
 		shard.Material = Enum.Material.Slate
-		shard.Color = blockColor
+		shard.Color = shardColor
 		shard.Velocity = Vector3.new(
-			(math.random() - 0.5) * 30,
-			15 + math.random() * 10,
-			(math.random() - 0.5) * 30
+			(math.random() - 0.5) * 30 * shardSpeedMultiplier,
+			15 + math.random() * 10 + comboStrength * 8,
+			(math.random() - 0.5) * 30 * shardSpeedMultiplier
 		)
 		shard.RotVelocity = Vector3.new(math.random() * 12, math.random() * 12, math.random() * 12)
 		shard.Parent = workspace
@@ -405,6 +435,20 @@ local function notifyDigBlockedByEnemy(player, blockingEnemyModel)
 	end
 end
 
+local function getChainComboMultiplier(player)
+	local getMultiplier = _G.DeepDig_getChainComboMultiplier
+	if type(getMultiplier) ~= "function" then
+		return 1.0
+	end
+
+	local success, multiplier = pcall(getMultiplier, player)
+	if not success or type(multiplier) ~= "number" then
+		return 1.0
+	end
+
+	return math.clamp(multiplier, 1.0, COMBO_BREAK_TOP_MULTIPLIER)
+end
+
 local function breakBlock(player, block)
 	if not block then return false end
 	if not block:GetAttribute("Depth") then return false end
@@ -426,8 +470,9 @@ local function breakBlock(player, block)
 	local gridX = block:GetAttribute("GridX")
 	local gridZ = block:GetAttribute("GridZ")
 	local depthBlock = block:GetAttribute("Depth")
+	local comboMultiplier = getChainComboMultiplier(player)
 
-	spawnBreakVFX(block.Position, block.Color)
+	spawnBreakVFX(block.Position, block.Color, comboMultiplier)
 	if isWorldEventEffectActive("volcano_vent") then
 		spawnVolcanoVentBreakVFX(block.Position)
 	end
