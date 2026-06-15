@@ -53,6 +53,7 @@ local activeWeeklyCard = nil
 local refreshInFlight = false
 local currentReadyCount = 0
 local lastClosedSummaryRefresh = -CLOSED_SUMMARY_INTERVAL_SECONDS
+local questReadyPulseStateByKey = {}
 
 local COLOR_PANEL = Color3.fromRGB(19, 18, 28)
 local COLOR_PANEL_EDGE = Color3.fromRGB(42, 38, 60)
@@ -178,6 +179,74 @@ local function countReadyQuests(normalized)
 	end
 
 	return readyCount
+end
+
+local function readyPulseKey(quest, isWeekly, day)
+	local questId = type(quest.id) == "string" and quest.id or ""
+	if questId == "" then
+		return ""
+	end
+
+	if isWeekly then
+		local weekKey = type(quest.weekKey) == "string" and quest.weekKey or currentQuestWeekKey
+		return "weekly:" .. weekKey .. ":" .. questId
+	end
+
+	return "daily:" .. day .. ":" .. questId
+end
+
+local function isQuestReadyForPulse(quest, isWeekly)
+	local questId = type(quest.id) == "string" and quest.id or ""
+	if questId == "" or quest.complete ~= true then
+		return false
+	end
+
+	if isWeekly then
+		return not isWeeklyQuestClaimed()
+	end
+
+	return quest.claimed ~= true and not isQuestClaimed(questId)
+end
+
+local function updateReadyPulseState(normalized, shouldCollect)
+	local targets = {
+		daily = {},
+		weekly = false,
+	}
+
+	if type(normalized) ~= "table" then
+		return targets
+	end
+
+	local day = normalized.day ~= "" and normalized.day or currentQuestDay
+	for index, quest in ipairs(normalized.quests) do
+		if index > 3 then
+			break
+		end
+
+		local key = readyPulseKey(quest, false, day)
+		if key ~= "" then
+			local questId = type(quest.id) == "string" and quest.id or ""
+			local ready = isQuestReadyForPulse(quest, false)
+			if shouldCollect and ready and questReadyPulseStateByKey[key] == false then
+				targets.daily[questId] = true
+			end
+			questReadyPulseStateByKey[key] = ready
+		end
+	end
+
+	if normalized.weekly then
+		local key = readyPulseKey(normalized.weekly, true, day)
+		if key ~= "" then
+			local ready = isQuestReadyForPulse(normalized.weekly, true)
+			if shouldCollect and ready and questReadyPulseStateByKey[key] == false then
+				targets.weekly = true
+			end
+			questReadyPulseStateByKey[key] = ready
+		end
+	end
+
+	return targets
 end
 
 local panel = Instance.new("Frame")
@@ -735,6 +804,67 @@ local function pulseClaimedCard(entry)
 	end
 end
 
+local function pulseReadyCard(entry)
+	if type(entry) ~= "table" or not entry.card or not entry.card.Parent then
+		return false
+	end
+
+	if type(entry.applyButtonState) == "function" then
+		entry.applyButtonState()
+	end
+
+	entry.card.BackgroundColor3 = Color3.fromRGB(43, 37, 47)
+	if entry.stroke and entry.stroke.Parent then
+		entry.stroke.Color = COLOR_ACCENT
+		entry.stroke.Thickness = 3
+		entry.stroke.Transparency = 0
+	end
+	if entry.accent and entry.accent.Parent then
+		entry.accent.BackgroundColor3 = COLOR_ACCENT
+	end
+
+	tweenRewardBurst(entry.card, 0.46, {
+		BackgroundColor3 = Color3.fromRGB(28, 25, 39),
+	})
+	if entry.stroke and entry.stroke.Parent then
+		tweenRewardBurst(entry.stroke, 0.46, {
+			Color = COLOR_ACCENT,
+			Thickness = 1,
+			Transparency = 0.18,
+		})
+	end
+	if entry.accent and entry.accent.Parent then
+		tweenRewardBurst(entry.accent, 0.46, {
+			BackgroundColor3 = COLOR_ACCENT,
+		})
+	end
+
+	return true
+end
+
+local function pulseReadyQuestCards(targets)
+	if type(targets) ~= "table" then
+		return
+	end
+
+	local playedSound = false
+	if type(targets.daily) == "table" then
+		for questId, shouldPulse in pairs(targets.daily) do
+			if shouldPulse == true and pulseReadyCard(activeCardByQuestId[questId]) then
+				playedSound = true
+			end
+		end
+	end
+
+	if targets.weekly == true and pulseReadyCard(activeWeeklyCard) then
+		playedSound = true
+	end
+
+	if playedSound then
+		playQuestReadySound()
+	end
+end
+
 local function showQuestClaimReward(payload)
 	if type(payload) ~= "table" then
 		return
@@ -1070,13 +1200,16 @@ local function refreshQuestStatus()
 		return getQuestStatus:InvokeServer()
 	end)
 
+	local readyPulseTargets = nil
 	if ok then
-		updateQuestToggleSummary(result)
+		local normalized = updateQuestToggleSummary(result)
+		readyPulseTargets = updateReadyPulseState(normalized, panelOpen)
 	end
 
 	if panelOpen then
 		if ok then
 			renderQuestStatus(result)
+			pulseReadyQuestCards(readyPulseTargets)
 		else
 			warn("[QuestGui] GetQuestStatus failed: " .. tostring(result))
 			setLoadingVisible(true, currentQuestDay)
