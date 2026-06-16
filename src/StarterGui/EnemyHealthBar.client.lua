@@ -181,6 +181,20 @@ local CombatStreak = {
 	firstEnemyHintGui = nil,
 	firstEnemyHintSequence = 0,
 }
+activeFeedback.combatPressure = {
+	guiName = "DeepDigCombatPressureChip",
+	displayOrder = 66,
+	width = 146,
+	height = 38,
+	cap = 5,
+	gui = nil,
+	frame = nil,
+	stroke = nil,
+	countLabel = nil,
+	threatLabel = nil,
+	wasUrgent = false,
+	lastWarningAt = 0,
+}
 local hapticSupportChecked = false
 local hapticSupported = false
 local hapticMotorSupport = {}
@@ -448,6 +462,161 @@ local function getLiveOwnedEnemyRoot(model, record)
 	end
 
 	return root
+end
+
+function activeFeedback.ensureCombatPressureChip()
+	local config = activeFeedback.combatPressure
+	if config.frame and config.frame.Parent then
+		return
+	end
+
+	local playerGui = player:FindFirstChildOfClass("PlayerGui") or player:WaitForChild("PlayerGui")
+
+	config.gui = Instance.new("ScreenGui")
+	config.gui.Name = config.guiName
+	config.gui.ResetOnSpawn = false
+	config.gui.IgnoreGuiInset = true
+	config.gui.DisplayOrder = config.displayOrder
+	config.gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+	config.gui.Parent = playerGui
+
+	config.frame = Instance.new("Frame")
+	config.frame.Name = "PressureChip"
+	config.frame.AnchorPoint = Vector2.new(0.5, 0)
+	config.frame.Position = UDim2.new(0.5, 0, 0, 118)
+	config.frame.Size = UDim2.fromOffset(config.width, config.height)
+	config.frame.BackgroundColor3 = Color3.fromRGB(29, 24, 26)
+	config.frame.BackgroundTransparency = 0.08
+	config.frame.BorderSizePixel = 0
+	config.frame.Active = false
+	config.frame.Visible = false
+	config.frame.ZIndex = 1
+	config.frame.Parent = config.gui
+
+	local corner = Instance.new("UICorner")
+	corner.CornerRadius = UDim.new(0, 8)
+	corner.Parent = config.frame
+
+	config.stroke = Instance.new("UIStroke")
+	config.stroke.Color = Color3.fromRGB(255, 178, 84)
+	config.stroke.Transparency = 0.3
+	config.stroke.Thickness = 1
+	config.stroke.Parent = config.frame
+
+	config.countLabel = Instance.new("TextLabel")
+	config.countLabel.Name = "Count"
+	config.countLabel.Position = UDim2.fromOffset(10, 5)
+	config.countLabel.Size = UDim2.new(1, -20, 0, 15)
+	config.countLabel.BackgroundTransparency = 1
+	config.countLabel.Text = "Enemies 0/5"
+	config.countLabel.TextColor3 = Color3.fromRGB(255, 239, 218)
+	config.countLabel.TextStrokeTransparency = 0.45
+	config.countLabel.TextSize = 13
+	config.countLabel.Font = Enum.Font.GothamBlack
+	config.countLabel.TextXAlignment = Enum.TextXAlignment.Center
+	config.countLabel.TextTruncate = Enum.TextTruncate.AtEnd
+	config.countLabel.ZIndex = 2
+	config.countLabel.Parent = config.frame
+
+	config.threatLabel = Instance.new("TextLabel")
+	config.threatLabel.Name = "Threat"
+	config.threatLabel.Position = UDim2.fromOffset(10, 20)
+	config.threatLabel.Size = UDim2.new(1, -20, 0, 12)
+	config.threatLabel.BackgroundTransparency = 1
+	config.threatLabel.Text = "LOW THREAT"
+	config.threatLabel.TextColor3 = Color3.fromRGB(255, 192, 128)
+	config.threatLabel.TextStrokeTransparency = 0.58
+	config.threatLabel.TextSize = 10
+	config.threatLabel.Font = Enum.Font.GothamBold
+	config.threatLabel.TextXAlignment = Enum.TextXAlignment.Center
+	config.threatLabel.TextTruncate = Enum.TextTruncate.AtEnd
+	config.threatLabel.ZIndex = 2
+	config.threatLabel.Parent = config.frame
+end
+
+function activeFeedback.getOwnedEnemyPressure()
+	local count = 0
+	local hasMiniboss = false
+
+	for _, model in ipairs(trackedEnemyOrder) do
+		local record = trackedEnemies[model]
+		local root = getLiveOwnedEnemyRoot(model, record)
+		if root then
+			count = count + 1
+			if record.isMiniboss then
+				hasMiniboss = true
+			end
+		end
+	end
+
+	return count, hasMiniboss
+end
+
+function activeFeedback.getCombatPressureLabel(count, hasMiniboss)
+	if hasMiniboss then
+		return "MINIBOSS LIVE"
+	end
+	if count >= 4 then
+		return "CAP NEAR"
+	end
+	if count >= 2 then
+		return "RISING THREAT"
+	end
+
+	return "LOW THREAT"
+end
+
+function activeFeedback.updateCombatPressureChip()
+	local count, hasMiniboss = activeFeedback.getOwnedEnemyPressure()
+	local config = activeFeedback.combatPressure
+	if count <= 0 then
+		config.wasUrgent = false
+		if config.frame then
+			config.frame.Visible = false
+		end
+		return
+	end
+
+	activeFeedback.ensureCombatPressureChip()
+
+	local displayCount = math.min(count, config.cap)
+	local isUrgent = count >= 4 or hasMiniboss
+	local now = os.clock()
+	config.frame.Visible = true
+	config.countLabel.Text = string.format("Enemies %d/%d", displayCount, config.cap)
+	config.threatLabel.Text = activeFeedback.getCombatPressureLabel(count, hasMiniboss)
+
+	if isUrgent then
+		if not config.wasUrgent and now - config.lastWarningAt >= 3.5 then
+			config.lastWarningAt = now
+			if LocalPlaySound and LocalPlaySound:IsA("BindableEvent") then
+				LocalPlaySound:Fire("enemy_pressure_warning")
+			end
+		end
+
+		local pulse = (math.sin(now * 7.5) + 1) * 0.5
+		config.frame.BackgroundColor3 = Color3.fromRGB(68, 13, 12):Lerp(Color3.fromRGB(116, 64, 14), pulse)
+		config.frame.BackgroundTransparency = 0.02
+		config.stroke.Color = Color3.fromRGB(255, 74, 48):Lerp(Color3.fromRGB(255, 219, 96), pulse)
+		config.stroke.Transparency = 0.04 + (1 - pulse) * 0.12
+		config.stroke.Thickness = 2
+		config.countLabel.TextColor3 = Color3.fromRGB(255, 238, 188)
+		config.countLabel.TextStrokeTransparency = 0.22
+		config.threatLabel.TextColor3 = Color3.fromRGB(255, 214, 92)
+		config.threatLabel.TextStrokeTransparency = 0.32
+	else
+		config.frame.BackgroundColor3 = Color3.fromRGB(29, 24, 26)
+		config.frame.BackgroundTransparency = 0.08
+		config.stroke.Color = Color3.fromRGB(255, 178, 84)
+		config.stroke.Transparency = 0.3
+		config.stroke.Thickness = 1
+		config.countLabel.TextColor3 = Color3.fromRGB(255, 239, 218)
+		config.countLabel.TextStrokeTransparency = 0.45
+		config.threatLabel.TextColor3 = Color3.fromRGB(255, 192, 128)
+		config.threatLabel.TextStrokeTransparency = 0.58
+	end
+
+	config.wasUrgent = isUrgent
 end
 
 local function isViewportPointVisible(viewportPoint, onScreen, viewportSize)
@@ -3582,6 +3751,7 @@ end
 enemiesFolder.ChildAdded:Connect(trackEnemy)
 enemiesFolder.ChildRemoved:Connect(cleanupEnemy)
 RunService.RenderStepped:Connect(function()
+	activeFeedback.updateCombatPressureChip()
 	updateEnemyThreatIndicator()
 	CombatStreak.update()
 end)
