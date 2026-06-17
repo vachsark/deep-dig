@@ -116,6 +116,12 @@ local SOUNDS = {
 		volume = 0.36,
 		playbackSpeed = 1.65,
 	},
+	enemy_pressure_warning = {
+		id = "rbxassetid://5982968246", -- restrained urgent pressure horn
+		volume = 0.28,
+		playbackSpeed = 1.48,
+		pitchRange = { 1.02, 1.08 },
+	},
 	enemy_proximity_warning = {
 		id = "rbxassetid://9114013169", -- restrained offscreen proximity tick
 		volume = 0.22,
