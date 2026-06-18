@@ -5379,7 +5379,7 @@ local enemyDangerUnlockedUi = {}
 enemyDangerUnlockedUi.panel = Instance.new("Frame")
 enemyDangerUnlockedUi.panel.Name = "EnemyDangerUnlockedBurst"
 enemyDangerUnlockedUi.panel.AnchorPoint = Vector2.new(0.5, 0.5)
-enemyDangerUnlockedUi.panel.Size = UDim2.fromOffset(382, 142)
+enemyDangerUnlockedUi.panel.Size = UDim2.fromOffset(410, 178)
 enemyDangerUnlockedUi.panel.Position = UDim2.fromScale(0.5, 0.48)
 enemyDangerUnlockedUi.panel.BackgroundColor3 = Color3.fromRGB(38, 20, 18)
 enemyDangerUnlockedUi.panel.BackgroundTransparency = 1
@@ -5424,31 +5424,32 @@ enemyDangerUnlockedUi.title.Parent = enemyDangerUnlockedUi.panel
 
 enemyDangerUnlockedUi.warning = Instance.new("TextLabel")
 enemyDangerUnlockedUi.warning.Name = "Warning"
-enemyDangerUnlockedUi.warning.Size = UDim2.new(1, -34, 0, 48)
+enemyDangerUnlockedUi.warning.Size = UDim2.new(1, -34, 0, 72)
 enemyDangerUnlockedUi.warning.Position = UDim2.fromOffset(17, 46)
 enemyDangerUnlockedUi.warning.BackgroundTransparency = 1
-enemyDangerUnlockedUi.warning.Text = "Enemies can now emerge from broken ground."
+enemyDangerUnlockedUi.warning.Text = "Enemies can emerge now.\nClick or tap them with your equipped tool."
 enemyDangerUnlockedUi.warning.TextColor3 = Color3.fromRGB(255, 238, 220)
 enemyDangerUnlockedUi.warning.TextTransparency = 1
 enemyDangerUnlockedUi.warning.Font = Enum.Font.GothamBlack
 enemyDangerUnlockedUi.warning.TextXAlignment = Enum.TextXAlignment.Center
 enemyDangerUnlockedUi.warning.TextYAlignment = Enum.TextYAlignment.Center
 enemyDangerUnlockedUi.warning.ZIndex = 85
-constrainEnemyDangerText(enemyDangerUnlockedUi.warning, 21, 12)
+constrainEnemyDangerText(enemyDangerUnlockedUi.warning, 20, 11)
 enemyDangerUnlockedUi.warning.Parent = enemyDangerUnlockedUi.panel
 
 enemyDangerUnlockedUi.detail = Instance.new("TextLabel")
 enemyDangerUnlockedUi.detail.Name = "Detail"
-enemyDangerUnlockedUi.detail.Size = UDim2.new(1, -34, 0, 24)
-enemyDangerUnlockedUi.detail.Position = UDim2.fromOffset(17, 100)
+enemyDangerUnlockedUi.detail.Size = UDim2.new(1, -34, 0, 44)
+enemyDangerUnlockedUi.detail.Position = UDim2.fromOffset(17, 124)
 enemyDangerUnlockedUi.detail.BackgroundTransparency = 1
 enemyDangerUnlockedUi.detail.Text = "Depth 11 - Stone layer"
 enemyDangerUnlockedUi.detail.TextColor3 = Color3.fromRGB(245, 170, 130)
 enemyDangerUnlockedUi.detail.TextTransparency = 1
 enemyDangerUnlockedUi.detail.Font = Enum.Font.GothamBold
 enemyDangerUnlockedUi.detail.TextXAlignment = Enum.TextXAlignment.Center
+enemyDangerUnlockedUi.detail.TextYAlignment = Enum.TextYAlignment.Center
 enemyDangerUnlockedUi.detail.ZIndex = 85
-constrainEnemyDangerText(enemyDangerUnlockedUi.detail, 15, 10)
+constrainEnemyDangerText(enemyDangerUnlockedUi.detail, 15, 9)
 enemyDangerUnlockedUi.detail.Parent = enemyDangerUnlockedUi.panel
 
 local enemyDangerUnlockedSequence = 0
@@ -5484,9 +5485,9 @@ function showEnemyDangerUnlockedBurst(payload)
 	local sequence = enemyDangerUnlockedSequence
 	clearEnemyDangerUnlockedTweens()
 
-	enemyDangerUnlockedUi.detail.Text = "Depth " .. tostring(depth) .. " - " .. tierName .. " layer"
+	enemyDangerUnlockedUi.detail.Text = "Depth " .. tostring(depth) .. " " .. tierName .. ": enemies drop coins + fragments\nDeath: surface respawn, inventory kept"
 	enemyDangerUnlockedUi.panel.Visible = true
-	enemyDangerUnlockedUi.panel.Size = UDim2.fromOffset(348, 128)
+	enemyDangerUnlockedUi.panel.Size = UDim2.fromOffset(366, 156)
 	enemyDangerUnlockedUi.panel.Position = UDim2.fromScale(0.5, 0.50)
 	enemyDangerUnlockedUi.panel.BackgroundTransparency = 1
 	enemyDangerUnlockedUi.stroke.Transparency = 1
@@ -5500,7 +5501,7 @@ function showEnemyDangerUnlockedBurst(payload)
 	end
 
 	tweenEnemyDangerUnlocked(enemyDangerUnlockedUi.panel, 0.18, {
-		Size = UDim2.fromOffset(394, 148),
+		Size = UDim2.fromOffset(428, 190),
 		Position = UDim2.fromScale(0.5, 0.43),
 		BackgroundTransparency = 0.04,
 	}, Enum.EasingStyle.Back)
@@ -5522,7 +5523,7 @@ function showEnemyDangerUnlockedBurst(payload)
 			Color = Color3.fromRGB(255, 170, 90),
 		}, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
 		tweenEnemyDangerUnlocked(enemyDangerUnlockedUi.panel, 0.2, {
-			Size = UDim2.fromOffset(382, 142),
+			Size = UDim2.fromOffset(410, 178),
 		}, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
 	end)
 
