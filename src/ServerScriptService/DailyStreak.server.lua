@@ -40,11 +40,10 @@ if not RequestStreakReviveEvent then
 	RequestStreakReviveEvent.Parent = Remotes
 end
 
-local STREAK_REVIVE_PRODUCT_ID = Config.STREAK_REVIVE_PRODUCT_ID
 local STREAK_REVIVE_PRICE = Config.STREAK_REVIVE_PRICE
 
 local function isStreakReviveProductAvailable()
-	return Config.isStreakReviveProductIdValid(STREAK_REVIVE_PRODUCT_ID)
+	return Config.isStreakReviveProductIdValid(Config.STREAK_REVIVE_PRODUCT_ID)
 end
 
 local function isRareRevealRarity(rarity)
@@ -431,7 +430,7 @@ end
 -- is the only script in this game that sets it (confirmed via codebase
 -- grep), so we don't need to chain through to a previous handler.
 MarketplaceService.ProcessReceipt = function(receiptInfo)
-	if not isStreakReviveProductAvailable() or receiptInfo.ProductId ~= STREAK_REVIVE_PRODUCT_ID then
+	if not isStreakReviveProductAvailable() or receiptInfo.ProductId ~= Config.STREAK_REVIVE_PRODUCT_ID then
 		return Enum.ProductPurchaseDecision.NotProcessedYet
 	end
 
@@ -473,7 +472,7 @@ RequestStreakReviveEvent.OnServerEvent:Connect(function(player, action)
 		return
 	end
 
-	MarketplaceService:PromptProductPurchase(player, STREAK_REVIVE_PRODUCT_ID)
+	MarketplaceService:PromptProductPurchase(player, Config.STREAK_REVIVE_PRODUCT_ID)
 end)
 
 Players.PlayerAdded:Connect(function(player)

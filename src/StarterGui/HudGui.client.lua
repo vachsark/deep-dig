@@ -379,7 +379,7 @@ local currentStreakReviveEligible = false
 local currentStreakRevivePending = false
 local currentStreakReviveBaseStreak = 0
 local currentStreakRevivePrice = 50
-local currentStreakReviveProductAvailable = Config.isStreakReviveProductIdValid(Config.STREAK_REVIVE_PRODUCT_ID)
+local currentStreakReviveProductAvailable = false
 
 local pulseStreakLabel
 do
