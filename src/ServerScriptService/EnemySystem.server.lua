@@ -608,6 +608,7 @@ local function applyPendingTouchAttack(record, player, userId)
 		type = "player_hit",
 		damage = damage,
 		enemyName = record.model:GetAttribute("EnemyName") or record.enemy.name,
+		enemyPosition = record.root.Position,
 	})
 end
 

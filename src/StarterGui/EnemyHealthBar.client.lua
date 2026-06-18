@@ -195,6 +195,15 @@ activeFeedback.combatPressure = {
 	wasUrgent = false,
 	lastWarningAt = 0,
 }
+activeFeedback.playerHitDirection = {
+	thickness = 132,
+	pulseTransparency = 0.18,
+	clearTransparency = 1,
+	fadeDuration = 0.24,
+	edges = {},
+	tweens = {},
+	sequence = 0,
+}
 local hapticSupportChecked = false
 local hapticSupported = false
 local hapticMotorSupport = {}
@@ -1451,6 +1460,170 @@ local function ensurePlayerHitOverlay()
 	return playerHitOverlay
 end
 
+function activeFeedback.createPlayerHitDirectionEdge(name, position, size, rotation)
+	local config = activeFeedback.playerHitDirection
+	local edge = Instance.new("Frame")
+	edge.Name = name
+	edge.Position = position
+	edge.Size = size
+	edge.BackgroundColor3 = Color3.fromRGB(255, 42, 32)
+	edge.BackgroundTransparency = config.clearTransparency
+	edge.BorderSizePixel = 0
+	edge.Visible = false
+	edge.ZIndex = 2
+	edge.Parent = playerHitGui
+
+	local gradient = Instance.new("UIGradient")
+	gradient.Rotation = rotation
+	gradient.Transparency = NumberSequence.new({
+		NumberSequenceKeypoint.new(0, 0),
+		NumberSequenceKeypoint.new(1, 1),
+	})
+	gradient.Parent = edge
+
+	return edge
+end
+
+function activeFeedback.ensurePlayerHitDirectionEdges()
+	ensurePlayerHitOverlay()
+
+	local config = activeFeedback.playerHitDirection
+	if config.edges.left and config.edges.left.Parent then
+		return config.edges
+	end
+
+	config.edges = {
+		top = activeFeedback.createPlayerHitDirectionEdge(
+			"HitTopEdge",
+			UDim2.fromScale(0, 0),
+			UDim2.new(1, 0, 0, config.thickness),
+			90
+		),
+		bottom = activeFeedback.createPlayerHitDirectionEdge(
+			"HitBottomEdge",
+			UDim2.new(0, 0, 1, -config.thickness),
+			UDim2.new(1, 0, 0, config.thickness),
+			270
+		),
+		left = activeFeedback.createPlayerHitDirectionEdge(
+			"HitLeftEdge",
+			UDim2.fromScale(0, 0),
+			UDim2.new(0, config.thickness, 1, 0),
+			0
+		),
+		right = activeFeedback.createPlayerHitDirectionEdge(
+			"HitRightEdge",
+			UDim2.new(1, -config.thickness, 0, 0),
+			UDim2.new(0, config.thickness, 1, 0),
+			180
+		),
+	}
+
+	return config.edges
+end
+
+function activeFeedback.cancelPlayerHitDirectionTweens()
+	local config = activeFeedback.playerHitDirection
+	for _, tween in pairs(config.tweens) do
+		if tween then
+			tween:Cancel()
+		end
+	end
+
+	config.tweens = {}
+end
+
+function activeFeedback.hidePlayerHitDirectionEdges()
+	local config = activeFeedback.playerHitDirection
+	for _, edge in pairs(config.edges) do
+		if edge and edge.Parent then
+			edge.BackgroundTransparency = config.clearTransparency
+			edge.Visible = false
+		end
+	end
+end
+
+function activeFeedback.getPlayerHitEdgeDirection(enemyPosition)
+	if typeof(enemyPosition) ~= "Vector3" then
+		return nil
+	end
+
+	local camera = workspace.CurrentCamera
+	if not camera then
+		return nil
+	end
+
+	local viewportSize = camera.ViewportSize
+	if viewportSize.X <= 0 or viewportSize.Y <= 0 then
+		return nil
+	end
+
+	local ok, viewportPoint = pcall(function()
+		return camera:WorldToViewportPoint(enemyPosition)
+	end)
+	if not ok or typeof(viewportPoint) ~= "Vector3" then
+		return nil
+	end
+
+	local direction = getOffscreenDirection(camera, enemyPosition, viewportPoint, viewportSize)
+	if math.abs(direction.X) >= math.abs(direction.Y) then
+		if direction.X >= 0 then
+			return "right"
+		end
+
+		return "left"
+	end
+
+	if direction.Y >= 0 then
+		return "bottom"
+	end
+
+	return "top"
+end
+
+function activeFeedback.playPlayerHitDirectionPulse(enemyPosition)
+	local edgeDirection = activeFeedback.getPlayerHitEdgeDirection(enemyPosition)
+	if not edgeDirection then
+		return
+	end
+
+	local config = activeFeedback.playerHitDirection
+	local edges = activeFeedback.ensurePlayerHitDirectionEdges()
+	local edge = edges[edgeDirection]
+	if not edge or not edge.Parent then
+		return
+	end
+
+	config.sequence = config.sequence + 1
+	local sequence = config.sequence
+	activeFeedback.cancelPlayerHitDirectionTweens()
+	activeFeedback.hidePlayerHitDirectionEdges()
+
+	edge.Visible = true
+	edge.BackgroundTransparency = config.pulseTransparency
+
+	local tween = TweenService:Create(edge, TweenInfo.new(
+		config.fadeDuration,
+		Enum.EasingStyle.Quad,
+		Enum.EasingDirection.Out
+	), {
+		BackgroundTransparency = config.clearTransparency,
+	})
+	config.tweens[edgeDirection] = tween
+	tween:Play()
+	tween.Completed:Once(function(playbackState)
+		if sequence ~= config.sequence or config.tweens[edgeDirection] ~= tween then
+			return
+		end
+
+		if playbackState == Enum.PlaybackState.Completed then
+			edge.Visible = false
+		end
+
+		config.tweens[edgeDirection] = nil
+	end)
+end
+
 local function playPlayerHitFlash()
 	local overlay = ensurePlayerHitOverlay()
 	playerHitFlashSequence = playerHitFlashSequence + 1
@@ -1628,13 +1801,14 @@ local function playPlayerHitJolt()
 	ensurePlayerHitJoltBinding()
 end
 
-local function playPlayerHitFeedback(damage)
+local function playPlayerHitFeedback(damage, enemyPosition)
 	if LocalPlaySound and LocalPlaySound:IsA("BindableEvent") then
 		LocalPlaySound:Fire("enemy_hit")
 	end
 
 	playHapticBump(0.08, 0.12, 0.1)
 	playPlayerHitFlash()
+	activeFeedback.playPlayerHitDirectionPulse(enemyPosition)
 	showPlayerHitReadout(damage)
 	playPlayerHitJolt()
 end
@@ -3673,7 +3847,7 @@ EnemyCombatFeedback.OnClientEvent:Connect(function(payload)
 
 	local feedbackType = payload.type
 	if feedbackType == "player_hit" then
-		playPlayerHitFeedback(payload.damage)
+		playPlayerHitFeedback(payload.damage, payload.enemyPosition)
 		return
 	end
 
