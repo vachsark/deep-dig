@@ -214,6 +214,24 @@ activeFeedback.digBlockedDirection = {
 	tweens = {},
 	sequence = 0,
 }
+activeFeedback.minibossSpawnOverlay = {
+	guiName = "DeepDigMinibossSpawnOverlay",
+	displayOrder = 94,
+	edgeThickness = 150,
+	duration = 1.18,
+	pulseTransparency = 0.18,
+	clearTransparency = 1,
+	fadeDuration = 0.62,
+	gui = nil,
+	panel = nil,
+	titleLabel = nil,
+	nameLabel = nil,
+	stroke = nil,
+	scale = nil,
+	edges = {},
+	tweens = {},
+	sequence = 0,
+}
 local hapticSupportChecked = false
 local hapticSupported = false
 local hapticMotorSupport = {}
@@ -1807,6 +1825,292 @@ function activeFeedback.playDigBlockedDirectionPulse(model)
 		end
 
 		config.tweens[edgeDirection] = nil
+	end)
+end
+
+function activeFeedback.createMinibossSpawnOverlayEdge(name, position, size, rotation, color)
+	local config = activeFeedback.minibossSpawnOverlay
+	local edge = Instance.new("Frame")
+	edge.Name = name
+	edge.Position = position
+	edge.Size = size
+	edge.BackgroundColor3 = color
+	edge.BackgroundTransparency = config.clearTransparency
+	edge.BorderSizePixel = 0
+	edge.Visible = false
+	edge.ZIndex = 1
+	edge.Parent = config.gui
+
+	local gradient = Instance.new("UIGradient")
+	gradient.Rotation = rotation
+	gradient.Transparency = NumberSequence.new({
+		NumberSequenceKeypoint.new(0, 0),
+		NumberSequenceKeypoint.new(1, 1),
+	})
+	gradient.Parent = edge
+
+	return edge
+end
+
+function activeFeedback.ensureMinibossSpawnOverlay()
+	local config = activeFeedback.minibossSpawnOverlay
+	if config.gui and config.gui.Parent and config.panel and config.panel.Parent then
+		return config
+	end
+
+	local playerGui = player:FindFirstChildOfClass("PlayerGui") or player:WaitForChild("PlayerGui")
+
+	config.gui = Instance.new("ScreenGui")
+	config.gui.Name = config.guiName
+	config.gui.ResetOnSpawn = false
+	config.gui.IgnoreGuiInset = true
+	config.gui.DisplayOrder = config.displayOrder
+	config.gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+	config.gui.Parent = playerGui
+
+	config.edges = {
+		top = activeFeedback.createMinibossSpawnOverlayEdge(
+			"MinibossTopEdge",
+			UDim2.fromScale(0, 0),
+			UDim2.new(1, 0, 0, config.edgeThickness),
+			90,
+			MINIBOSS_VOID_COLOR
+		),
+		bottom = activeFeedback.createMinibossSpawnOverlayEdge(
+			"MinibossBottomEdge",
+			UDim2.new(0, 0, 1, -config.edgeThickness),
+			UDim2.new(1, 0, 0, config.edgeThickness),
+			270,
+			ENRAGE_COLOR
+		),
+		left = activeFeedback.createMinibossSpawnOverlayEdge(
+			"MinibossLeftEdge",
+			UDim2.fromScale(0, 0),
+			UDim2.new(0, config.edgeThickness, 1, 0),
+			0,
+			MINIBOSS_VOID_COLOR
+		),
+		right = activeFeedback.createMinibossSpawnOverlayEdge(
+			"MinibossRightEdge",
+			UDim2.new(1, -config.edgeThickness, 0, 0),
+			UDim2.new(0, config.edgeThickness, 1, 0),
+			180,
+			ENRAGE_COLOR
+		),
+	}
+
+	config.panel = Instance.new("Frame")
+	config.panel.Name = "WarningPanel"
+	config.panel.AnchorPoint = Vector2.new(0.5, 0.5)
+	config.panel.Position = UDim2.fromScale(0.5, 0.34)
+	config.panel.Size = UDim2.fromOffset(320, 72)
+	config.panel.BackgroundColor3 = Color3.fromRGB(24, 8, 34)
+	config.panel.BackgroundTransparency = 1
+	config.panel.BorderSizePixel = 0
+	config.panel.Visible = false
+	config.panel.ZIndex = 3
+	config.panel.Parent = config.gui
+
+	local corner = Instance.new("UICorner")
+	corner.CornerRadius = UDim.new(0, 8)
+	corner.Parent = config.panel
+
+	config.stroke = Instance.new("UIStroke")
+	config.stroke.Color = MINIBOSS_COLOR
+	config.stroke.Transparency = 1
+	config.stroke.Thickness = 2
+	config.stroke.Parent = config.panel
+
+	config.scale = Instance.new("UIScale")
+	config.scale.Scale = 0.92
+	config.scale.Parent = config.panel
+
+	config.titleLabel = Instance.new("TextLabel")
+	config.titleLabel.Name = "Title"
+	config.titleLabel.Position = UDim2.fromOffset(12, 11)
+	config.titleLabel.Size = UDim2.new(1, -24, 0, 25)
+	config.titleLabel.BackgroundTransparency = 1
+	config.titleLabel.Text = "HOLLOW KING UNEARTHED"
+	config.titleLabel.TextColor3 = MINIBOSS_COLOR
+	config.titleLabel.TextStrokeTransparency = 1
+	config.titleLabel.TextSize = 20
+	config.titleLabel.Font = Enum.Font.GothamBlack
+	config.titleLabel.TextXAlignment = Enum.TextXAlignment.Center
+	config.titleLabel.TextTruncate = Enum.TextTruncate.AtEnd
+	config.titleLabel.ZIndex = 4
+	config.titleLabel.Parent = config.panel
+
+	config.nameLabel = Instance.new("TextLabel")
+	config.nameLabel.Name = "Subtitle"
+	config.nameLabel.Position = UDim2.fromOffset(12, 40)
+	config.nameLabel.Size = UDim2.new(1, -24, 0, 18)
+	config.nameLabel.BackgroundTransparency = 1
+	config.nameLabel.Text = "MINIBOSS HAS BREACHED THE DIG SITE"
+	config.nameLabel.TextColor3 = Color3.fromRGB(255, 180, 170)
+	config.nameLabel.TextStrokeTransparency = 1
+	config.nameLabel.TextSize = 11
+	config.nameLabel.Font = Enum.Font.GothamBold
+	config.nameLabel.TextXAlignment = Enum.TextXAlignment.Center
+	config.nameLabel.TextTruncate = Enum.TextTruncate.AtEnd
+	config.nameLabel.ZIndex = 4
+	config.nameLabel.Parent = config.panel
+
+	return config
+end
+
+function activeFeedback.cancelMinibossSpawnOverlayTweens()
+	local config = activeFeedback.minibossSpawnOverlay
+	for _, tween in pairs(config.tweens) do
+		if tween then
+			tween:Cancel()
+		end
+	end
+
+	config.tweens = {}
+end
+
+function activeFeedback.hideMinibossSpawnOverlay()
+	local config = activeFeedback.minibossSpawnOverlay
+	for _, edge in pairs(config.edges) do
+		if edge and edge.Parent then
+			edge.BackgroundTransparency = config.clearTransparency
+			edge.Visible = false
+		end
+	end
+
+	if config.panel and config.panel.Parent then
+		config.panel.BackgroundTransparency = 1
+		config.panel.Visible = false
+	end
+	if config.stroke and config.stroke.Parent then
+		config.stroke.Transparency = 1
+	end
+	if config.scale and config.scale.Parent then
+		config.scale.Scale = 0.92
+	end
+	if config.titleLabel and config.titleLabel.Parent then
+		config.titleLabel.TextTransparency = 1
+		config.titleLabel.TextStrokeTransparency = 1
+	end
+	if config.nameLabel and config.nameLabel.Parent then
+		config.nameLabel.TextTransparency = 1
+		config.nameLabel.TextStrokeTransparency = 1
+	end
+end
+
+function activeFeedback.showMinibossSpawnOverlay(model)
+	local config = activeFeedback.ensureMinibossSpawnOverlay()
+	config.sequence = config.sequence + 1
+	local sequence = config.sequence
+
+	activeFeedback.cancelMinibossSpawnOverlayTweens()
+	activeFeedback.hideMinibossSpawnOverlay()
+
+	local enemyName = "Hollow King"
+	if model and model:IsA("Model") then
+		local attributeName = model:GetAttribute("EnemyName")
+		if typeof(attributeName) == "string" and attributeName ~= "" then
+			enemyName = attributeName
+		end
+	end
+
+	config.titleLabel.Text = string.upper(enemyName) .. " UNEARTHED"
+	config.nameLabel.Text = "MINIBOSS HAS BREACHED THE DIG SITE"
+
+	for key, edge in pairs(config.edges) do
+		if edge and edge.Parent then
+			local tweenKey = "edge_" .. key
+			edge.Visible = true
+			edge.BackgroundTransparency = config.pulseTransparency
+			local edgeTween = TweenService:Create(edge, TweenInfo.new(
+				config.fadeDuration,
+				Enum.EasingStyle.Quad,
+				Enum.EasingDirection.Out
+			), {
+				BackgroundTransparency = config.clearTransparency,
+			})
+			config.tweens[tweenKey] = edgeTween
+			edgeTween:Play()
+			edgeTween.Completed:Once(function(playbackState)
+				if sequence ~= config.sequence or config.tweens[tweenKey] ~= edgeTween then
+					return
+				end
+
+				if playbackState == Enum.PlaybackState.Completed then
+					edge.Visible = false
+				end
+
+				config.tweens[tweenKey] = nil
+			end)
+		end
+	end
+
+	config.panel.Visible = true
+	config.panel.BackgroundTransparency = 0.1
+	config.stroke.Transparency = 0.1
+	config.scale.Scale = 0.92
+	config.titleLabel.TextTransparency = 0
+	config.titleLabel.TextStrokeTransparency = 0.14
+	config.nameLabel.TextTransparency = 0
+	config.nameLabel.TextStrokeTransparency = 0.34
+
+	local scaleTween = TweenService:Create(config.scale, TweenInfo.new(
+		0.18,
+		Enum.EasingStyle.Back,
+		Enum.EasingDirection.Out
+	), {
+		Scale = 1,
+	})
+	config.tweens.scaleIn = scaleTween
+	scaleTween:Play()
+
+	local fadeInfo = TweenInfo.new(
+		config.duration,
+		Enum.EasingStyle.Quad,
+		Enum.EasingDirection.Out
+	)
+	local panelTween = TweenService:Create(config.panel, fadeInfo, {
+		BackgroundTransparency = 1,
+	})
+	local strokeTween = TweenService:Create(config.stroke, fadeInfo, {
+		Transparency = 1,
+	})
+	local titleTween = TweenService:Create(config.titleLabel, fadeInfo, {
+		TextTransparency = 1,
+		TextStrokeTransparency = 1,
+	})
+	local nameTween = TweenService:Create(config.nameLabel, fadeInfo, {
+		TextTransparency = 1,
+		TextStrokeTransparency = 1,
+	})
+
+	config.tweens.panel = panelTween
+	config.tweens.stroke = strokeTween
+	config.tweens.title = titleTween
+	config.tweens.name = nameTween
+	panelTween:Play()
+	strokeTween:Play()
+	titleTween:Play()
+	nameTween:Play()
+	panelTween.Completed:Once(function(playbackState)
+		if sequence ~= config.sequence or config.tweens.panel ~= panelTween then
+			return
+		end
+
+		if playbackState == Enum.PlaybackState.Completed then
+			config.panel.Visible = false
+		end
+
+		config.tweens.panel = nil
+		config.tweens.stroke = nil
+		config.tweens.title = nil
+		config.tweens.name = nil
+	end)
+
+	task.delay(config.duration + 0.08, function()
+		if sequence == config.sequence then
+			activeFeedback.hideMinibossSpawnOverlay()
+		end
 	end)
 end
 
@@ -4094,6 +4398,7 @@ EnemyCombatFeedback.OnClientEvent:Connect(function(payload)
 	elseif feedbackType == "miniboss_spawn" then
 		showEnemySpawnCue(payload.model)
 		showMinibossWarning(payload.model)
+		activeFeedback.showMinibossSpawnOverlay(payload.model)
 	elseif feedbackType == "miniboss_enrage" then
 		pulseBossBarEnrage(payload.model)
 		showMinibossEnrageWarning(payload.model)
