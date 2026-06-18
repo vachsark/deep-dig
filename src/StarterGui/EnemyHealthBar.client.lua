@@ -204,6 +204,16 @@ activeFeedback.playerHitDirection = {
 	tweens = {},
 	sequence = 0,
 }
+activeFeedback.digBlockedDirection = {
+	thickness = 86,
+	pulseTransparency = 0.34,
+	clearTransparency = 1,
+	fadeDuration = 0.16,
+	centerDeadZoneRatio = 0.18,
+	edges = {},
+	tweens = {},
+	sequence = 0,
+}
 local hapticSupportChecked = false
 local hapticSupported = false
 local hapticMotorSupport = {}
@@ -1598,6 +1608,182 @@ function activeFeedback.playPlayerHitDirectionPulse(enemyPosition)
 	local sequence = config.sequence
 	activeFeedback.cancelPlayerHitDirectionTweens()
 	activeFeedback.hidePlayerHitDirectionEdges()
+
+	edge.Visible = true
+	edge.BackgroundTransparency = config.pulseTransparency
+
+	local tween = TweenService:Create(edge, TweenInfo.new(
+		config.fadeDuration,
+		Enum.EasingStyle.Quad,
+		Enum.EasingDirection.Out
+	), {
+		BackgroundTransparency = config.clearTransparency,
+	})
+	config.tweens[edgeDirection] = tween
+	tween:Play()
+	tween.Completed:Once(function(playbackState)
+		if sequence ~= config.sequence or config.tweens[edgeDirection] ~= tween then
+			return
+		end
+
+		if playbackState == Enum.PlaybackState.Completed then
+			edge.Visible = false
+		end
+
+		config.tweens[edgeDirection] = nil
+	end)
+end
+
+function activeFeedback.createDigBlockedDirectionEdge(name, position, size, rotation)
+	local config = activeFeedback.digBlockedDirection
+	local edge = Instance.new("Frame")
+	edge.Name = name
+	edge.Position = position
+	edge.Size = size
+	edge.BackgroundColor3 = AGGRO_COLOR
+	edge.BackgroundTransparency = config.clearTransparency
+	edge.BorderSizePixel = 0
+	edge.Visible = false
+	edge.ZIndex = 3
+	edge.Parent = playerHitGui
+
+	local gradient = Instance.new("UIGradient")
+	gradient.Rotation = rotation
+	gradient.Transparency = NumberSequence.new({
+		NumberSequenceKeypoint.new(0, 0.08),
+		NumberSequenceKeypoint.new(1, 1),
+	})
+	gradient.Parent = edge
+
+	return edge
+end
+
+function activeFeedback.ensureDigBlockedDirectionEdges()
+	ensurePlayerHitOverlay()
+
+	local config = activeFeedback.digBlockedDirection
+	if config.edges.left and config.edges.left.Parent then
+		return config.edges
+	end
+
+	config.edges = {
+		top = activeFeedback.createDigBlockedDirectionEdge(
+			"DigBlockedTopEdge",
+			UDim2.fromScale(0, 0),
+			UDim2.new(1, 0, 0, config.thickness),
+			90
+		),
+		bottom = activeFeedback.createDigBlockedDirectionEdge(
+			"DigBlockedBottomEdge",
+			UDim2.new(0, 0, 1, -config.thickness),
+			UDim2.new(1, 0, 0, config.thickness),
+			270
+		),
+		left = activeFeedback.createDigBlockedDirectionEdge(
+			"DigBlockedLeftEdge",
+			UDim2.fromScale(0, 0),
+			UDim2.new(0, config.thickness, 1, 0),
+			0
+		),
+		right = activeFeedback.createDigBlockedDirectionEdge(
+			"DigBlockedRightEdge",
+			UDim2.new(1, -config.thickness, 0, 0),
+			UDim2.new(0, config.thickness, 1, 0),
+			180
+		),
+	}
+
+	return config.edges
+end
+
+function activeFeedback.cancelDigBlockedDirectionTweens()
+	local config = activeFeedback.digBlockedDirection
+	for _, tween in pairs(config.tweens) do
+		if tween then
+			tween:Cancel()
+		end
+	end
+
+	config.tweens = {}
+end
+
+function activeFeedback.hideDigBlockedDirectionEdges()
+	local config = activeFeedback.digBlockedDirection
+	for _, edge in pairs(config.edges) do
+		if edge and edge.Parent then
+			edge.BackgroundTransparency = config.clearTransparency
+			edge.Visible = false
+		end
+	end
+end
+
+function activeFeedback.getDigBlockedEdgeDirection(model)
+	if not model or not model:IsA("Model") or not model:IsDescendantOf(workspace) then
+		return nil
+	end
+
+	local root = model:FindFirstChild("HumanoidRootPart")
+	if not root or not root:IsA("BasePart") then
+		return nil
+	end
+
+	local camera = workspace.CurrentCamera
+	if not camera then
+		return nil
+	end
+
+	local viewportSize = camera.ViewportSize
+	if viewportSize.X <= 0 or viewportSize.Y <= 0 then
+		return nil
+	end
+
+	local ok, viewportPoint = pcall(function()
+		return camera:WorldToViewportPoint(root.Position)
+	end)
+	if not ok or typeof(viewportPoint) ~= "Vector3" then
+		return nil
+	end
+
+	local direction = getOffscreenDirection(camera, root.Position, viewportPoint, viewportSize)
+	local center = Vector2.new(viewportSize.X * 0.5, viewportSize.Y * 0.5)
+	local offset = Vector2.new(viewportPoint.X - center.X, viewportPoint.Y - center.Y)
+	local deadZone = math.min(viewportSize.X, viewportSize.Y) * activeFeedback.digBlockedDirection.centerDeadZoneRatio
+	if viewportPoint.Z > 0 and offset.Magnitude < deadZone then
+		return nil
+	end
+
+	if math.abs(direction.X) >= math.abs(direction.Y) then
+		if direction.X >= 0 then
+			return "right"
+		end
+
+		return "left"
+	end
+
+	if direction.Y >= 0 then
+		return "bottom"
+	end
+
+	return "top"
+end
+
+function activeFeedback.playDigBlockedDirectionPulse(model)
+	local edgeDirection = activeFeedback.getDigBlockedEdgeDirection(model)
+	if not edgeDirection then
+		return
+	end
+
+	local config = activeFeedback.digBlockedDirection
+	local edges = activeFeedback.ensureDigBlockedDirectionEdges()
+	local edge = edges[edgeDirection]
+	if not edge or not edge.Parent then
+		return
+	end
+
+	config.sequence = config.sequence + 1
+	local sequence = config.sequence
+	activeFeedback.cancelDigBlockedDirectionTweens()
+	activeFeedback.hideDigBlockedDirectionEdges()
 
 	edge.Visible = true
 	edge.BackgroundTransparency = config.pulseTransparency
@@ -3897,6 +4083,9 @@ EnemyCombatFeedback.OnClientEvent:Connect(function(payload)
 
 	if feedbackType == "aggro" then
 		showAggroWarning(payload.model)
+		if payload.reason == "dig_blocked" then
+			activeFeedback.playDigBlockedDirectionPulse(payload.model)
+		end
 	elseif feedbackType == "enemy_attack_warning" then
 		showAttackWarning(payload.model)
 	elseif feedbackType == "enemy_spawn" then

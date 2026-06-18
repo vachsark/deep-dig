@@ -425,6 +425,7 @@ local function notifyDigBlockedByEnemy(player, blockingEnemyModel)
 	if EnemyCombatFeedback and blockingEnemyModel and blockingEnemyModel.Parent then
 		EnemyCombatFeedback:FireClient(player, {
 			type = "aggro",
+			reason = "dig_blocked",
 			model = blockingEnemyModel,
 		})
 	else
