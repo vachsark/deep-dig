@@ -15,6 +15,7 @@
 --     players are initialized lazily here on first egg interaction.
 
 local Players = game:GetService("Players")
+local Debris = game:GetService("Debris")
 local HttpService = game:GetService("HttpService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TweenService = game:GetService("TweenService")
@@ -118,6 +119,12 @@ if not petCompanionsFolder then
 end
 
 local companionByUserId = {}
+local lastReactionByUserId = {}
+local reactionActiveByUserId = {}
+
+local PET_REACTION_COOLDOWN = 0.38
+local PET_REACTION_UP_TIME = 0.12
+local PET_REACTION_DOWN_TIME = 0.2
 
 local RARITY_AURA_COLORS = {
 	Common = Color3.fromRGB(180, 180, 180),
@@ -331,6 +338,132 @@ local function buildCompanion(player, root, owned, petDef)
 	label.Parent = billboard
 
 	companionByUserId[player.UserId] = companion
+end
+
+local function playCompanionDigReaction(player)
+	if not player or not player.Parent then return end
+
+	local userId = player.UserId
+	local now = os.clock()
+	if reactionActiveByUserId[userId] or (lastReactionByUserId[userId] and now - lastReactionByUserId[userId] < PET_REACTION_COOLDOWN) then
+		return
+	end
+
+	local companion = companionByUserId[userId]
+	if not companion or not companion.Parent or companion.Parent ~= petCompanionsFolder then
+		return
+	end
+
+	local character = player.Character
+	local root = character and character:FindFirstChild("HumanoidRootPart")
+	if not root then
+		return
+	end
+
+	local glow = companion:FindFirstChild("PetCompanionGlow")
+	local originalSize = companion.Size
+	local originalColor = companion.Color
+	local originalBrightness = glow and glow.Brightness
+	local originalRange = glow and glow.Range
+	local pulseColor = originalColor:Lerp(Color3.fromRGB(255, 255, 255), 0.35)
+
+	lastReactionByUserId[userId] = now
+	reactionActiveByUserId[userId] = true
+
+	local burst = Instance.new("ParticleEmitter")
+	burst.Name = "PetCompanionDigBurst"
+	burst.Color = ColorSequence.new(pulseColor)
+	burst.LightEmission = 0.9
+	burst.LightInfluence = 0.05
+	burst.Rate = 0
+	burst.Lifetime = NumberRange.new(0.25, 0.45)
+	burst.Speed = NumberRange.new(1.2, 2.6)
+	burst.SpreadAngle = Vector2.new(360, 360)
+	burst.Size = NumberSequence.new({
+		NumberSequenceKeypoint.new(0, 0.18),
+		NumberSequenceKeypoint.new(0.55, 0.1),
+		NumberSequenceKeypoint.new(1, 0),
+	})
+	burst.Transparency = NumberSequence.new({
+		NumberSequenceKeypoint.new(0, 0.1),
+		NumberSequenceKeypoint.new(0.65, 0.45),
+		NumberSequenceKeypoint.new(1, 1),
+	})
+	burst.Rotation = NumberRange.new(0, 360)
+	burst.RotSpeed = NumberRange.new(-90, 90)
+	burst.Drag = 1.5
+	burst.LockedToPart = false
+	burst.Texture = "rbxasset://textures/particles/sparkles_main.dds"
+	burst.Parent = companion
+	burst:Emit(9)
+	Debris:AddItem(burst, 0.8)
+
+	local upTween = TweenService:Create(
+		companion,
+		TweenInfo.new(PET_REACTION_UP_TIME, Enum.EasingStyle.Back, Enum.EasingDirection.Out),
+		{
+			Size = Vector3.new(originalSize.X * 1.14, originalSize.Y * 1.28, originalSize.Z * 1.14),
+			Color = pulseColor,
+		}
+	)
+
+	local glowUpTween
+	if glow then
+		glowUpTween = TweenService:Create(
+			glow,
+			TweenInfo.new(PET_REACTION_UP_TIME, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+			{
+				Brightness = clamp((originalBrightness or 0.8) * 2.2, 1.4, 3.4),
+				Range = clamp((originalRange or 7) + 3.5, 7, 14),
+			}
+		)
+	end
+
+	upTween:Play()
+	if glowUpTween then
+		glowUpTween:Play()
+	end
+
+	task.delay(PET_REACTION_UP_TIME, function()
+		if companionByUserId[userId] ~= companion or not companion.Parent then
+			reactionActiveByUserId[userId] = nil
+			return
+		end
+
+		local downTween = TweenService:Create(
+			companion,
+			TweenInfo.new(PET_REACTION_DOWN_TIME, Enum.EasingStyle.Sine, Enum.EasingDirection.Out),
+			{
+				Size = originalSize,
+				Color = originalColor,
+			}
+		)
+		downTween:Play()
+
+		if glow and glow.Parent then
+			local glowDownTween = TweenService:Create(
+				glow,
+				TweenInfo.new(PET_REACTION_DOWN_TIME, Enum.EasingStyle.Sine, Enum.EasingDirection.Out),
+				{
+					Brightness = originalBrightness or glow.Brightness,
+					Range = originalRange or glow.Range,
+				}
+			)
+			glowDownTween:Play()
+		end
+
+		task.delay(PET_REACTION_DOWN_TIME, function()
+			if companionByUserId[userId] == companion and companion.Parent then
+				companion.Size = originalSize
+				companion.Color = originalColor
+				if glow and glow.Parent then
+					glow.Brightness = originalBrightness or glow.Brightness
+					glow.Range = originalRange or glow.Range
+				end
+			end
+			reactionActiveByUserId[userId] = nil
+		end)
+	end)
 end
 
 local function updateCompanion(player)
@@ -822,7 +955,16 @@ Players.PlayerAdded:Connect(onPlayerAdded)
 
 Players.PlayerRemoving:Connect(function(player)
 	removeCompanion(player)
+	lastReactionByUserId[player.UserId] = nil
+	reactionActiveByUserId[player.UserId] = nil
 end)
+
+local BlockBrokenEvent = ServerEvents:FindFirstChild("BlockBroken")
+if BlockBrokenEvent and BlockBrokenEvent:IsA("BindableEvent") then
+	BlockBrokenEvent.Event:Connect(function(player, _blockPosition)
+		playCompanionDigReaction(player)
+	end)
+end
 
 -- Make sure existing online players (e.g. on hot-reload) get pet fields.
 for _, player in ipairs(Players:GetPlayers()) do
