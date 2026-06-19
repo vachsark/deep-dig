@@ -17,6 +17,7 @@
 local Players = game:GetService("Players")
 local HttpService = game:GetService("HttpService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local TweenService = game:GetService("TweenService")
 
 local Config = require(ReplicatedStorage:WaitForChild("Config"))
 local PetDatabase = require(ReplicatedStorage:WaitForChild("PetDatabase"))
@@ -514,6 +515,30 @@ local function buildPad(eggType, index)
 	eggVisual.Color = egg.color
 	eggVisual.Parent = pad
 
+	local eggLight = Instance.new("PointLight")
+	eggLight.Name = "EggVisualGlow"
+	eggLight.Color = egg.color
+	eggLight.Brightness = 1.2
+	eggLight.Range = 11
+	eggLight.Shadows = false
+	eggLight.Parent = eggVisual
+
+	local idleCFrame = eggVisual.CFrame
+	local idleSize = eggVisual.Size
+	local idleBrightness = eggLight.Brightness
+	local idleRange = eggLight.Range
+	local pulseTween
+	local lightPulseTween
+
+	local idleTween = TweenService:Create(
+		eggVisual,
+		TweenInfo.new(1.8, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true),
+		{
+			CFrame = idleCFrame * CFrame.new(0, 0.45, 0) * CFrame.Angles(0, math.rad(12), 0),
+		}
+	)
+	idleTween:Play()
+
 	-- ProximityPrompt — fires HatchEgg with eggType when activated.
 	local prompt = Instance.new("ProximityPrompt")
 	prompt.ActionText = "Hatch"
@@ -523,9 +548,49 @@ local function buildPad(eggType, index)
 	prompt.RequiresLineOfSight = false
 	prompt.Parent = pad
 
+	local function playPromptPulse(isActive)
+		if pulseTween then
+			pulseTween:Cancel()
+		end
+		if lightPulseTween then
+			lightPulseTween:Cancel()
+		end
+
+		local sizeGoal = idleSize
+		local brightnessGoal = idleBrightness
+		local rangeGoal = idleRange
+		local tweenInfo = TweenInfo.new(0.16, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+
+		if isActive then
+			sizeGoal = idleSize * 1.16
+			brightnessGoal = idleBrightness * 2.1
+			rangeGoal = idleRange + 5
+			tweenInfo = TweenInfo.new(0.12, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
+		end
+
+		pulseTween = TweenService:Create(eggVisual, tweenInfo, {
+			Size = sizeGoal,
+		})
+		lightPulseTween = TweenService:Create(eggLight, tweenInfo, {
+			Brightness = brightnessGoal,
+			Range = rangeGoal,
+		})
+		pulseTween:Play()
+		lightPulseTween:Play()
+	end
+
+	prompt.PromptButtonHoldBegan:Connect(function()
+		playPromptPulse(true)
+	end)
+
+	prompt.PromptButtonHoldEnded:Connect(function()
+		playPromptPulse(false)
+	end)
+
 	prompt.Triggered:Connect(function(triggeringPlayer)
 		-- ProximityPrompt.Triggered fires on the server with the activating
 		-- player. Route through rollAndAward directly (no remote round-trip).
+		playPromptPulse(false)
 		if triggeringPlayer then
 			rollAndAward(triggeringPlayer, eggType)
 		end
