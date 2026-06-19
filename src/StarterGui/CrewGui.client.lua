@@ -54,6 +54,12 @@ local COOP_RADIUS_MARKER_NAME = "DeepDigLocalCoopRadius"
 local COOP_RADIUS_MARKER_HEIGHT = 0.08
 local COOP_RADIUS_MARKER_Y_OFFSET = 0.04
 local COOP_RADIUS_INACTIVE_COLOR = Color3.fromRGB(90, 108, 118)
+local COOP_LINK_STYLE = {
+	prefix = "DeepDigCrewCoop",
+	localAttachmentName = "DeepDigCrewCoopLocalAttachment",
+	crewmateAttachmentName = "DeepDigCrewCoopMateAttachment",
+	beamName = "DeepDigCrewCoopBeam",
+}
 
 local RARITY_COLORS = {
 	Common = Color3.fromRGB(180, 180, 180),
@@ -92,6 +98,9 @@ local lastMailboxReceivedKey = nil
 local activeCrewMembersByUserId = {}
 local crewMarkerConnections = {}
 local coopRadiusMarker = nil
+local crewCoopLinkState = {
+	links = {},
+}
 local refreshCoopBonusState
 
 local LocalPlaySound = SoundService:FindFirstChild(LOCAL_PLAY_SOUND_NAME)
@@ -1299,6 +1308,147 @@ local function clearCoopRadiusMarker()
 	end
 end
 
+local function destroyNamedCoopLinkInstances(root)
+	if not root then
+		return
+	end
+
+	for _, child in ipairs(root:GetChildren()) do
+		if string.sub(child.Name, 1, #COOP_LINK_STYLE.prefix) == COOP_LINK_STYLE.prefix then
+			child:Destroy()
+		end
+	end
+end
+
+local function cleanupCrewCoopLink(userId)
+	local link = crewCoopLinkState.links[userId]
+	if not link then
+		return
+	end
+
+	if link.beam then
+		link.beam:Destroy()
+	end
+	if link.localAttachment then
+		link.localAttachment:Destroy()
+	end
+	if link.crewmateAttachment then
+		link.crewmateAttachment:Destroy()
+	end
+
+	crewCoopLinkState.links[userId] = nil
+end
+
+local function cleanupAllCrewCoopLinks()
+	for userId in pairs(crewCoopLinkState.links) do
+		cleanupCrewCoopLink(userId)
+	end
+end
+
+local function createCrewCoopLink(crewmate, localRoot, crewmateRoot)
+	cleanupCrewCoopLink(crewmate.UserId)
+	destroyNamedCoopLinkInstances(crewmateRoot)
+
+	local localAttachment = Instance.new("Attachment")
+	localAttachment.Name = COOP_LINK_STYLE.localAttachmentName .. tostring(crewmate.UserId)
+	localAttachment.Position = Vector3.new(0, 0.35, 0)
+	localAttachment.Parent = localRoot
+
+	local crewmateAttachment = Instance.new("Attachment")
+	crewmateAttachment.Name = COOP_LINK_STYLE.crewmateAttachmentName .. tostring(player.UserId)
+	crewmateAttachment.Position = Vector3.new(0, 0.35, 0)
+	crewmateAttachment.Parent = crewmateRoot
+
+	local beam = Instance.new("Beam")
+	beam.Name = COOP_LINK_STYLE.beamName .. tostring(crewmate.UserId)
+	beam.Attachment0 = localAttachment
+	beam.Attachment1 = crewmateAttachment
+	beam.Color = ColorSequence.new({
+		ColorSequenceKeypoint.new(0, Color3.fromRGB(62, 222, 210)),
+		ColorSequenceKeypoint.new(0.5, ACCENT_GOLD),
+		ColorSequenceKeypoint.new(1, Color3.fromRGB(62, 222, 210)),
+	})
+	beam.Transparency = NumberSequence.new({
+		NumberSequenceKeypoint.new(0, 0.72),
+		NumberSequenceKeypoint.new(0.5, 0.22),
+		NumberSequenceKeypoint.new(1, 0.72),
+	})
+	beam.Width0 = 0.12
+	beam.Width1 = 0.12
+	beam.FaceCamera = true
+	beam.LightEmission = 0.45
+	beam.LightInfluence = 0
+	beam.Segments = 8
+	beam.Parent = localRoot
+
+	crewCoopLinkState.links[crewmate.UserId] = {
+		beam = beam,
+		localAttachment = localAttachment,
+		crewmateAttachment = crewmateAttachment,
+		localRoot = localRoot,
+		crewmateRoot = crewmateRoot,
+		phase = os.clock() % 1,
+	}
+end
+
+local function updateCrewCoopLinks()
+	if not state.inCrew or not coopBonusState.active then
+		cleanupAllCrewCoopLinks()
+		return
+	end
+
+	local radius = tonumber(state.coopRadius) or 0
+	local localRoot = getRootPart(player)
+	if radius <= 0 or not localRoot then
+		cleanupAllCrewCoopLinks()
+		return
+	end
+
+	local wanted = {}
+	for _, member in ipairs(state.members or {}) do
+		local userId = tonumber(member.userId)
+		if userId and userId ~= player.UserId then
+			local crewmate = Players:GetPlayerByUserId(userId)
+			local crewmateRoot = getRootPart(crewmate)
+			if crewmateRoot and (crewmateRoot.Position - localRoot.Position).Magnitude <= radius then
+				wanted[userId] = true
+				local link = crewCoopLinkState.links[userId]
+				if not link or link.localRoot ~= localRoot or link.crewmateRoot ~= crewmateRoot then
+					createCrewCoopLink(crewmate, localRoot, crewmateRoot)
+				end
+			end
+		end
+	end
+
+	for userId in pairs(crewCoopLinkState.links) do
+		if not wanted[userId] then
+			cleanupCrewCoopLink(userId)
+		end
+	end
+end
+
+local function pulseCrewCoopLinks()
+	local now = os.clock()
+	for userId, link in pairs(crewCoopLinkState.links) do
+		local beam = link.beam
+		if not beam or not beam.Parent or not link.localAttachment.Parent or not link.crewmateAttachment.Parent then
+			cleanupCrewCoopLink(userId)
+		else
+			local alpha = (math.sin((now + link.phase) * 3.8) + 1) * 0.5
+			local width = 0.09 + (alpha * 0.07)
+			local centerTransparency = 0.18 + ((1 - alpha) * 0.16)
+
+			beam.Width0 = width
+			beam.Width1 = width
+			beam.Transparency = NumberSequence.new({
+				NumberSequenceKeypoint.new(0, 0.76),
+				NumberSequenceKeypoint.new(0.5, centerTransparency),
+				NumberSequenceKeypoint.new(1, 0.76),
+			})
+		end
+	end
+end
+
 local function ensureCoopRadiusMarker()
 	if coopRadiusMarker and coopRadiusMarker.Parent then
 		return coopRadiusMarker
@@ -1394,6 +1544,7 @@ refreshCoopBonusState = function(shouldRender)
 	coopBonusState.active = isActive
 	coopBonusState.partnerName = partnerName
 	updateCoopRadiusMarker()
+	updateCrewCoopLinks()
 
 	if changed and shouldRender and render then
 		render()
@@ -1748,16 +1899,21 @@ end)
 
 Players.PlayerRemoving:Connect(function(leavingPlayer)
 	clearCrewMarker(leavingPlayer.UserId, true)
+	cleanupCrewCoopLink(leavingPlayer.UserId)
 	refreshCoopBonusStateSoon(0.2)
 	task.delay(0.2, requestState)
 end)
 
 player.CharacterAdded:Connect(function()
+	cleanupAllCrewCoopLinks()
 	refreshCoopBonusStateSoon(0.35)
 	task.delay(0.35, updateCoopRadiusMarker)
 end)
 
-RunService.RenderStepped:Connect(updateCoopRadiusMarker)
+RunService.RenderStepped:Connect(function()
+	updateCoopRadiusMarker()
+	pulseCrewCoopLinks()
+end)
 
 task.spawn(function()
 	while true do
