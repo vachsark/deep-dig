@@ -59,6 +59,7 @@ local COOP_LINK_STYLE = {
 	localAttachmentName = "DeepDigCrewCoopLocalAttachment",
 	crewmateAttachmentName = "DeepDigCrewCoopMateAttachment",
 	beamName = "DeepDigCrewCoopBeam",
+	refreshInterval = 0.2,
 }
 
 local RARITY_COLORS = {
@@ -100,6 +101,7 @@ local crewMarkerConnections = {}
 local coopRadiusMarker = nil
 local crewCoopLinkState = {
 	links = {},
+	refreshElapsed = 0,
 }
 local refreshCoopBonusState
 
@@ -1910,8 +1912,13 @@ player.CharacterAdded:Connect(function()
 	task.delay(0.35, updateCoopRadiusMarker)
 end)
 
-RunService.RenderStepped:Connect(function()
+RunService.RenderStepped:Connect(function(deltaTime)
 	updateCoopRadiusMarker()
+	crewCoopLinkState.refreshElapsed = crewCoopLinkState.refreshElapsed + deltaTime
+	if crewCoopLinkState.refreshElapsed >= COOP_LINK_STYLE.refreshInterval then
+		crewCoopLinkState.refreshElapsed = 0
+		updateCrewCoopLinks()
+	end
 	pulseCrewCoopLinks()
 end)
 
