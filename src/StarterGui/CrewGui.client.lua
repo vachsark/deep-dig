@@ -81,6 +81,8 @@ local state = {
 local coopBonusState = {
 	active = false,
 	partnerName = nil,
+	count = 0,
+	firstName = nil,
 }
 local currentInventory = {}
 local selectedMailboxRecipientUserId = nil
@@ -1509,7 +1511,7 @@ local function updateCoopRadiusMarker()
 	end
 end
 
-local function getCoopBonusPartner()
+local function getCoopBonusSummary()
 	if not state.inCrew then
 		return nil
 	end
@@ -1524,27 +1526,45 @@ local function getCoopBonusPartner()
 		return nil
 	end
 
+	local summary = {
+		count = 0,
+		firstName = nil,
+	}
+
 	for _, member in ipairs(state.members or {}) do
 		local userId = tonumber(member.userId)
 		if userId and userId ~= player.UserId then
 			local crewmate = Players:GetPlayerByUserId(userId)
 			local crewmateRoot = getRootPart(crewmate)
 			if crewmateRoot and (crewmateRoot.Position - localRoot.Position).Magnitude <= radius then
-				return tostring(member.displayName or member.name or crewmate.DisplayName or crewmate.Name or "Crewmate")
+				summary.count = summary.count + 1
+				if not summary.firstName then
+					summary.firstName = tostring(member.displayName or member.name or crewmate.DisplayName or crewmate.Name or "Crewmate")
+				end
 			end
 		end
 	end
 
-	return nil
+	if summary.count <= 0 then
+		return nil
+	end
+
+	return summary
 end
 
 refreshCoopBonusState = function(shouldRender)
-	local partnerName = getCoopBonusPartner()
-	local isActive = partnerName ~= nil
-	local changed = coopBonusState.active ~= isActive or coopBonusState.partnerName ~= partnerName
+	local summary = getCoopBonusSummary()
+	local isActive = summary ~= nil
+	local count = summary and summary.count or 0
+	local firstName = summary and summary.firstName or nil
+	local changed = coopBonusState.active ~= isActive
+		or coopBonusState.count ~= count
+		or coopBonusState.firstName ~= firstName
 
 	coopBonusState.active = isActive
-	coopBonusState.partnerName = partnerName
+	coopBonusState.count = count
+	coopBonusState.firstName = firstName
+	coopBonusState.partnerName = firstName
 	updateCoopRadiusMarker()
 	updateCrewCoopLinks()
 
@@ -1675,7 +1695,7 @@ render = function()
 		coopBadge.BackgroundTransparency = 0.04
 		coopBadgeStroke.Color = ACCENT_GREEN
 		coopBadgeStroke.Transparency = 0
-		coopBadgeLabel.Text = "ACTIVE"
+		coopBadgeLabel.Text = tostring(coopBonusState.count) .. "x"
 		coopBadgeLabel.TextColor3 = Color3.fromRGB(12, 24, 18)
 	else
 		coopBadge.BackgroundColor3 = SECTION_BG
@@ -1694,7 +1714,11 @@ render = function()
 
 	if state.inCrew then
 		if coopBonusState.active then
-			statusLabel.Text = "Co-op bonus active with " .. tostring(coopBonusState.partnerName) .. " - +" .. tostring(bonus) .. " fragments"
+			if coopBonusState.count > 1 then
+				statusLabel.Text = "Co-op bonus active with " .. tostring(coopBonusState.count) .. " crewmates - +" .. tostring(bonus) .. " fragments"
+			else
+				statusLabel.Text = "Co-op bonus active with " .. tostring(coopBonusState.firstName) .. " - +" .. tostring(bonus) .. " fragments"
+			end
 			statusLabel.TextColor3 = ACCENT_GREEN
 		else
 			statusLabel.Text = "Level " .. tostring(level) .. " crew - +" .. tostring(bonus) .. " fragments within " .. tostring(radius) .. " studs"
