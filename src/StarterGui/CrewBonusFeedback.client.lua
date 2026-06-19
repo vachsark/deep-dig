@@ -46,11 +46,13 @@ local function clearActiveGui(sequence)
 	end
 end
 
-local function playCrewBonusBurst(amount, partnerName)
+local function playCrewBonusBurst(amount, partnerName, partnerCount)
 	feedbackSequence = feedbackSequence + 1
 	local sequence = feedbackSequence
 	clearActiveGui()
 	local hasPartnerName = type(partnerName) == "string" and partnerName ~= ""
+	local nearbyPartnerCount = math.max(math.floor(tonumber(partnerCount) or 1), 1)
+	local hasPartnerLine = nearbyPartnerCount > 1 or hasPartnerName
 
 	local screenGui = Instance.new("ScreenGui")
 	screenGui.Name = "CrewBonusFeedback"
@@ -64,7 +66,7 @@ local function playCrewBonusBurst(amount, partnerName)
 	frame.Name = "Burst"
 	frame.AnchorPoint = Vector2.new(0.5, 0.5)
 	frame.Position = UDim2.fromScale(0.5, 0.73)
-	frame.Size = UDim2.fromOffset(252, hasPartnerName and 56 or 38)
+	frame.Size = UDim2.fromOffset(252, hasPartnerLine and 56 or 38)
 	frame.BackgroundColor3 = Color3.fromRGB(33, 30, 41)
 	frame.BackgroundTransparency = 1
 	frame.BorderSizePixel = 0
@@ -84,8 +86,8 @@ local function playCrewBonusBurst(amount, partnerName)
 	local label = Instance.new("TextLabel")
 	label.Name = "AmountLabel"
 	label.AnchorPoint = Vector2.new(0.5, 0.5)
-	label.Position = UDim2.fromScale(0.5, hasPartnerName and 0.36 or 0.5)
-	label.Size = UDim2.new(1, -18, 0, hasPartnerName and 24 or 38)
+	label.Position = UDim2.fromScale(0.5, hasPartnerLine and 0.36 or 0.5)
+	label.Size = UDim2.new(1, -18, 0, hasPartnerLine and 24 or 38)
 	label.BackgroundTransparency = 1
 	label.Text = "+" .. tostring(amount) .. " Crew Fragments"
 	label.TextColor3 = Color3.fromRGB(230, 255, 239)
@@ -98,14 +100,18 @@ local function playCrewBonusBurst(amount, partnerName)
 	label.Parent = frame
 
 	local partnerLabel = nil
-	if hasPartnerName then
+	if hasPartnerLine then
 		partnerLabel = Instance.new("TextLabel")
 		partnerLabel.Name = "PartnerLabel"
 		partnerLabel.AnchorPoint = Vector2.new(0.5, 0.5)
 		partnerLabel.Position = UDim2.fromScale(0.5, 0.72)
 		partnerLabel.Size = UDim2.new(1, -20, 0, 18)
 		partnerLabel.BackgroundTransparency = 1
-		partnerLabel.Text = "with " .. partnerName
+		if nearbyPartnerCount > 1 then
+			partnerLabel.Text = "with " .. tostring(nearbyPartnerCount) .. " crewmates"
+		else
+			partnerLabel.Text = "with " .. partnerName
+		end
 		partnerLabel.TextColor3 = Color3.fromRGB(166, 238, 202)
 		partnerLabel.TextTransparency = 1
 		partnerLabel.TextSize = 13
@@ -179,5 +185,5 @@ UpdateHUDEvent.OnClientEvent:Connect(function(payload)
 		return
 	end
 
-	playCrewBonusBurst(math.floor(bonus), payload.crewDigPartnerName)
+	playCrewBonusBurst(math.floor(bonus), payload.crewDigPartnerName, payload.crewDigPartnerCount)
 end)

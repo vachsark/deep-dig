@@ -1089,12 +1089,12 @@ local function hasNearbyCrewmate(player)
 		return false, nil
 	end
 
-	local success, hasCrewmate, crewmate = pcall(fn, player, Config.CREW_COOP_RADIUS)
+	local success, hasCrewmate, crewmate, nearbyCount = pcall(fn, player, Config.CREW_COOP_RADIUS)
 	if success and hasCrewmate == true then
-		return true, crewmate
+		return true, crewmate, nearbyCount
 	end
 
-	return false, nil
+	return false, nil, 0
 end
 
 local function awardCrewCoopDigXP(player)
@@ -1199,12 +1199,14 @@ BlockBrokenEvent.Event:Connect(function(player, blockPosition)
 
 	local crewDigBonus = 0
 	local crewDigPartnerName = nil
-	local nearCrewmate, crewDigPartner = hasNearbyCrewmate(player)
+	local crewDigPartnerCount = 0
+	local nearCrewmate, crewDigPartner, nearbyCrewmateCount = hasNearbyCrewmate(player)
 	if nearCrewmate then
 		local crewFragmentBonus = awardCrewCoopDigXP(player)
 		data.fragments = (data.fragments or 0) + crewFragmentBonus
 		if crewFragmentBonus > 0 then
 			crewDigBonus = crewFragmentBonus
+			crewDigPartnerCount = math.max(math.floor(tonumber(nearbyCrewmateCount) or 1), 1)
 			if typeof(crewDigPartner) == "Instance" and crewDigPartner:IsA("Player") then
 				crewDigPartnerName = crewDigPartner.DisplayName
 				if type(crewDigPartnerName) ~= "string" or crewDigPartnerName == "" then
@@ -1549,6 +1551,7 @@ BlockBrokenEvent.Event:Connect(function(player, blockPosition)
 	}
 	if crewDigBonus > 0 then
 		hudPayload.crewDigBonus = crewDigBonus
+		hudPayload.crewDigPartnerCount = crewDigPartnerCount
 		if crewDigPartnerName then
 			hudPayload.crewDigPartnerName = crewDigPartnerName
 		end

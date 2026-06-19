@@ -826,17 +826,26 @@ _G.DeepDig_hasNearbyCrewmate = function(player, radius)
 	end
 
 	local maxDistance = radius or Config.CREW_COOP_RADIUS
+	local firstMember = nil
+	local nearbyCount = 0
 	for userId in pairs(crew.members) do
 		if userId ~= player.UserId then
 			local member = Players:GetPlayerByUserId(userId)
 			local memberRoot = getRoot(member)
 			if memberRoot and (root.Position - memberRoot.Position).Magnitude <= maxDistance then
-				return true, member
+				if not firstMember then
+					firstMember = member
+				end
+				nearbyCount = nearbyCount + 1
 			end
 		end
 	end
 
-	return false
+	if firstMember then
+		return true, firstMember, nearbyCount
+	end
+
+	return false, nil, 0
 end
 
 local function awardCrewCoopDigXP(player, amount)
