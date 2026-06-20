@@ -34,7 +34,10 @@ local LOCAL_PLAY_SOUND_NAME = "DeepDigLocalPlaySound"
 local CAMERA_BIND_NAME = "EarthquakeFXCameraShake"
 local EVENT_PULSE_BIND_NAME = "EarthquakeFXEventPulse"
 local MAX_DURATION = 60
-local SHAKE_MAX_OFFSET = 0.5
+local EARTHQUAKE_SHAKE_DURATION = 2.8
+local EARTHQUAKE_SHAKE_MAX_OFFSET = 0.75
+local EARTHQUAKE_SHAKE_MAX_ROTATION = math.rad(1.35)
+local EARTHQUAKE_SHAKE_SETTLE_SCALE = 0.18
 local SHAKE_STEP = 0.05
 local EVENT_PULSE_DURATION = 0.45
 local EVENT_PULSE_MAX_OFFSET = 0.18
@@ -112,9 +115,13 @@ end
 local active = false
 local effectSession = 0
 local effectEndTime = 0
-local currentShakeOffset = Vector3.new(0, 0, 0)
-local lastAppliedShakeOffset = Vector3.new(0, 0, 0)
+local shakeEndTime = 0
+local currentShakeTransform = CFrame.new()
+local lastAppliedShakeTransform = CFrame.new()
+local lastAppliedShakeActive = false
 local renderBound = false
+local shakeLoopActive = false
+local hapticLoopActive = false
 local eventPulseActive = false
 local eventPulseSession = 0
 local eventPulseEndTime = 0
@@ -252,17 +259,21 @@ local function stopHaptics()
 	clearHapticPulse()
 end
 
-local function randomShakeOffset()
+local function randomShakeTransform(scale)
 	local x = math.random() * 2 - 1
 	local y = math.random() * 2 - 1
-	local z = math.random() * 2 - 1
-	local dir = Vector3.new(x, y, z)
+	local dir = Vector3.new(x, y, 0)
 	if dir.Magnitude < 1e-3 then
 		dir = Vector3.new(1, 0, 0)
 	end
 
-	local magnitude = math.random() * SHAKE_MAX_OFFSET
-	return dir.Unit * magnitude
+	local magnitude = EARTHQUAKE_SHAKE_MAX_OFFSET * (0.55 + math.random() * 0.45) * scale
+	local offset = dir.Unit * magnitude
+	local pitch = (math.random() * 2 - 1) * EARTHQUAKE_SHAKE_MAX_ROTATION * 0.35 * scale
+	local yaw = (math.random() * 2 - 1) * EARTHQUAKE_SHAKE_MAX_ROTATION * 0.25 * scale
+	local roll = (math.random() * 2 - 1) * EARTHQUAKE_SHAKE_MAX_ROTATION * scale
+
+	return CFrame.new(offset) * CFrame.Angles(pitch, yaw, roll)
 end
 
 local function randomEventPulseOffset()
@@ -519,15 +530,19 @@ local function cleanup(session)
 
 	active = false
 	effectEndTime = 0
+	shakeEndTime = 0
 	stopHaptics()
 
 	local camera = workspace.CurrentCamera
-	if camera and lastAppliedShakeOffset.Magnitude > 0 then
-		camera.CFrame = camera.CFrame * CFrame.new(-lastAppliedShakeOffset)
+	if camera and lastAppliedShakeActive then
+		camera.CFrame = camera.CFrame * lastAppliedShakeTransform:Inverse()
 	end
 
-	currentShakeOffset = Vector3.new(0, 0, 0)
-	lastAppliedShakeOffset = Vector3.new(0, 0, 0)
+	currentShakeTransform = CFrame.new()
+	lastAppliedShakeTransform = CFrame.new()
+	lastAppliedShakeActive = false
+	shakeLoopActive = false
+	hapticLoopActive = false
 
 	if renderBound then
 		RunService:UnbindFromRenderStep(CAMERA_BIND_NAME)
@@ -674,15 +689,13 @@ local function ensureRenderBinding()
 			return
 		end
 
-		if lastAppliedShakeOffset.Magnitude > 0 then
-			camera.CFrame = camera.CFrame * CFrame.new(-lastAppliedShakeOffset)
+		if lastAppliedShakeActive then
+			camera.CFrame = camera.CFrame * lastAppliedShakeTransform:Inverse()
 		end
 
-		if currentShakeOffset.Magnitude > 0 then
-			camera.CFrame = camera.CFrame * CFrame.new(currentShakeOffset)
-		end
-
-		lastAppliedShakeOffset = currentShakeOffset
+		camera.CFrame = camera.CFrame * currentShakeTransform
+		lastAppliedShakeTransform = currentShakeTransform
+		lastAppliedShakeActive = true
 
 		if dustPart then
 			local focus = camera.Focus
@@ -758,21 +771,34 @@ local function startVignettePulse(session)
 end
 
 local function startShakeLoop(session)
+	if shakeLoopActive then
+		return
+	end
+
+	shakeLoopActive = true
 	task.spawn(function()
-		while active and session == effectSession and os.clock() < effectEndTime do
-			currentShakeOffset = randomShakeOffset()
+		while active and session == effectSession and os.clock() < shakeEndTime do
+			local remaining = math.max(shakeEndTime - os.clock(), 0)
+			local fade = math.clamp(remaining / EARTHQUAKE_SHAKE_DURATION, EARTHQUAKE_SHAKE_SETTLE_SCALE, 1)
+			currentShakeTransform = randomShakeTransform(fade)
 			task.wait(SHAKE_STEP)
 		end
 
 		if session == effectSession then
-			cleanup(session)
+			currentShakeTransform = CFrame.new()
+			shakeLoopActive = false
 		end
 	end)
 end
 
 local function startHapticLoop(session)
+	if hapticLoopActive then
+		return
+	end
+
+	hapticLoopActive = true
 	task.spawn(function()
-		while active and session == effectSession and os.clock() < effectEndTime do
+		while active and session == effectSession and os.clock() < shakeEndTime do
 			playHapticPulse(
 				EARTHQUAKE_HAPTIC_SMALL_STRENGTH,
 				EARTHQUAKE_HAPTIC_LARGE_STRENGTH,
@@ -782,7 +808,20 @@ local function startHapticLoop(session)
 		end
 
 		if session == effectSession then
+			hapticLoopActive = false
 			stopHaptics()
+		end
+	end)
+end
+
+local function startEffectLifetimeLoop(session)
+	task.spawn(function()
+		while active and session == effectSession and os.clock() < effectEndTime do
+			task.wait(0.2)
+		end
+
+		if session == effectSession then
+			cleanup(session)
 		end
 	end)
 end
@@ -791,18 +830,24 @@ local function beginEarthquake(duration)
 	local now = os.clock()
 	local effectiveDuration = math.min(tonumber(duration) or 30, MAX_DURATION)
 	local newEndTime = math.min(now + effectiveDuration, now + MAX_DURATION)
+	local newShakeEndTime = math.min(now + EARTHQUAKE_SHAKE_DURATION, newEndTime)
 
 	if active then
 		effectEndTime = math.min(math.max(effectEndTime, newEndTime), now + MAX_DURATION)
+		shakeEndTime = math.min(math.max(shakeEndTime, newShakeEndTime), effectEndTime)
 		playEarthquakeSound()
+		startShakeLoop(effectSession)
+		startHapticLoop(effectSession)
 		return
 	end
 
 	effectSession = effectSession + 1
 	active = true
 	effectEndTime = newEndTime
-	currentShakeOffset = Vector3.new(0, 0, 0)
-	lastAppliedShakeOffset = Vector3.new(0, 0, 0)
+	shakeEndTime = newShakeEndTime
+	currentShakeTransform = CFrame.new()
+	lastAppliedShakeTransform = CFrame.new()
+	lastAppliedShakeActive = false
 
 	ensureUi()
 	ensureDust()
@@ -812,6 +857,7 @@ local function beginEarthquake(duration)
 	startVignettePulse(effectSession)
 	startShakeLoop(effectSession)
 	startHapticLoop(effectSession)
+	startEffectLifetimeLoop(effectSession)
 end
 
 local function startEventPulseLoop(session)
@@ -1029,6 +1075,12 @@ EventTriggered.OnClientEvent:Connect(function(eventName, message, duration, effe
 	end
 
 	beginEventPulse(effectId)
+end)
+
+player.CharacterRemoving:Connect(function()
+	cleanup(effectSession)
+	cleanupEventPulse(eventPulseSession)
+	cleanupVolcanoVent(volcanoVentSession)
 end)
 
 player.AncestryChanged:Connect(function(_, parent)
