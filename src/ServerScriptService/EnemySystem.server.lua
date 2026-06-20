@@ -75,20 +75,17 @@ local deathConnectionsByUserId = {}
 local hollowKingCooldownsByUserId = {}
 local sharedGlobals = getfenv()._G
 
-local function isRareRevealRarity(rarity)
-	return rarity == "Rare" or rarity == "Epic" or rarity == "Legendary" or rarity == "Mythic"
-end
-
-local function fireItemFindSounds(player, rarity)
+local function firePlaySound(player, soundKey)
 	local PlaySound = Remotes:FindFirstChild("PlaySound")
 	if not PlaySound then
 		return
 	end
 
-	PlaySound:FireClient(player, "item_found")
-	if isRareRevealRarity(rarity) then
-		PlaySound:FireClient(player, "rare_reveal")
-	end
+	PlaySound:FireClient(player, soundKey)
+end
+
+local function fireItemFindSounds(player)
+	firePlaySound(player, "item_found")
 end
 
 local function getSharedData(player)
@@ -204,7 +201,7 @@ local function addItemReward(player, data, tierName, dropPosition)
 			ItemFoundEvent:FireClient(player, clientPayload)
 		end
 		ItemFoundBindable:Fire(player, item)
-		fireItemFindSounds(player, item.rarity)
+		fireItemFindSounds(player)
 		return item
 	end
 
@@ -314,6 +311,10 @@ local function payEnemyReward(record)
 		streakBonusCoins,
 		itemReward
 	)
+	firePlaySound(player, "enemy_defeat")
+	if itemReward then
+		firePlaySound(player, "rare_reveal")
+	end
 
 	local rewardSummary = {
 		coins = coinReward,

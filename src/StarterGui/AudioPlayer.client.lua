@@ -141,6 +141,11 @@ local SOUNDS = {
 		playbackSpeed = 0.82,
 		pitchRange = { 0.96, 1.04 },
 	},
+	enemy_defeat = {
+		id = "rbxassetid://5852285683", -- local kill reward shimmer
+		volume = 0.85,
+		playbackSpeed = 0.88,
+	},
 	enemy_defeated = {
 		id = "rbxassetid://5852285683", -- stronger defeated cue
 		volume = 0.85,
