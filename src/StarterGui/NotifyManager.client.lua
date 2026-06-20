@@ -4,7 +4,7 @@
 --   2. Renders a centered banner at the top of the screen for Legendary / Mythic
 --      notifies (always shown, never suppressed). Up to 3 stacked banners; the
 --      oldest is removed if a 4th tries to appear.
---   3. Plays a brief full-screen gold flash for Legendary / Mythic notifies.
+--   3. Renders high-importance notifications without owning item-find flashes.
 --
 -- HudGui.client.lua already owns the standard side-toast notification surface.
 -- This script does NOT touch or replace that surface — it only adds a parallel
@@ -53,6 +53,7 @@ local BANNER_TOP_OFFSET = 110      -- px below the top edge for the first banner
 local BANNER_STACK_GAP  = 90       -- px between stacked banners
 local MAX_BANNERS       = 3
 local FLASH_FADE        = 0.55
+local PLAY_NOTIFY_RARITY_FLASH = false
 local CAMERA_BUMP_BINDING_NAME = "NotifyManagerRarityCameraBump"
 local GOLD_FLASH_GUI_NAME = "LegendaryFindGoldFlash"
 local GOLD_FLASH_FRAME_NAME = "GoldFlashOverlay"
@@ -547,9 +548,11 @@ local function onNotify(text, rarity)
 
 	if important then
 		-- Wrap in pcall so a malformed notify cannot break the listener.
-		local flashOk, flashErr = pcall(playRarityFlash, rarity)
-		if not flashOk then
-			warn("[NotifyManager] rarity flash failed: " .. tostring(flashErr))
+		if PLAY_NOTIFY_RARITY_FLASH then
+			local flashOk, flashErr = pcall(playRarityFlash, rarity)
+			if not flashOk then
+				warn("[NotifyManager] rarity flash failed: " .. tostring(flashErr))
+			end
 		end
 		local ok, err = pcall(createBanner, text, rarity)
 		if not ok then

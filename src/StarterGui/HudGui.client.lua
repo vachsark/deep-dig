@@ -3271,7 +3271,6 @@ local function playLegendaryFindFlash(rarity, item)
 	end
 
 	findFlashOverlay.BackgroundTransparency = 1
-	findFlashOverlay.BackgroundColor3 = flashProfile.overlayColor
 	LEGENDARY_FIND_FLASH_RARITIES.ShowRareFindRevealBanner(item, rarity, flashProfile, sequence)
 
 	local glint = Instance.new("Frame")
@@ -3326,11 +3325,6 @@ local function playLegendaryFindFlash(rarity, item)
 	verticalGlint.ZIndex = 93
 	verticalGlint.Parent = glint
 
-	findFlashInTween = TweenService:Create(findFlashOverlay, TweenInfo.new(flashProfile.flashInDuration, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-		BackgroundTransparency = flashProfile.peakTransparency,
-	})
-	findFlashInTween:Play()
-
 	TweenService:Create(pulse, TweenInfo.new(flashProfile.pulseDuration, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
 		Size = UDim2.new(0, flashProfile.pulseSize, 0, flashProfile.pulseSize),
 	}):Play()
@@ -3351,25 +3345,15 @@ local function playLegendaryFindFlash(rarity, item)
 		BackgroundTransparency = 1,
 	}):Play()
 
-	findFlashInTween.Completed:Connect(function(playbackState)
-		if sequence ~= findFlashSequence or playbackState ~= Enum.PlaybackState.Completed then
+	task.delay(math.max(flashProfile.pulseDuration, flashProfile.glintFadeDuration) + 0.05, function()
+		if sequence ~= findFlashSequence then
 			return
 		end
 
-		findFlashOutTween = TweenService:Create(findFlashOverlay, TweenInfo.new(flashProfile.flashOutDuration, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
-			BackgroundTransparency = 1,
-		})
-		findFlashOutTween:Play()
-		findFlashOutTween.Completed:Connect(function(outPlaybackState)
-			if sequence ~= findFlashSequence or outPlaybackState ~= Enum.PlaybackState.Completed then
-				return
-			end
-
-			findFlashOverlay.BackgroundTransparency = 1
-			if glint.Parent then
-				glint:Destroy()
-			end
-		end)
+		findFlashOverlay.BackgroundTransparency = 1
+		if glint.Parent then
+			glint:Destroy()
+		end
 	end)
 end
 
