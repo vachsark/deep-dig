@@ -98,6 +98,10 @@ local lastMailboxSentKey = nil
 local mailboxReceivedBurstSequence = 0
 local activeMailboxReceivedBurst = nil
 local lastMailboxReceivedKey = nil
+local crewClimbBurstSequence = 0
+local activeCrewClimbBurst = nil
+local pendingCrewClimbRank = nil
+local crewRankPulseSequence = 0
 local activeCrewMembersByUserId = {}
 local crewMarkerConnections = {}
 local coopRadiusMarker = nil
@@ -187,6 +191,17 @@ local function clearMailboxReceivedBurst(sequence)
 	if activeMailboxReceivedBurst then
 		activeMailboxReceivedBurst:Destroy()
 		activeMailboxReceivedBurst = nil
+	end
+end
+
+local function clearCrewClimbBurst(sequence)
+	if sequence and sequence ~= crewClimbBurstSequence then
+		return
+	end
+
+	if activeCrewClimbBurst then
+		activeCrewClimbBurst:Destroy()
+		activeCrewClimbBurst = nil
 	end
 end
 
@@ -831,6 +846,130 @@ local function showMailboxReceivedBurst(itemName, senderName, rarity)
 	end)
 end
 
+local function showCrewClimbBurst(rank)
+	crewClimbBurstSequence = crewClimbBurstSequence + 1
+	local sequence = crewClimbBurstSequence
+	clearCrewClimbBurst()
+
+	local burst = Instance.new("Frame")
+	burst.Name = "CrewRankClimbBurst"
+	burst.AnchorPoint = Vector2.new(1, 1)
+	burst.Position = UDim2.new(1, -20, 1, -218)
+	burst.Size = UDim2.fromOffset(198, 44)
+	burst.BackgroundColor3 = Color3.fromRGB(43, 34, 18)
+	burst.BackgroundTransparency = 1
+	burst.BorderSizePixel = 0
+	burst.ZIndex = 82
+	burst.Parent = screenGui
+	activeCrewClimbBurst = burst
+	setCorner(burst, 8)
+
+	local stroke = setStroke(burst, ACCENT_GOLD, 1, 1)
+
+	local titleLabel = Instance.new("TextLabel")
+	titleLabel.Name = "Title"
+	titleLabel.Size = UDim2.new(1, -18, 1, 0)
+	titleLabel.Position = UDim2.fromOffset(9, 0)
+	titleLabel.BackgroundTransparency = 1
+	titleLabel.Text = "Crew climbed to #" .. tostring(rank)
+	titleLabel.TextColor3 = Color3.fromRGB(255, 236, 172)
+	titleLabel.TextTransparency = 1
+	titleLabel.TextSize = 14
+	titleLabel.Font = Enum.Font.GothamBlack
+	titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+	titleLabel.TextTruncate = Enum.TextTruncate.AtEnd
+	titleLabel.ZIndex = 83
+	titleLabel.Parent = burst
+
+	local scale = Instance.new("UIScale")
+	scale.Scale = 0.9
+	scale.Parent = burst
+
+	TweenService:Create(burst, TweenInfo.new(0.14, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+		BackgroundTransparency = 0.06,
+		Position = UDim2.new(1, -20, 1, -226),
+	}):Play()
+	TweenService:Create(stroke, TweenInfo.new(0.14, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+		Transparency = 0.04,
+	}):Play()
+	TweenService:Create(titleLabel, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+		TextTransparency = 0,
+	}):Play()
+	TweenService:Create(scale, TweenInfo.new(0.2, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+		Scale = 1,
+	}):Play()
+
+	task.delay(1.05, function()
+		if sequence ~= crewClimbBurstSequence or activeCrewClimbBurst ~= burst then
+			return
+		end
+
+		TweenService:Create(burst, TweenInfo.new(0.24, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+			BackgroundTransparency = 1,
+			Position = UDim2.new(1, -20, 1, -234),
+		}):Play()
+		TweenService:Create(stroke, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+			Transparency = 1,
+		}):Play()
+		TweenService:Create(titleLabel, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+			TextTransparency = 1,
+		}):Play()
+	end)
+
+	task.delay(1.35, function()
+		clearCrewClimbBurst(sequence)
+	end)
+end
+
+local function pulseCrewLeaderboardRow(row, stroke)
+	crewRankPulseSequence = crewRankPulseSequence + 1
+	local sequence = crewRankPulseSequence
+
+	local originalColor = row.BackgroundColor3
+	local originalTransparency = row.BackgroundTransparency
+	local originalStrokeTransparency = stroke and stroke.Transparency or nil
+
+	row.BackgroundColor3 = ACCENT_GOLD
+	row.BackgroundTransparency = 0.18
+	if stroke then
+		stroke.Color = ACCENT_GOLD
+		stroke.Transparency = 0
+	end
+
+	local scale = Instance.new("UIScale")
+	scale.Scale = 1
+	scale.Parent = row
+
+	TweenService:Create(scale, TweenInfo.new(0.18, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+		Scale = 1.035,
+	}):Play()
+
+	task.delay(0.18, function()
+		if sequence ~= crewRankPulseSequence or not row.Parent then
+			return
+		end
+
+		TweenService:Create(row, TweenInfo.new(0.45, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+			BackgroundColor3 = originalColor,
+			BackgroundTransparency = originalTransparency,
+		}):Play()
+		TweenService:Create(scale, TweenInfo.new(0.45, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+			Scale = 1,
+		}):Play()
+		if stroke then
+			TweenService:Create(stroke, TweenInfo.new(0.45, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+				Transparency = originalStrokeTransparency,
+			}):Play()
+		end
+	end)
+
+	task.delay(0.8, function()
+		if sequence == crewRankPulseSequence and scale.Parent then
+			scale:Destroy()
+		end
+	end)
+end
+
 local panel = Instance.new("Frame")
 panel.Name = "CrewPanel"
 panel.Size = UDim2.new(0, 330, 0, 580)
@@ -1232,6 +1371,31 @@ local function makeEmptyRow(parent, text)
 	makeRow(parent, text, "", nil, nil, nil)
 end
 
+local function getPlayerCrewRank(topCrews)
+	for _, crew in ipairs(topCrews or {}) do
+		if crew.isPlayerCrew then
+			return tonumber(crew.rank)
+		end
+	end
+
+	return nil
+end
+
+local function getCrewClimbRank(nextTopCrews)
+	local previousRank = tonumber(state.lastPlayerCrewRank)
+	local currentRank = getPlayerCrewRank(nextTopCrews)
+	if previousRank and currentRank and currentRank < previousRank then
+		return math.floor(currentRank)
+	end
+
+	return nil
+end
+
+local function recordPlayerCrewRank()
+	local currentRank = getPlayerCrewRank(state.topCrews or {})
+	state.lastPlayerCrewRank = currentRank and math.floor(currentRank) or nil
+end
+
 local function makeLeaderboardRow(parent, crew)
 	local row = Instance.new("Frame")
 	row.Name = "CrewRank"
@@ -1241,8 +1405,9 @@ local function makeLeaderboardRow(parent, crew)
 	row.BorderSizePixel = 0
 	row.Parent = parent
 	setCorner(row, 6)
+	local stroke = nil
 	if crew.isPlayerCrew then
-		setStroke(row, ACCENT_GOLD, 1, 0.05)
+		stroke = setStroke(row, ACCENT_GOLD, 1, 0.05)
 	end
 
 	local leaderText = "#" .. tostring(crew.rank or 0) .. " " .. tostring(crew.leaderDisplayName or crew.leaderName or "Crew")
@@ -1277,6 +1442,10 @@ local function makeLeaderboardRow(parent, crew)
 	detailLabel.TextXAlignment = Enum.TextXAlignment.Right
 	detailLabel.TextTruncate = Enum.TextTruncate.AtEnd
 	detailLabel.Parent = row
+
+	if crew.isPlayerCrew and pendingCrewClimbRank and tonumber(crew.rank) == pendingCrewClimbRank then
+		pulseCrewLeaderboardRow(row, stroke)
+	end
 end
 
 local function updateCanvas(frame, layout)
@@ -1828,6 +1997,12 @@ render = function()
 	end
 	updateCanvas(nearbyList, nearbyLayout)
 	renderMailbox(members)
+
+	if pendingCrewClimbRank then
+		showCrewClimbBurst(pendingCrewClimbRank)
+		pendingCrewClimbRank = nil
+	end
+	recordPlayerCrewRank()
 end
 
 toggleButton.MouseButton1Click:Connect(function()
@@ -1908,6 +2083,7 @@ CrewUpdateEvent.OnClientEvent:Connect(function(payload)
 				showMailboxReceivedBurst(itemName, senderName, rarity)
 			end
 		end
+		pendingCrewClimbRank = getCrewClimbRank(payload.topCrews or {})
 		state = payload
 		if state.pendingInvite then
 			panel.Visible = true
