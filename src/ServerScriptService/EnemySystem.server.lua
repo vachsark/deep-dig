@@ -62,6 +62,8 @@ local KILL_STREAK_WINDOW = 20
 local KILL_STREAK_BONUS_PER_KILL = 0.1
 local KILL_STREAK_MAX_BONUS = 0.5
 local COMBAT_GRACE_ATTRIBUTE = "DeepDig_CombatGraceUntil"
+local COMBAT_DEFEAT_ATTRIBUTE = "DeepDig_LastCombatDefeatAt"
+local COMBAT_DEFEAT_SOURCE_ATTRIBUTE = "DeepDig_LastCombatDefeatSource"
 local HOLLOW_KING_ID = "hollow_king"
 local HOLLOW_KING_COOLDOWN = 5 * 60
 local MINIBOSS_ENRAGE_WALKSPEED_MULTIPLIER = 1.35
@@ -442,6 +444,16 @@ local function getEnemyDamage(record)
 	return record.enemy.damage or 0
 end
 
+local function tagCombatDamage(player, record, humanoid, damage)
+	local now = os.clock()
+	player:SetAttribute("DeepDig_LastEnemyDamageAt", now)
+
+	if humanoid.Health - damage <= 0 then
+		player:SetAttribute(COMBAT_DEFEAT_ATTRIBUTE, now)
+		player:SetAttribute(COMBAT_DEFEAT_SOURCE_ATTRIBUTE, record.enemy.id or record.enemy.name or "enemy")
+	end
+end
+
 local function applyMinibossEnrageStats(record)
 	local baseWalkSpeed = record.baseWalkSpeed or record.enemy.walkSpeed or 0
 	local baseDamage = record.baseDamage or record.enemy.damage or 0
@@ -601,8 +613,8 @@ local function applyPendingTouchAttack(record, player, userId)
 		return
 	end
 
-	player:SetAttribute("DeepDig_LastEnemyDamageAt", os.clock())
 	local damage = getEnemyDamage(record)
+	tagCombatDamage(player, record, humanoid, damage)
 	humanoid:TakeDamage(damage)
 	EnemyCombatFeedback:FireClient(player, {
 		type = "player_hit",

@@ -4,6 +4,8 @@
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
+local Config = require(ReplicatedStorage:WaitForChild("Config"))
+
 local Remotes = ReplicatedStorage:WaitForChild("Remotes")
 local NotifyEvent = Remotes:WaitForChild("Notify")
 local CombatRespawnFeedback = Remotes:FindFirstChild("CombatRespawnFeedback")
@@ -17,6 +19,7 @@ local ENEMY_DAMAGE_WINDOW = 6
 local RESPAWN_WINDOW = 20
 local COMBAT_GRACE_DURATION = 3
 local COMBAT_GRACE_ATTRIBUTE = "DeepDig_CombatGraceUntil"
+local COMBAT_DEFEAT_ATTRIBUTE = "DeepDig_LastCombatDefeatAt"
 local SURFACE_OFFSET = Vector3.new(0, 5, 0)
 local pendingCombatRespawnAtByUserId = {}
 
@@ -34,7 +37,7 @@ local function getSurfaceCFrame()
 		end
 	end
 
-	return CFrame.new(0, 9, 0)
+	return Config.DIG_SITE_RESPAWN_CFRAME or CFrame.new(Config.DIG_SITE_CENTER + Vector3.new(0, 9, 0))
 end
 
 local function wasRecentlyEnemyDamaged(player)
@@ -42,14 +45,21 @@ local function wasRecentlyEnemyDamaged(player)
 	return type(lastEnemyDamageAt) == "number" and os.clock() - lastEnemyDamageAt <= ENEMY_DAMAGE_WINDOW
 end
 
+local function wasRecentlyCombatDefeated(player)
+	local defeatedAt = player:GetAttribute(COMBAT_DEFEAT_ATTRIBUTE)
+	return type(defeatedAt) == "number" and os.clock() - defeatedAt <= RESPAWN_WINDOW
+end
+
 local function surfaceCharacter(player, character)
-	local markedAt = pendingCombatRespawnAtByUserId[player.UserId]
+	local markedAt = pendingCombatRespawnAtByUserId[player.UserId] or player:GetAttribute(COMBAT_DEFEAT_ATTRIBUTE)
 	if not markedAt then
 		return
 	end
 
 	if os.clock() - markedAt > RESPAWN_WINDOW then
 		pendingCombatRespawnAtByUserId[player.UserId] = nil
+		player:SetAttribute(COMBAT_DEFEAT_ATTRIBUTE, nil)
+		player:SetAttribute("DeepDig_LastCombatDefeatSource", nil)
 		return
 	end
 
@@ -59,6 +69,8 @@ local function surfaceCharacter(player, character)
 	end
 
 	pendingCombatRespawnAtByUserId[player.UserId] = nil
+	player:SetAttribute(COMBAT_DEFEAT_ATTRIBUTE, nil)
+	player:SetAttribute("DeepDig_LastCombatDefeatSource", nil)
 	character:PivotTo(getSurfaceCFrame())
 
 	local graceUntil = os.clock() + COMBAT_GRACE_DURATION
@@ -87,7 +99,7 @@ local function watchCharacter(player, character)
 	end
 
 	humanoid.Died:Connect(function()
-		if wasRecentlyEnemyDamaged(player) then
+		if wasRecentlyCombatDefeated(player) or wasRecentlyEnemyDamaged(player) then
 			pendingCombatRespawnAtByUserId[player.UserId] = os.clock()
 		end
 	end)
@@ -116,4 +128,6 @@ end
 Players.PlayerRemoving:Connect(function(player)
 	pendingCombatRespawnAtByUserId[player.UserId] = nil
 	player:SetAttribute(COMBAT_GRACE_ATTRIBUTE, nil)
+	player:SetAttribute(COMBAT_DEFEAT_ATTRIBUTE, nil)
+	player:SetAttribute("DeepDig_LastCombatDefeatSource", nil)
 end)

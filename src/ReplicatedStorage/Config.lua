@@ -8,6 +8,7 @@ Config.BLOCK_SIZE = 4           -- Studs per block
 Config.GRID_WIDTH = 40          -- Blocks wide (160 studs)
 Config.GRID_DEPTH_BLOCKS = 200  -- Max depth in blocks (800 studs)
 Config.DIG_SITE_CENTER = Vector3.new(0, 0, 0)
+Config.DIG_SITE_RESPAWN_CFRAME = CFrame.new(Config.DIG_SITE_CENTER + Vector3.new(0, 9, 0))
 
 -- Depth tiers (in blocks, not studs)
 Config.TIERS = {
