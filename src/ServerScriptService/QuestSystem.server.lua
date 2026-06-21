@@ -9,6 +9,7 @@
 -- Supported event types:
 --   blocks_dug, items_found, rarity_found, coins_earned, kill_enemies, depth_reached
 -- Block breaks still come through ServerEvents.BlockBroken.
+-- Enemy kills come through ServerEvents.EnemyKilledBindable.
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -36,6 +37,7 @@ local QuestClaimResultEvent = getOrCreate(Remotes, "RemoteEvent", "QuestClaimRes
 local NotifyEvent = Remotes:WaitForChild("Notify")
 local UpdateHUDEvent = Remotes:WaitForChild("UpdateHUD")
 local BlockBrokenEvent = ServerEvents:WaitForChild("BlockBroken")
+local EnemyKilledBindable = getOrCreate(ServerEvents, "BindableEvent", "EnemyKilledBindable")
 local QuestProgressBindable = getOrCreate(ReplicatedStorage, "BindableEvent", "QuestProgressBindable")
 
 local questById = {}
@@ -588,6 +590,14 @@ end)
 
 BlockBrokenEvent.Event:Connect(function(player)
 	applyProgress(player, "blocks_dug", { amount = 1 })
+end)
+
+EnemyKilledBindable.Event:Connect(function(player, _enemy)
+	if not player or not player:IsA("Player") then
+		return
+	end
+
+	applyProgress(player, "kill_enemies", { amount = 1 })
 end)
 
 QuestProgressBindable.Event:Connect(function(player, eventType, eventData)

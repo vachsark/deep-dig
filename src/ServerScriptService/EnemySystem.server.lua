@@ -293,7 +293,6 @@ local function payEnemyReward(record)
 	data.totalEarned = (data.totalEarned or 0) + coinReward
 
 	fireQuestProgress(player, "coins_earned", { amount = coinReward })
-	fireQuestProgress(player, "kill_enemies", { amount = 1 })
 	EnemyKilledBindable:Fire(player, enemy)
 
 	local itemReward = nil
