@@ -337,7 +337,7 @@ local function payEnemyReward(record)
 	return player, rewardSummary
 end
 
-local function fireEnemyCombatFeedback(player, feedbackType, model, damage, reward)
+local function fireEnemyCombatFeedback(player, feedbackType, model, damage, reward, extraPayload)
 	if player and player.Parent == Players and model and model.Parent then
 		local payload = {
 			type = feedbackType,
@@ -348,6 +348,11 @@ local function fireEnemyCombatFeedback(player, feedbackType, model, damage, rewa
 		end
 		if reward then
 			payload.reward = reward
+		end
+		if extraPayload then
+			for key, value in pairs(extraPayload) do
+				payload[key] = value
+			end
 		end
 		EnemyCombatFeedback:FireClient(player, payload)
 	end
@@ -616,9 +621,7 @@ local function applyPendingTouchAttack(record, player, userId)
 	local damage = getEnemyDamage(record)
 	tagCombatDamage(player, record, humanoid, damage)
 	humanoid:TakeDamage(damage)
-	EnemyCombatFeedback:FireClient(player, {
-		type = "player_hit",
-		damage = damage,
+	fireEnemyCombatFeedback(player, "player_damaged", record.model, damage, nil, {
 		enemyName = record.model:GetAttribute("EnemyName") or record.enemy.name,
 		enemyPosition = record.root.Position,
 	})

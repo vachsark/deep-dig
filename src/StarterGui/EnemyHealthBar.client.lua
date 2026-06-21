@@ -204,6 +204,11 @@ activeFeedback.playerHitDirection = {
 	tweens = {},
 	sequence = 0,
 }
+activeFeedback.playerHitImpact = {
+	damageBase = 10,
+	minIntensity = 0.85,
+	maxIntensity = 1.35,
+}
 activeFeedback.digBlockedDirection = {
 	thickness = 86,
 	pulseTransparency = 0.34,
@@ -2114,7 +2119,7 @@ function activeFeedback.showMinibossSpawnOverlay(model)
 	end)
 end
 
-local function playPlayerHitFlash()
+local function playPlayerHitFlash(intensity)
 	local overlay = ensurePlayerHitOverlay()
 	playerHitFlashSequence = playerHitFlashSequence + 1
 	local sequence = playerHitFlashSequence
@@ -2125,7 +2130,11 @@ local function playPlayerHitFlash()
 	end
 
 	overlay.Visible = true
-	overlay.BackgroundTransparency = PLAYER_HIT_FLASH_TRANSPARENCY
+	overlay.BackgroundTransparency = math.clamp(
+		PLAYER_HIT_FLASH_TRANSPARENCY - ((intensity or 1) - 1) * 0.22,
+		0.34,
+		0.56
+	)
 
 	local tween = TweenService:Create(overlay, TweenInfo.new(
 		PLAYER_HIT_FLASH_FADE,
@@ -2258,15 +2267,16 @@ local function ensurePlayerHitJoltBinding()
 
 		local falloff = 1 - math.clamp(progress, 0, 1)
 		local snap = math.sin(progress * math.pi)
+		local intensity = state.intensity or 1
 		local offset = Vector3.new(
-			state.direction * PLAYER_HIT_JOLT_POSITION * falloff,
-			PLAYER_HIT_JOLT_POSITION * 0.25 * snap * falloff,
+			state.direction * PLAYER_HIT_JOLT_POSITION * intensity * falloff,
+			PLAYER_HIT_JOLT_POSITION * 0.25 * intensity * snap * falloff,
 			0
 		)
 		local rotation = CFrame.Angles(
 			0,
 			0,
-			math.rad(state.direction * PLAYER_HIT_JOLT_ROTATION * falloff)
+			math.rad(state.direction * PLAYER_HIT_JOLT_ROTATION * intensity * falloff)
 		)
 
 		lastPlayerHitJoltCFrame = CFrame.new(offset) * rotation
@@ -2275,7 +2285,7 @@ local function ensurePlayerHitJoltBinding()
 	end)
 end
 
-local function playPlayerHitJolt()
+local function playPlayerHitJolt(intensity)
 	playerHitJoltSequence = playerHitJoltSequence + 1
 	local direction = 1
 	if math.random() < 0.5 then
@@ -2286,21 +2296,28 @@ local function playPlayerHitJolt()
 		sequence = playerHitJoltSequence,
 		startTime = os.clock(),
 		direction = direction,
+		intensity = intensity or 1,
 	}
 
 	ensurePlayerHitJoltBinding()
 end
 
 local function playPlayerHitFeedback(damage, enemyPosition)
+	local config = activeFeedback.playerHitImpact
+	local intensity = 1
+	if typeof(damage) == "number" and damage > 0 then
+		intensity = math.clamp(damage / config.damageBase, config.minIntensity, config.maxIntensity)
+	end
+
 	if LocalPlaySound and LocalPlaySound:IsA("BindableEvent") then
 		LocalPlaySound:Fire("enemy_hit")
 	end
 
-	playHapticBump(0.08, 0.12, 0.1)
-	playPlayerHitFlash()
+	playHapticBump(0.08 * intensity, 0.12 * intensity, 0.1 + ((intensity - 1) * 0.04))
+	playPlayerHitFlash(intensity)
 	activeFeedback.playPlayerHitDirectionPulse(enemyPosition)
 	showPlayerHitReadout(damage)
-	playPlayerHitJolt()
+	playPlayerHitJolt(intensity)
 end
 
 local function createLowHealthEdge(name, position, size, rotation)
@@ -4336,7 +4353,7 @@ EnemyCombatFeedback.OnClientEvent:Connect(function(payload)
 	end
 
 	local feedbackType = payload.type
-	if feedbackType == "player_hit" then
+	if feedbackType == "player_damaged" or feedbackType == "player_hit" then
 		playPlayerHitFeedback(payload.damage, payload.enemyPosition)
 		return
 	end
