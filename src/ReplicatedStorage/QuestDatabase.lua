@@ -114,6 +114,13 @@ module.weeklyQuests = {
 		target = 100,
 		reward = { coins = 3200, fragments = 18 },
 	},
+	{
+		id = "weekly_enemy_hunter",
+		description = "Defeat 20 buried enemies this week",
+		type = "kill_enemies",
+		target = 20,
+		reward = { coins = 3500, fragments = 20 },
+	},
 }
 
 local function makeSeed(seed)

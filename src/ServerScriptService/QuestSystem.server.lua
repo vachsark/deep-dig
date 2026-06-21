@@ -395,6 +395,12 @@ local function applyProgress(player, eventType, eventData)
 				addProgress(data, questId, amount)
 			end
 		end
+
+		local weeklyQuest = resolveWeeklyQuest(data)
+		if type(weeklyQuest) == "table" and weeklyQuest.type == "kill_enemies" and not data.weeklyQuestClaimed then
+			local current = getNumber(data.weeklyQuestProgress, 0)
+			data.weeklyQuestProgress = math.min(weeklyQuest.target, current + amount)
+		end
 		return
 	end
 
