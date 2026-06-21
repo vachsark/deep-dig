@@ -52,8 +52,8 @@ local MINIBOSS_COLOR = Color3.fromRGB(210, 85, 255)
 local ENRAGE_COLOR = Color3.fromRGB(255, 70, 45)
 local HIT_SCALE = 1.08
 local DAMAGE_NUMBER_DURATION = 0.42
-local REWARD_BURST_DURATION = 1.05
-local MINIBOSS_REWARD_BURST_DURATION = 1.35
+local REWARD_BURST_DURATION = 1.5
+local MINIBOSS_REWARD_BURST_DURATION = 1.5
 local ENEMY_SPAWN_SCALE = 1.06
 local DEFEAT_SCALE = 1.16
 local AGGRO_SCALE = 1.12
@@ -2671,21 +2671,46 @@ local function addRewardLabel(parent, text, color, textSize, strokeColor)
 	return label, stroke
 end
 
+function activeFeedback.getRewardBurstAnchor(model, reward)
+	local worldPosition = reward.worldPosition
+	if typeof(worldPosition) == "Vector3" then
+		local anchor = Instance.new("Part")
+		anchor.Name = REWARD_BURST_NAME .. "Anchor"
+		anchor.Anchored = true
+		anchor.CanCollide = false
+		anchor.CanQuery = false
+		anchor.CanTouch = false
+		anchor.CastShadow = false
+		anchor.Transparency = 1
+		anchor.Size = Vector3.new(0.2, 0.2, 0.2)
+		anchor.CFrame = CFrame.new(worldPosition)
+		anchor.Parent = workspace.CurrentCamera or workspace
+		return anchor, anchor, true
+	end
+
+	if not model or not model:IsA("Model") or not model:IsDescendantOf(workspace) then
+		return nil, nil, false
+	end
+
+	local root = model:FindFirstChild("HumanoidRootPart")
+	if not root or not root:IsA("BasePart") then
+		return nil, nil, false
+	end
+
+	return root, root, false
+end
+
 local function showRewardBurst(model, reward)
 	if typeof(reward) ~= "table" then
 		return
 	end
 
-	if not model or not model:IsA("Model") or not model:IsDescendantOf(workspace) then
+	local adornee, parent, shouldDestroyAnchor = activeFeedback.getRewardBurstAnchor(model, reward)
+	if not adornee or not parent then
 		return
 	end
 
-	local root = model:FindFirstChild("HumanoidRootPart")
-	if not root or not root:IsA("BasePart") then
-		return
-	end
-
-	local existing = root:FindFirstChild(REWARD_BURST_NAME)
+	local existing = parent:FindFirstChild(REWARD_BURST_NAME)
 	if existing then
 		existing:Destroy()
 	end
@@ -2716,12 +2741,12 @@ local function showRewardBurst(model, reward)
 
 	local billboard = Instance.new("BillboardGui")
 	billboard.Name = REWARD_BURST_NAME
-	billboard.Adornee = root
+	billboard.Adornee = adornee
 	billboard.AlwaysOnTop = true
 	billboard.MaxDistance = MAX_DISTANCE
 	billboard.Size = UDim2.fromOffset(width, height)
 	billboard.StudsOffset = startOffset
-	billboard.Parent = root
+	billboard.Parent = parent
 
 	local container = Instance.new("Frame")
 	container.Name = "Rewards"
@@ -2830,6 +2855,9 @@ local function showRewardBurst(model, reward)
 	task.delay(duration + 0.08, function()
 		if billboard.Parent then
 			billboard:Destroy()
+		end
+		if shouldDestroyAnchor and parent.Parent then
+			parent:Destroy()
 		end
 	end)
 end

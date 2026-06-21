@@ -288,6 +288,7 @@ local function payEnemyReward(record)
 	end
 
 	local enemy = record.enemy
+	local dropPosition = getEnemyDropPosition(record)
 	local streakCount, streakBonusCoins = getEnemyKillStreakReward(player, enemy.coinDrop)
 	local coinReward = enemy.coinDrop + streakBonusCoins
 	data.coins = (data.coins or 0) + coinReward
@@ -299,7 +300,7 @@ local function payEnemyReward(record)
 
 	local itemReward = nil
 	if math.random() < enemy.itemDropChance then
-		itemReward = addItemReward(player, data, record.tierName, getEnemyDropPosition(record))
+		itemReward = addItemReward(player, data, record.tierName, dropPosition)
 	end
 
 	updateRewardHud(player, data)
@@ -325,6 +326,7 @@ local function payEnemyReward(record)
 		streakBonusCoins = streakBonusCoins,
 		killStreakWindow = KILL_STREAK_WINDOW,
 		streakExpiresAt = workspace:GetServerTimeNow() + KILL_STREAK_WINDOW,
+		worldPosition = dropPosition,
 	}
 	if itemReward then
 		rewardSummary.item = {
