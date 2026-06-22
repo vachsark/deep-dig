@@ -584,6 +584,23 @@ local function getEnemyUnlockText(enemy)
 	return "Depth " .. formatNumber(getEnemyUnlockDepth(enemy))
 end
 
+local function getEnemyKillCount(data, enemy)
+	if type(data) ~= "table" or type(enemy) ~= "table" or type(data.enemyKillCounts) ~= "table" then
+		return 0
+	end
+
+	local enemyId = enemy.id
+	local count = nil
+	if type(enemyId) == "string" and enemyId ~= "" then
+		count = data.enemyKillCounts[enemyId]
+	end
+	if count == nil and type(enemy.name) == "string" and enemy.name ~= "" then
+		count = data.enemyKillCounts[enemy.name]
+	end
+
+	return clampNumber(count)
+end
+
 -- ═══════════════════════════════════════════════════════════════════
 -- ScreenGui scaffolding
 -- ═══════════════════════════════════════════════════════════════════
@@ -1082,6 +1099,7 @@ local function render()
 		local unlockDepth = getEnemyUnlockDepth(enemy)
 		local unlocked = hasData and deepestBlock >= unlockDepth
 		local rewardText = "+" .. formatNumber(enemy.coinDrop) .. "c +" .. formatNumber(enemy.fragmentDrop) .. "f"
+		local defeatedCount = getEnemyKillCount(data, enemy)
 
 		if unlocked then
 			row.swatch.BackgroundColor3 = enemy.color or ACCENT_RED
@@ -1090,7 +1108,7 @@ local function render()
 			row.nameLabel.TextColor3 = TEXT_PRIMARY
 			row.rewardLabel.Text = rewardText .. " | Item " .. formatPercent(enemy.itemDropChance)
 			row.rewardLabel.TextColor3 = ACCENT_GOLD
-			row.statLabel.Text = "HP " .. formatNumber(enemy.hp) .. " | Damage " .. formatNumber(enemy.damage)
+			row.statLabel.Text = "Defeated " .. formatNumber(defeatedCount) .. " | HP " .. formatNumber(enemy.hp) .. " | Damage " .. formatNumber(enemy.damage)
 			row.statLabel.TextColor3 = TEXT_SOFT
 			row.hintLabel.Text = display.hint or ""
 			row.hintLabel.TextColor3 = TEXT_MUTED

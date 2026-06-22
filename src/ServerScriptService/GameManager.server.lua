@@ -184,6 +184,7 @@ local DEFAULT_DATA = {
 	fragments = 0,        -- Duplicate recycling currency
 	rebirths = 0,
 	enemyKills = 0,
+	enemyKillCounts = {}, -- { [enemyId] = defeatedCount }
 	totalEarned = 0,
 	lastSeenAt = 0,      -- Unix timestamp of the last successful save
 	lastLoginDate = "",   -- "YYYY-MM-DD" for streak tracking
@@ -259,6 +260,22 @@ local function normalizeBooleanMap(value)
 	return normalized
 end
 
+local function normalizeEnemyKillCounts(value)
+	local normalized = {}
+	if type(value) ~= "table" then
+		return normalized
+	end
+
+	for key, count in pairs(value) do
+		local normalizedCount = math.floor(tonumber(count) or 0)
+		if normalizedCount > 0 then
+			normalized[tostring(key)] = normalizedCount
+		end
+	end
+
+	return normalized
+end
+
 local function cloneMailboxItem(item)
 	if type(item) ~= "table" or type(item.name) ~= "string" or item.name == "" then
 		return nil
@@ -316,6 +333,7 @@ local function loadPlayerData(player)
 
 	playerData[player.UserId].friendReferralRewards = normalizeBooleanMap(playerData[player.UserId].friendReferralRewards)
 	playerData[player.UserId].crewMailbox = normalizeCrewMailbox(playerData[player.UserId].crewMailbox)
+	playerData[player.UserId].enemyKillCounts = normalizeEnemyKillCounts(playerData[player.UserId].enemyKillCounts)
 	normalizeRarePity(playerData[player.UserId])
 	if (playerData[player.UserId].deepestBlock or 0) >= ENEMY_DANGER_UNLOCK_DEPTH then
 		playerData[player.UserId].enemyDangerUnlockedSeen = true
@@ -331,6 +349,7 @@ local function savePlayerData(player)
 	data.lastSeenAt = os.time()
 	normalizeRarePity(data)
 	data.crewMailbox = normalizeCrewMailbox(data.crewMailbox)
+	data.enemyKillCounts = normalizeEnemyKillCounts(data.enemyKillCounts)
 
 	local success, err = pcall(function()
 		PlayerDataStore:SetAsync("player_" .. player.UserId, data)
@@ -834,6 +853,8 @@ function addStandardHudFields(payload, data, player)
 	addFriendBoostHudFields(payload, player)
 	addGroupBenefitHudFields(payload, player)
 	if data then
+		data.enemyKillCounts = normalizeEnemyKillCounts(data.enemyKillCounts)
+		payload.enemyKillCounts = data.enemyKillCounts
 		payload.petCount = type(data.pets) == "table" and #data.pets or 0
 		local equippedRecord = getEquippedPetRecord(data)
 		if equippedRecord then
@@ -1880,6 +1901,7 @@ GetPlayerDataFunc.OnServerInvoke = function(player)
 		collections = data.collections,
 		rebirths = data.rebirths,
 		enemyKills = data.enemyKills or 0,
+		enemyKillCounts = data.enemyKillCounts or {},
 		totalEarned = data.totalEarned or 0,
 		loginStreak = data.loginStreak,
 		streakReviveEligible = data.streakReviveEligible,

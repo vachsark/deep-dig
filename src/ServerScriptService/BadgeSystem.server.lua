@@ -153,6 +153,30 @@ local function ensureBadgeField(data)
 	end
 end
 
+local function ensureEnemyKillCounts(data)
+	if not data then return nil end
+	if type(data.enemyKillCounts) ~= "table" then
+		data.enemyKillCounts = {}
+	end
+	return data.enemyKillCounts
+end
+
+local function getEnemyKillCountKey(enemy)
+	if type(enemy) ~= "table" then
+		return nil
+	end
+
+	local enemyId = enemy.id
+	if type(enemyId) ~= "string" or enemyId == "" then
+		enemyId = enemy.name
+	end
+	if type(enemyId) ~= "string" or enemyId == "" then
+		return nil
+	end
+
+	return enemyId
+end
+
 -- ═══════════════════════════════════════════════════════════════════
 -- Award helper (idempotent, race-safe)
 -- ═══════════════════════════════════════════════════════════════════
@@ -292,13 +316,18 @@ end)
 
 -- Enemy kill progress is driven by EnemySystem only after it resolves the
 -- rewarded player and pays the enemy coin/fragment reward.
-EnemyKilledBindable.Event:Connect(function(player, _enemy)
+EnemyKilledBindable.Event:Connect(function(player, enemy)
 	if not player then return end
 	local data = getData(player)
 	if not data then return end
 	ensureBadgeField(data)
 
 	data.enemyKills = (data.enemyKills or 0) + 1
+	local enemyKillCounts = ensureEnemyKillCounts(data)
+	local enemyKillCountKey = getEnemyKillCountKey(enemy)
+	if enemyKillCounts and enemyKillCountKey then
+		enemyKillCounts[enemyKillCountKey] = (tonumber(enemyKillCounts[enemyKillCountKey]) or 0) + 1
+	end
 
 	if data.enemyKills >= 1 then
 		awardBadge(player, "first_enemy_kill")
@@ -309,6 +338,7 @@ EnemyKilledBindable.Event:Connect(function(player, _enemy)
 
 	UpdateHUDEvent:FireClient(player, {
 		enemyKills = data.enemyKills,
+		enemyKillCounts = data.enemyKillCounts,
 	})
 end)
 
