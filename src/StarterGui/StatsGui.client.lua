@@ -1100,6 +1100,7 @@ local function render()
 		local unlocked = hasData and deepestBlock >= unlockDepth
 		local rewardText = "+" .. formatNumber(enemy.coinDrop) .. "c +" .. formatNumber(enemy.fragmentDrop) .. "f"
 		local defeatedCount = getEnemyKillCount(data, enemy)
+		local mastered = defeatedCount >= 10
 
 		if unlocked then
 			row.swatch.BackgroundColor3 = enemy.color or ACCENT_RED
@@ -1107,9 +1108,9 @@ local function render()
 			row.nameLabel.Text = enemy.name or "Unknown Enemy"
 			row.nameLabel.TextColor3 = TEXT_PRIMARY
 			row.rewardLabel.Text = rewardText .. " | Item " .. formatPercent(enemy.itemDropChance)
-			row.rewardLabel.TextColor3 = ACCENT_GOLD
-			row.statLabel.Text = "Defeated " .. formatNumber(defeatedCount) .. " | HP " .. formatNumber(enemy.hp) .. " | Damage " .. formatNumber(enemy.damage)
-			row.statLabel.TextColor3 = TEXT_SOFT
+			row.rewardLabel.TextColor3 = mastered and ACCENT_GREEN or ACCENT_GOLD
+			row.statLabel.Text = (mastered and "Mastered | " or "") .. "Defeated " .. formatNumber(defeatedCount) .. " | HP " .. formatNumber(enemy.hp) .. " | Damage " .. formatNumber(enemy.damage)
+			row.statLabel.TextColor3 = mastered and ACCENT_GREEN or TEXT_SOFT
 			row.hintLabel.Text = display.hint or ""
 			row.hintLabel.TextColor3 = TEXT_MUTED
 		else

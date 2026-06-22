@@ -161,6 +161,14 @@ local function ensureEnemyKillCounts(data)
 	return data.enemyKillCounts
 end
 
+local function ensureEnemyMasteryNotified(data)
+	if not data then return nil end
+	if type(data.enemyMasteryNotified) ~= "table" then
+		data.enemyMasteryNotified = {}
+	end
+	return data.enemyMasteryNotified
+end
+
 local function getEnemyKillCountKey(enemy)
 	if type(enemy) ~= "table" then
 		return nil
@@ -175,6 +183,13 @@ local function getEnemyKillCountKey(enemy)
 	end
 
 	return enemyId
+end
+
+local function getEnemyDisplayName(enemy, fallback)
+	if type(enemy) == "table" and type(enemy.name) == "string" and enemy.name ~= "" then
+		return enemy.name
+	end
+	return fallback or "Buried Enemy"
 end
 
 -- ═══════════════════════════════════════════════════════════════════
@@ -324,9 +339,19 @@ EnemyKilledBindable.Event:Connect(function(player, enemy)
 
 	data.enemyKills = (data.enemyKills or 0) + 1
 	local enemyKillCounts = ensureEnemyKillCounts(data)
+	local enemyMasteryNotified = ensureEnemyMasteryNotified(data)
 	local enemyKillCountKey = getEnemyKillCountKey(enemy)
 	if enemyKillCounts and enemyKillCountKey then
-		enemyKillCounts[enemyKillCountKey] = (tonumber(enemyKillCounts[enemyKillCountKey]) or 0) + 1
+		local previousCount = tonumber(enemyKillCounts[enemyKillCountKey]) or 0
+		local newCount = previousCount + 1
+		enemyKillCounts[enemyKillCountKey] = newCount
+
+		if enemyMasteryNotified and previousCount < 10 and newCount >= 10 and not enemyMasteryNotified[enemyKillCountKey] then
+			enemyMasteryNotified[enemyKillCountKey] = true
+			if NotifyEvent then
+				NotifyEvent:FireClient(player, "Mastered " .. getEnemyDisplayName(enemy, enemyKillCountKey) .. ": 10 defeats!", "Legendary")
+			end
+		end
 	end
 
 	if data.enemyKills >= 1 then
