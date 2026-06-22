@@ -243,6 +243,24 @@ activeFeedback.minibossSpawnOverlay = {
 	tweens = {},
 	sequence = 0,
 }
+activeFeedback.enemySpawnWarning = {
+	guiName = "DeepDigEnemySpawnWarning",
+	displayOrder = 78,
+	edgeThickness = 118,
+	duration = 0.95,
+	pulseTransparency = 0.26,
+	clearTransparency = 1,
+	fadeDuration = 0.48,
+	gui = nil,
+	panel = nil,
+	titleLabel = nil,
+	detailLabel = nil,
+	stroke = nil,
+	scale = nil,
+	edges = {},
+	tweens = {},
+	sequence = 0,
+}
 local hapticSupportChecked = false
 local hapticSupported = false
 local hapticMotorSupport = {}
@@ -2121,6 +2139,289 @@ function activeFeedback.showMinibossSpawnOverlay(model)
 	task.delay(config.duration + 0.08, function()
 		if sequence == config.sequence then
 			activeFeedback.hideMinibossSpawnOverlay()
+		end
+	end)
+end
+
+function activeFeedback.createEnemySpawnWarningEdge(name, position, size, rotation)
+	local config = activeFeedback.enemySpawnWarning
+	local edge = Instance.new("Frame")
+	edge.Name = name
+	edge.Position = position
+	edge.Size = size
+	edge.BackgroundColor3 = Color3.fromRGB(255, 38, 28)
+	edge.BackgroundTransparency = config.clearTransparency
+	edge.BorderSizePixel = 0
+	edge.Visible = false
+	edge.ZIndex = 1
+	edge.Parent = config.gui
+
+	local gradient = Instance.new("UIGradient")
+	gradient.Rotation = rotation
+	gradient.Transparency = NumberSequence.new({
+		NumberSequenceKeypoint.new(0, 0),
+		NumberSequenceKeypoint.new(1, 1),
+	})
+	gradient.Parent = edge
+
+	return edge
+end
+
+function activeFeedback.ensureEnemySpawnWarning()
+	local config = activeFeedback.enemySpawnWarning
+	if config.gui and config.gui.Parent and config.panel and config.panel.Parent then
+		return config
+	end
+
+	local playerGui = player:FindFirstChildOfClass("PlayerGui") or player:WaitForChild("PlayerGui")
+
+	config.gui = Instance.new("ScreenGui")
+	config.gui.Name = config.guiName
+	config.gui.ResetOnSpawn = false
+	config.gui.IgnoreGuiInset = true
+	config.gui.DisplayOrder = config.displayOrder
+	config.gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+	config.gui.Parent = playerGui
+
+	config.edges = {
+		top = activeFeedback.createEnemySpawnWarningEdge(
+			"SpawnWarningTopEdge",
+			UDim2.fromScale(0, 0),
+			UDim2.new(1, 0, 0, config.edgeThickness),
+			90
+		),
+		bottom = activeFeedback.createEnemySpawnWarningEdge(
+			"SpawnWarningBottomEdge",
+			UDim2.new(0, 0, 1, -config.edgeThickness),
+			UDim2.new(1, 0, 0, config.edgeThickness),
+			270
+		),
+		left = activeFeedback.createEnemySpawnWarningEdge(
+			"SpawnWarningLeftEdge",
+			UDim2.fromScale(0, 0),
+			UDim2.new(0, config.edgeThickness, 1, 0),
+			0
+		),
+		right = activeFeedback.createEnemySpawnWarningEdge(
+			"SpawnWarningRightEdge",
+			UDim2.new(1, -config.edgeThickness, 0, 0),
+			UDim2.new(0, config.edgeThickness, 1, 0),
+			180
+		),
+	}
+
+	config.panel = Instance.new("Frame")
+	config.panel.Name = "WarningPanel"
+	config.panel.AnchorPoint = Vector2.new(0.5, 0.5)
+	config.panel.Position = UDim2.fromScale(0.5, 0.32)
+	config.panel.Size = UDim2.fromOffset(310, 64)
+	config.panel.BackgroundColor3 = Color3.fromRGB(32, 8, 8)
+	config.panel.BackgroundTransparency = 1
+	config.panel.BorderSizePixel = 0
+	config.panel.Visible = false
+	config.panel.ZIndex = 3
+	config.panel.Parent = config.gui
+
+	local corner = Instance.new("UICorner")
+	corner.CornerRadius = UDim.new(0, 8)
+	corner.Parent = config.panel
+
+	config.stroke = Instance.new("UIStroke")
+	config.stroke.Color = Color3.fromRGB(255, 70, 45)
+	config.stroke.Transparency = 1
+	config.stroke.Thickness = 2
+	config.stroke.Parent = config.panel
+
+	config.scale = Instance.new("UIScale")
+	config.scale.Scale = 0.92
+	config.scale.Parent = config.panel
+
+	config.titleLabel = Instance.new("TextLabel")
+	config.titleLabel.Name = "Title"
+	config.titleLabel.Position = UDim2.fromOffset(12, 9)
+	config.titleLabel.Size = UDim2.new(1, -24, 0, 25)
+	config.titleLabel.BackgroundTransparency = 1
+	config.titleLabel.Text = "BURROWING UP"
+	config.titleLabel.TextColor3 = Color3.fromRGB(255, 88, 64)
+	config.titleLabel.TextStrokeTransparency = 1
+	config.titleLabel.TextSize = 21
+	config.titleLabel.Font = Enum.Font.GothamBlack
+	config.titleLabel.TextXAlignment = Enum.TextXAlignment.Center
+	config.titleLabel.TextTruncate = Enum.TextTruncate.AtEnd
+	config.titleLabel.ZIndex = 4
+	config.titleLabel.Parent = config.panel
+
+	config.detailLabel = Instance.new("TextLabel")
+	config.detailLabel.Name = "Detail"
+	config.detailLabel.Position = UDim2.fromOffset(12, 37)
+	config.detailLabel.Size = UDim2.new(1, -24, 0, 17)
+	config.detailLabel.BackgroundTransparency = 1
+	config.detailLabel.Text = "Something is about to surface nearby"
+	config.detailLabel.TextColor3 = Color3.fromRGB(255, 190, 170)
+	config.detailLabel.TextStrokeTransparency = 1
+	config.detailLabel.TextSize = 11
+	config.detailLabel.Font = Enum.Font.GothamBold
+	config.detailLabel.TextXAlignment = Enum.TextXAlignment.Center
+	config.detailLabel.TextTruncate = Enum.TextTruncate.AtEnd
+	config.detailLabel.ZIndex = 4
+	config.detailLabel.Parent = config.panel
+
+	return config
+end
+
+function activeFeedback.cancelEnemySpawnWarningTweens()
+	local config = activeFeedback.enemySpawnWarning
+	for _, tween in pairs(config.tweens) do
+		if tween then
+			tween:Cancel()
+		end
+	end
+
+	config.tweens = {}
+end
+
+function activeFeedback.hideEnemySpawnWarning()
+	local config = activeFeedback.enemySpawnWarning
+	for _, edge in pairs(config.edges) do
+		if edge and edge.Parent then
+			edge.BackgroundTransparency = config.clearTransparency
+			edge.Visible = false
+		end
+	end
+
+	if config.panel and config.panel.Parent then
+		config.panel.BackgroundTransparency = 1
+		config.panel.Visible = false
+	end
+	if config.stroke and config.stroke.Parent then
+		config.stroke.Transparency = 1
+	end
+	if config.scale and config.scale.Parent then
+		config.scale.Scale = 0.92
+	end
+	if config.titleLabel and config.titleLabel.Parent then
+		config.titleLabel.TextTransparency = 1
+		config.titleLabel.TextStrokeTransparency = 1
+	end
+	if config.detailLabel and config.detailLabel.Parent then
+		config.detailLabel.TextTransparency = 1
+		config.detailLabel.TextStrokeTransparency = 1
+	end
+end
+
+function activeFeedback.showEnemySpawnWarning(payload)
+	local config = activeFeedback.ensureEnemySpawnWarning()
+	config.sequence = config.sequence + 1
+	local sequence = config.sequence
+	local duration = config.duration
+	if typeof(payload) == "table" and typeof(payload.duration) == "number" then
+		duration = math.clamp(payload.duration, 0.45, 1.4)
+	end
+
+	activeFeedback.cancelEnemySpawnWarningTweens()
+	activeFeedback.hideEnemySpawnWarning()
+
+	if typeof(payload) == "table" and payload.isMiniboss == true then
+		config.titleLabel.Text = "MASSIVE MOVEMENT"
+		config.detailLabel.Text = "A miniboss is breaking through nearby"
+	else
+		config.titleLabel.Text = "BURROWING UP"
+		config.detailLabel.Text = "Something is about to surface nearby"
+	end
+
+	for key, edge in pairs(config.edges) do
+		if edge and edge.Parent then
+			local tweenKey = "edge_" .. key
+			edge.Visible = true
+			edge.BackgroundTransparency = config.pulseTransparency
+			local edgeTween = TweenService:Create(edge, TweenInfo.new(
+				config.fadeDuration,
+				Enum.EasingStyle.Quad,
+				Enum.EasingDirection.Out
+			), {
+				BackgroundTransparency = config.clearTransparency,
+			})
+			config.tweens[tweenKey] = edgeTween
+			edgeTween:Play()
+			edgeTween.Completed:Once(function(playbackState)
+				if sequence ~= config.sequence or config.tweens[tweenKey] ~= edgeTween then
+					return
+				end
+
+				if playbackState == Enum.PlaybackState.Completed then
+					edge.Visible = false
+				end
+
+				config.tweens[tweenKey] = nil
+			end)
+		end
+	end
+
+	config.panel.Visible = true
+	config.panel.BackgroundTransparency = 0.12
+	config.stroke.Transparency = 0.08
+	config.scale.Scale = 0.92
+	config.titleLabel.TextTransparency = 0
+	config.titleLabel.TextStrokeTransparency = 0.14
+	config.detailLabel.TextTransparency = 0
+	config.detailLabel.TextStrokeTransparency = 0.4
+
+	local scaleTween = TweenService:Create(config.scale, TweenInfo.new(
+		0.16,
+		Enum.EasingStyle.Back,
+		Enum.EasingDirection.Out
+	), {
+		Scale = 1,
+	})
+	config.tweens.scale = scaleTween
+	scaleTween:Play()
+
+	local fadeInfo = TweenInfo.new(
+		duration,
+		Enum.EasingStyle.Quad,
+		Enum.EasingDirection.Out
+	)
+	local panelTween = TweenService:Create(config.panel, fadeInfo, {
+		BackgroundTransparency = 1,
+	})
+	local strokeTween = TweenService:Create(config.stroke, fadeInfo, {
+		Transparency = 1,
+	})
+	local titleTween = TweenService:Create(config.titleLabel, fadeInfo, {
+		TextTransparency = 1,
+		TextStrokeTransparency = 1,
+	})
+	local detailTween = TweenService:Create(config.detailLabel, fadeInfo, {
+		TextTransparency = 1,
+		TextStrokeTransparency = 1,
+	})
+
+	config.tweens.panel = panelTween
+	config.tweens.stroke = strokeTween
+	config.tweens.title = titleTween
+	config.tweens.detail = detailTween
+	panelTween:Play()
+	strokeTween:Play()
+	titleTween:Play()
+	detailTween:Play()
+	panelTween.Completed:Once(function(playbackState)
+		if sequence ~= config.sequence or config.tweens.panel ~= panelTween then
+			return
+		end
+
+		if playbackState == Enum.PlaybackState.Completed then
+			config.panel.Visible = false
+		end
+
+		config.tweens.panel = nil
+		config.tweens.stroke = nil
+		config.tweens.title = nil
+		config.tweens.detail = nil
+	end)
+
+	task.delay(duration + 0.08, function()
+		if sequence == config.sequence then
+			activeFeedback.hideEnemySpawnWarning()
 		end
 	end)
 end
@@ -4399,6 +4700,11 @@ EnemyCombatFeedback.OnClientEvent:Connect(function(payload)
 	local feedbackType = payload.type
 	if feedbackType == "player_damaged" or feedbackType == "player_hit" then
 		playPlayerHitFeedback(payload.damage, payload.enemyPosition)
+		return
+	end
+	if feedbackType == "enemy_spawn_warning" then
+		activeFeedback.showEnemySpawnWarning(payload)
+		playHapticBump(0.05, 0.06, 0.08)
 		return
 	end
 

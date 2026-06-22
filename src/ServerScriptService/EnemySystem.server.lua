@@ -57,6 +57,7 @@ local TOUCH_ATTACK_RANGE_TOLERANCE = 2
 local WALK_RADIUS = 12
 local IDLE_WANDER_INTERVAL = 3
 local FIRST_ENEMY_DEPTH = 11
+local SPAWN_WARNING_DURATION = 0.95
 local SPAWN_WINDUP_DURATION = 1.2
 local KILL_STREAK_WINDOW = 20
 local KILL_STREAK_BONUS_PER_KILL = 0.1
@@ -1000,15 +1001,34 @@ local function spawnEnemyForPlayer(player)
 	if not enemy then
 		return
 	end
-	if enemy.id == HOLLOW_KING_ID then
-		startHollowKingCooldown(player)
-	end
 
 	local spawnScale = enemy.spawnScale or 1
 	local enemyName = enemy.name
 	if enemy.isMiniboss then
 		enemyName = enemy.name .. " [Miniboss]"
 	end
+
+	EnemyCombatFeedback:FireClient(player, {
+		type = "enemy_spawn_warning",
+		position = spawnPosition,
+		duration = SPAWN_WARNING_DURATION,
+		enemyName = enemyName,
+		isMiniboss = enemy.isMiniboss == true,
+	})
+	task.wait(SPAWN_WARNING_DURATION)
+	if player.Parent ~= Players then
+		return
+	end
+	if compactOwnedEnemies(player) >= MAX_ENEMIES_PER_PLAYER then
+		return
+	end
+	if not getPlayerRoot(player) then
+		return
+	end
+	if enemy.id == HOLLOW_KING_ID then
+		startHollowKingCooldown(player)
+	end
+
 	local spawnReadyAt = os.clock() + SPAWN_WINDUP_DURATION
 
 	local model = Instance.new("Model")
