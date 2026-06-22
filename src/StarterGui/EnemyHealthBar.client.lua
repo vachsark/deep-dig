@@ -108,6 +108,12 @@ local HAPTIC_LARGE_MOTOR = Enum.VibrationMotor.Large
 local trackedEnemies = {}
 local trackedEnemyOrder = {}
 local activeFeedback = {}
+activeFeedback.itemDropReward = {
+	prefix = "DROP",
+	fallbackRarity = "Item",
+	fallbackColor = MINIBOSS_DEFEAT_COLOR,
+	strokeColor = Color3.fromRGB(18, 12, 28),
+}
 activeFeedback.enemyThreatState = {
 	stroke = nil,
 	urgentActive = false,
@@ -2700,6 +2706,16 @@ function activeFeedback.getRewardBurstAnchor(model, reward)
 	return root, root, false
 end
 
+function activeFeedback.getItemDropRewardLine(item)
+	local config = activeFeedback.itemDropReward
+	local rarity = item.rarity
+	if type(rarity) ~= "string" or rarity == "" then
+		rarity = config.fallbackRarity
+	end
+
+	return string.format("%s %s: %s", string.upper(rarity), config.prefix, tostring(item.name))
+end
+
 local function showRewardBurst(model, reward)
 	if typeof(reward) ~= "table" then
 		return
@@ -2806,15 +2822,15 @@ local function showRewardBurst(model, reward)
 	if hasItem then
 		local itemColor = item.color
 		if typeof(itemColor) ~= "Color3" then
-			itemColor = MINIBOSS_DEFEAT_COLOR
+			itemColor = activeFeedback.itemDropReward.fallbackColor
 		end
 
 		local itemLabel, itemStroke = addRewardLabel(
 			container,
-			tostring(item.name),
+			activeFeedback.getItemDropRewardLine(item),
 			itemColor,
 			isMiniboss and 18 or 15,
-			Color3.fromRGB(18, 12, 28)
+			activeFeedback.itemDropReward.strokeColor
 		)
 		table.insert(fadeTargets, { label = itemLabel, stroke = itemStroke })
 	end

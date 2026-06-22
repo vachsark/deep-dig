@@ -242,7 +242,7 @@ local function notifyEnemyReward(player, enemyName, enemy, coinReward, streakCou
 		message = message .. " (x" .. streakCount .. " streak +" .. streakBonusCoins .. ")"
 	end
 	if itemReward then
-		message = message .. ", found " .. itemReward.name
+		message = message .. ", found " .. itemReward.rarity .. " " .. itemReward.name
 	end
 
 	NotifyEvent:FireClient(player, message, enemy.isMiniboss and "Legendary" or "Rare")
@@ -332,6 +332,7 @@ local function payEnemyReward(record)
 		rewardSummary.item = {
 			name = itemReward.name,
 			rarity = itemReward.rarity,
+			tierName = record.tierName,
 			color = itemReward.color,
 		}
 	end
