@@ -144,12 +144,20 @@ local function getInventoryCapacityLabel(data)
 end
 
 local function updateRewardHud(player, data)
-	UpdateHUDEvent:FireClient(player, {
+	local payload = {
 		coins = data.coins,
 		fragments = data.fragments or 0,
 		inventoryCount = data.inventory and #data.inventory or 0,
 		inventoryCapacity = getInventoryCapacityLabel(data),
-	})
+	}
+	if data.enemyKills ~= nil then
+		payload.enemyKills = math.max(0, math.floor(tonumber(data.enemyKills) or 0))
+	end
+	if type(data.enemyKillCounts) == "table" then
+		payload.enemyKillCounts = data.enemyKillCounts
+	end
+
+	UpdateHUDEvent:FireClient(player, payload)
 end
 
 local function getEnemyDropPosition(record)
