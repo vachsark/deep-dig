@@ -3698,13 +3698,43 @@ local function playLegendaryFindFlash(rarity, item)
 
 	if findFlashInTween then
 		findFlashInTween:Cancel()
+		findFlashInTween = nil
 	end
 	if findFlashOutTween then
 		findFlashOutTween:Cancel()
+		findFlashOutTween = nil
 	end
 
+	findFlashOverlay.BackgroundColor3 = flashProfile.overlayColor
 	findFlashOverlay.BackgroundTransparency = 1
 	LEGENDARY_FIND_FLASH_RARITIES.ShowRareFindRevealBanner(item, rarity, flashProfile, sequence)
+
+	findFlashInTween = TweenService:Create(
+		findFlashOverlay,
+		TweenInfo.new(flashProfile.flashInDuration, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+		{ BackgroundTransparency = flashProfile.peakTransparency }
+	)
+	findFlashInTween:Play()
+	findFlashInTween.Completed:Connect(function(playbackState)
+		if sequence ~= findFlashSequence or playbackState ~= Enum.PlaybackState.Completed then
+			return
+		end
+
+		findFlashOutTween = TweenService:Create(
+			findFlashOverlay,
+			TweenInfo.new(flashProfile.flashOutDuration, Enum.EasingStyle.Quad, Enum.EasingDirection.In),
+			{ BackgroundTransparency = 1 }
+		)
+		findFlashOutTween:Play()
+		findFlashOutTween.Completed:Connect(function(outPlaybackState)
+			if sequence ~= findFlashSequence or outPlaybackState ~= Enum.PlaybackState.Completed then
+				return
+			end
+
+			findFlashOverlay.BackgroundTransparency = 1
+			findFlashOutTween = nil
+		end)
+	end)
 
 	local glint = Instance.new("Frame")
 	glint.Name = "Glint"
@@ -3783,7 +3813,6 @@ local function playLegendaryFindFlash(rarity, item)
 			return
 		end
 
-		findFlashOverlay.BackgroundTransparency = 1
 		if glint.Parent then
 			glint:Destroy()
 		end
