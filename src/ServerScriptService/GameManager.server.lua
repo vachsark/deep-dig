@@ -854,6 +854,7 @@ function addStandardHudFields(payload, data, player)
 	addGroupBenefitHudFields(payload, player)
 	if data then
 		data.enemyKillCounts = normalizeEnemyKillCounts(data.enemyKillCounts)
+		payload.enemyKills = math.max(0, math.floor(tonumber(data.enemyKills) or 0))
 		payload.enemyKillCounts = data.enemyKillCounts
 		payload.petCount = type(data.pets) == "table" and #data.pets or 0
 		local equippedRecord = getEquippedPetRecord(data)

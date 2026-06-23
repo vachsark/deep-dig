@@ -591,6 +591,206 @@ function DeepDigUpdateQuestSidePanel(summary)
 end
 end)()
 
+-- ─── Enemy defeat counter ───────────────────────────────────────────────────
+
+(function()
+local COMBAT_COUNTER_WIDTH = 184
+local COMBAT_COUNTER_HEIGHT = 54
+local COMBAT_UNLOCK_DEPTH = 11
+
+local combatCounterPanel = Instance.new("Frame")
+combatCounterPanel.Name = "EnemyDefeatCounter"
+combatCounterPanel.Size = UDim2.new(0, COMBAT_COUNTER_WIDTH, 0, COMBAT_COUNTER_HEIGHT)
+combatCounterPanel.Position = UDim2.new(0, 20, 0, 286)
+combatCounterPanel.BackgroundColor3 = Color3.fromRGB(34, 22, 24)
+combatCounterPanel.BackgroundTransparency = 0.08
+combatCounterPanel.BorderSizePixel = 0
+combatCounterPanel.Visible = false
+combatCounterPanel.ZIndex = 6
+combatCounterPanel.Parent = screenGui
+
+local combatCounterCorner = Instance.new("UICorner")
+combatCounterCorner.CornerRadius = UDim.new(0, 7)
+combatCounterCorner.Parent = combatCounterPanel
+
+local combatCounterStroke = Instance.new("UIStroke")
+combatCounterStroke.Color = Color3.fromRGB(255, 116, 92)
+combatCounterStroke.Thickness = 1
+combatCounterStroke.Transparency = 0.18
+combatCounterStroke.Parent = combatCounterPanel
+
+local combatCounterTitle = Instance.new("TextLabel")
+combatCounterTitle.Name = "Title"
+combatCounterTitle.Size = UDim2.new(1, -14, 0, 16)
+combatCounterTitle.Position = UDim2.new(0, 7, 0, 5)
+combatCounterTitle.BackgroundTransparency = 1
+combatCounterTitle.Text = "Combat"
+combatCounterTitle.TextColor3 = Color3.fromRGB(255, 144, 116)
+combatCounterTitle.TextSize = 12
+combatCounterTitle.Font = Enum.Font.GothamBlack
+combatCounterTitle.TextXAlignment = Enum.TextXAlignment.Left
+combatCounterTitle.TextTruncate = Enum.TextTruncate.AtEnd
+combatCounterTitle.ZIndex = 7
+combatCounterTitle.Parent = combatCounterPanel
+
+local combatCounterCount = Instance.new("TextLabel")
+combatCounterCount.Name = "DefeatCount"
+combatCounterCount.Size = UDim2.new(0, 86, 0, 16)
+combatCounterCount.Position = UDim2.new(1, -93, 0, 5)
+combatCounterCount.BackgroundTransparency = 1
+combatCounterCount.Text = "Defeats: 0"
+combatCounterCount.TextColor3 = Color3.fromRGB(255, 226, 214)
+combatCounterCount.TextSize = 12
+combatCounterCount.Font = Enum.Font.GothamBold
+combatCounterCount.TextXAlignment = Enum.TextXAlignment.Right
+combatCounterCount.TextTruncate = Enum.TextTruncate.AtEnd
+combatCounterCount.ZIndex = 7
+combatCounterCount.Parent = combatCounterPanel
+
+local combatCounterMilestone = Instance.new("TextLabel")
+combatCounterMilestone.Name = "Milestone"
+combatCounterMilestone.Size = UDim2.new(1, -14, 0, 16)
+combatCounterMilestone.Position = UDim2.new(0, 7, 0, 22)
+combatCounterMilestone.BackgroundTransparency = 1
+combatCounterMilestone.Text = "Next: First defeat"
+combatCounterMilestone.TextColor3 = Color3.fromRGB(236, 190, 174)
+combatCounterMilestone.TextSize = 11
+combatCounterMilestone.Font = Enum.Font.GothamBold
+combatCounterMilestone.TextXAlignment = Enum.TextXAlignment.Left
+combatCounterMilestone.TextTruncate = Enum.TextTruncate.AtEnd
+combatCounterMilestone.ZIndex = 7
+combatCounterMilestone.Parent = combatCounterPanel
+
+local combatCounterTrack = Instance.new("Frame")
+combatCounterTrack.Name = "Track"
+combatCounterTrack.Size = UDim2.new(1, -14, 0, 6)
+combatCounterTrack.Position = UDim2.new(0, 7, 1, -11)
+combatCounterTrack.BackgroundColor3 = Color3.fromRGB(58, 42, 45)
+combatCounterTrack.BorderSizePixel = 0
+combatCounterTrack.ZIndex = 7
+combatCounterTrack.Parent = combatCounterPanel
+
+local combatCounterTrackCorner = Instance.new("UICorner")
+combatCounterTrackCorner.CornerRadius = UDim.new(0, 3)
+combatCounterTrackCorner.Parent = combatCounterTrack
+
+local combatCounterFill = Instance.new("Frame")
+combatCounterFill.Name = "Fill"
+combatCounterFill.Size = UDim2.new(0, 0, 1, 0)
+combatCounterFill.BackgroundColor3 = Color3.fromRGB(255, 116, 92)
+combatCounterFill.BorderSizePixel = 0
+combatCounterFill.ZIndex = 8
+combatCounterFill.Parent = combatCounterTrack
+
+local combatCounterFillCorner = Instance.new("UICorner")
+combatCounterFillCorner.CornerRadius = UDim.new(0, 3)
+combatCounterFillCorner.Parent = combatCounterFill
+
+local previousCombatDefeats = nil
+local combatCounterPulseSequence = 0
+
+local function countEnemyDefeatsFromBreakdown(enemyKillCounts)
+	if type(enemyKillCounts) ~= "table" then
+		return nil
+	end
+
+	local total = 0
+	local foundCount = false
+	for _, count in pairs(enemyKillCounts) do
+		local normalizedCount = math.floor(tonumber(count) or 0)
+		if normalizedCount > 0 then
+			total = total + normalizedCount
+			foundCount = true
+		end
+	end
+
+	return foundCount and total or nil
+end
+
+local function getCombatMilestone(defeats)
+	if defeats < 1 then
+		return 0, 1, "Next: First defeat"
+	end
+	if defeats < 100 then
+		return 0, 100, "Next: 100 defeats"
+	end
+
+	local currentHundred = math.floor(defeats / 100) * 100
+	local nextHundred = currentHundred + 100
+	return currentHundred, nextHundred, "Next: " .. tostring(nextHundred) .. " defeats"
+end
+
+local function pulseCombatCounter()
+	combatCounterPulseSequence = combatCounterPulseSequence + 1
+	local sequence = combatCounterPulseSequence
+
+	combatCounterPanel.Size = UDim2.new(0, COMBAT_COUNTER_WIDTH + 6, 0, COMBAT_COUNTER_HEIGHT + 4)
+	combatCounterStroke.Thickness = 2
+	combatCounterStroke.Color = Color3.fromRGB(255, 196, 122)
+	combatCounterFill.BackgroundColor3 = Color3.fromRGB(255, 196, 122)
+
+	local settlePanel = TweenService:Create(
+		combatCounterPanel,
+		TweenInfo.new(0.16, Enum.EasingStyle.Back, Enum.EasingDirection.Out),
+		{ Size = UDim2.new(0, COMBAT_COUNTER_WIDTH, 0, COMBAT_COUNTER_HEIGHT) }
+	)
+	local settleStroke = TweenService:Create(
+		combatCounterStroke,
+		TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+		{
+			Thickness = 1,
+			Color = Color3.fromRGB(255, 116, 92),
+		}
+	)
+	settlePanel:Play()
+	settleStroke:Play()
+	settlePanel.Completed:Connect(function()
+		if sequence ~= combatCounterPulseSequence then return end
+		combatCounterPanel.Size = UDim2.new(0, COMBAT_COUNTER_WIDTH, 0, COMBAT_COUNTER_HEIGHT)
+		combatCounterStroke.Thickness = 1
+		combatCounterStroke.Color = Color3.fromRGB(255, 116, 92)
+		combatCounterFill.BackgroundColor3 = Color3.fromRGB(255, 116, 92)
+	end)
+end
+
+function DeepDigUpdateEnemyDefeatPanel(data)
+	if type(data) ~= "table" then
+		return
+	end
+
+	local defeats = data.enemyKills
+	if defeats == nil then
+		defeats = countEnemyDefeatsFromBreakdown(data.enemyKillCounts)
+	end
+	if defeats == nil then
+		return
+	end
+
+	defeats = math.max(0, math.floor(tonumber(defeats) or 0))
+	local depth = math.max(tonumber(data.depth) or 0, tonumber(data.deepestBlock) or 0)
+	local shouldShow = defeats > 0 or depth >= COMBAT_UNLOCK_DEPTH or data.enemyDangerUnlocked ~= nil
+	if not shouldShow then
+		combatCounterPanel.Visible = false
+		previousCombatDefeats = defeats
+		return
+	end
+
+	local milestoneStart, milestoneTarget, milestoneText = getCombatMilestone(defeats)
+	local progressSpan = math.max(1, milestoneTarget - milestoneStart)
+	local progress = math.max(0, math.min(1, (defeats - milestoneStart) / progressSpan))
+
+	combatCounterCount.Text = "Defeats: " .. tostring(defeats)
+	combatCounterMilestone.Text = milestoneText
+	combatCounterFill.Size = UDim2.new(progress, 0, 1, 0)
+	combatCounterPanel.Visible = true
+
+	if previousCombatDefeats ~= nil and defeats > previousCombatDefeats then
+		pulseCombatCounter()
+	end
+	previousCombatDefeats = defeats
+end
+end)()
+
 -- ─── Login streak display ────────────────────────────────────────────────────
 
 local streakLabel = Instance.new("TextLabel")
@@ -7787,6 +7987,7 @@ Remotes.UpdateHUD.OnClientEvent:Connect(function(data)
 	if data.questSummary ~= nil then
 		DeepDigUpdateQuestSidePanel(data.questSummary)
 	end
+	DeepDigUpdateEnemyDefeatPanel(data)
 	if data.nextToolCost ~= nil and data.nextToolName then
 		DeepDigToolHud.setUpgradeButtonText(data.nextToolName, data.nextToolCost, false)
 		affordanceNextToolCost = tonumber(data.nextToolCost)
@@ -8128,6 +8329,7 @@ task.spawn(function()
 		if data.questSummary ~= nil then
 			DeepDigUpdateQuestSidePanel(data.questSummary)
 		end
+		DeepDigUpdateEnemyDefeatPanel(data)
 		initializeFtueGuide(data)
 		refreshStreakRevivePrompt(data)
 		refreshFriendBoostIndicator(data)
