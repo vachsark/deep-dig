@@ -25,6 +25,10 @@ local ResurfaceInfoFunc = Instance.new("RemoteFunction")
 ResurfaceInfoFunc.Name = "GetResurfaceInfo"
 ResurfaceInfoFunc.Parent = Remotes
 
+local ResurfaceCelebrationEvent = Instance.new("RemoteEvent")
+ResurfaceCelebrationEvent.Name = "ResurfaceCelebration"
+ResurfaceCelebrationEvent.Parent = Remotes
+
 local NotifyEvent = Remotes:WaitForChild("Notify")
 local UpdateHUDEvent = Remotes:WaitForChild("UpdateHUD")
 
@@ -215,6 +219,12 @@ ResurfaceEvent.OnServerEvent:Connect(function(player)
 	-- Prestige fanfare for the whole server (everyone sees the player erupt).
 	local PlaySound = Remotes:FindFirstChild("PlaySound")
 	if PlaySound then PlaySound:FireAllClients("resurface_fanfare") end
+
+	ResurfaceCelebrationEvent:FireClient(player, {
+		resurfaceCount = data.rebirths,
+		permanentMultiplier = multiplier,
+		bonusMultiplier = multiplier - 1,
+	})
 end)
 
 -- ═══════════════════════════════════════════════════════════════════

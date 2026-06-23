@@ -7929,6 +7929,237 @@ if Remotes:FindFirstChild("CodeResult") then
 	end)
 end
 
+DeepDigShowResurfaceCelebrationBurst = (function()
+local state = {
+	sequence = 0,
+	frame = nil,
+	tweens = {},
+}
+
+local function clearTweens()
+	for _, tween in ipairs(state.tweens) do
+		tween:Cancel()
+	end
+	state.tweens = {}
+end
+
+local function destroyActiveFrame()
+	clearTweens()
+	if state.frame and state.frame.Parent then
+		state.frame:Destroy()
+	end
+	state.frame = nil
+end
+
+local function trackTween(instance, duration, goal, easingStyle, easingDirection)
+	local tween = TweenService:Create(
+		instance,
+		TweenInfo.new(duration, easingStyle or Enum.EasingStyle.Quad, easingDirection or Enum.EasingDirection.Out),
+		goal
+	)
+	table.insert(state.tweens, tween)
+	tween:Play()
+	return tween
+end
+
+local function fitText(label, maxTextSize, minTextSize)
+	label.TextScaled = true
+	label.TextWrapped = true
+
+	local constraint = Instance.new("UITextSizeConstraint")
+	constraint.MaxTextSize = maxTextSize
+	constraint.MinTextSize = minTextSize or 10
+	constraint.Parent = label
+end
+
+local function makeLabel(parent, name, text, y, height, color, maxTextSize, font)
+	local label = Instance.new("TextLabel")
+	label.Name = name
+	label.Size = UDim2.new(1, -42, 0, height)
+	label.Position = UDim2.fromOffset(21, y)
+	label.BackgroundTransparency = 1
+	label.Text = text
+	label.TextColor3 = color
+	label.TextTransparency = 1
+	label.TextStrokeColor3 = Color3.fromRGB(18, 13, 8)
+	label.TextStrokeTransparency = 1
+	label.Font = font or Enum.Font.GothamBlack
+	label.TextXAlignment = Enum.TextXAlignment.Center
+	label.ZIndex = 93
+	fitText(label, maxTextSize, 12)
+	label.Parent = parent
+	return label
+end
+
+local function fadeDescendants(frame, duration)
+	for _, descendant in ipairs(frame:GetDescendants()) do
+		if descendant:IsA("TextLabel") then
+			trackTween(descendant, duration, {
+				TextTransparency = 1,
+				TextStrokeTransparency = 1,
+			}, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+		elseif descendant:IsA("Frame") then
+			trackTween(descendant, duration, {
+				BackgroundTransparency = 1,
+			}, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+		elseif descendant:IsA("UIStroke") then
+			trackTween(descendant, duration, {
+				Transparency = 1,
+			}, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+		end
+	end
+end
+
+local function formatMultiplier(value)
+	local rounded = math.floor((tonumber(value) or 1) * 10 + 0.5) / 10
+	return string.format("%.1fx", rounded)
+end
+
+return function(payload)
+	if type(payload) ~= "table" then
+		return
+	end
+
+	local resurfaceCount = math.floor(tonumber(payload.resurfaceCount) or 0)
+	local permanentMultiplier = tonumber(payload.permanentMultiplier) or 1
+	if resurfaceCount <= 0 then
+		return
+	end
+
+	state.sequence = state.sequence + 1
+	local sequence = state.sequence
+	destroyActiveFrame()
+
+	local layer = Instance.new("Frame")
+	layer.Name = "ResurfaceCelebrationBurst"
+	layer.Size = UDim2.fromScale(1, 1)
+	layer.BackgroundColor3 = Color3.fromRGB(18, 13, 8)
+	layer.BackgroundTransparency = 1
+	layer.BorderSizePixel = 0
+	layer.ZIndex = 88
+	layer.Parent = screenGui
+	state.frame = layer
+
+	local panel = Instance.new("Frame")
+	panel.Name = "Center"
+	panel.AnchorPoint = Vector2.new(0.5, 0.5)
+	panel.Size = UDim2.fromOffset(350, 150)
+	panel.Position = UDim2.fromScale(0.5, 0.52)
+	panel.BackgroundColor3 = Color3.fromRGB(45, 34, 18)
+	panel.BackgroundTransparency = 1
+	panel.BorderSizePixel = 0
+	panel.ZIndex = 91
+	panel.Parent = layer
+
+	local corner = Instance.new("UICorner")
+	corner.CornerRadius = UDim.new(0, 12)
+	corner.Parent = panel
+
+	local stroke = Instance.new("UIStroke")
+	stroke.Color = Color3.fromRGB(255, 219, 88)
+	stroke.Thickness = 3
+	stroke.Transparency = 1
+	stroke.Parent = panel
+
+	local glow = Instance.new("Frame")
+	glow.Name = "Glow"
+	glow.AnchorPoint = Vector2.new(0.5, 0.5)
+	glow.Size = UDim2.fromOffset(360, 150)
+	glow.Position = UDim2.fromScale(0.5, 0.5)
+	glow.BackgroundColor3 = Color3.fromRGB(255, 205, 64)
+	glow.BackgroundTransparency = 1
+	glow.BorderSizePixel = 0
+	glow.ZIndex = 89
+	glow.Parent = layer
+
+	local glowCorner = Instance.new("UICorner")
+	glowCorner.CornerRadius = UDim.new(1, 0)
+	glowCorner.Parent = glow
+
+	for index = 1, 10 do
+		local ray = Instance.new("Frame")
+		ray.Name = "Ray"
+		ray.AnchorPoint = Vector2.new(0.5, 0.5)
+		ray.Size = UDim2.fromOffset(10, 88)
+		ray.Position = UDim2.fromScale(0.5, 0.5)
+		ray.BackgroundColor3 = Color3.fromRGB(255, 225, 110)
+		ray.BackgroundTransparency = 1
+		ray.BorderSizePixel = 0
+		ray.Rotation = index * 18
+		ray.ZIndex = 90
+		ray.Parent = layer
+	end
+
+	makeLabel(panel, "Title", "RESURFACED", 16, 38, Color3.fromRGB(255, 231, 123), 32)
+	makeLabel(panel, "Count", "Resurface #" .. tostring(resurfaceCount), 56, 48, Color3.fromRGB(255, 255, 255), 38)
+	makeLabel(
+		panel,
+		"Multiplier",
+		"Permanent Coin Multiplier " .. formatMultiplier(permanentMultiplier),
+		110,
+		30,
+		Color3.fromRGB(255, 238, 160),
+		20,
+		Enum.Font.GothamBold
+	)
+
+	trackTween(layer, 0.16, { BackgroundTransparency = 0.18 })
+	trackTween(glow, 0.22, {
+		Size = UDim2.fromOffset(620, 260),
+		BackgroundTransparency = 0.76,
+	}, Enum.EasingStyle.Quad)
+	trackTween(panel, 0.22, {
+		Size = UDim2.fromOffset(490, 182),
+		Position = UDim2.fromScale(0.5, 0.47),
+		BackgroundTransparency = 0.04,
+	}, Enum.EasingStyle.Back)
+	trackTween(stroke, 0.16, { Transparency = 0, Thickness = 4 })
+
+	for _, descendant in ipairs(panel:GetDescendants()) do
+		if descendant:IsA("TextLabel") then
+			trackTween(descendant, 0.18, {
+				TextTransparency = 0,
+				TextStrokeTransparency = 0.42,
+			})
+		end
+	end
+
+	for _, ray in ipairs(layer:GetChildren()) do
+		if ray.Name == "Ray" then
+			trackTween(ray, 0.24, {
+				Size = UDim2.fromOffset(7, 270),
+				BackgroundTransparency = 0.55,
+			}, Enum.EasingStyle.Quad)
+			trackTween(ray, 0.62, {
+				Rotation = ray.Rotation + 40,
+				BackgroundTransparency = 1,
+			}, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+		end
+	end
+
+	task.delay(2.7, function()
+		if sequence ~= state.sequence or not layer.Parent then
+			return
+		end
+
+		trackTween(layer, 0.32, { BackgroundTransparency = 1 }, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+		trackTween(glow, 0.28, { BackgroundTransparency = 1 }, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+		trackTween(panel, 0.28, {
+			Position = UDim2.fromScale(0.5, 0.40),
+			BackgroundTransparency = 1,
+		}, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+		fadeDescendants(panel, 0.24)
+
+		task.delay(0.34, function()
+			if sequence ~= state.sequence then
+				return
+			end
+			destroyActiveFrame()
+		end)
+	end)
+end
+end)()
+
 -- ═══════════════════════════════════════════════════════════════════
 -- Event Handlers
 -- ═══════════════════════════════════════════════════════════════════
@@ -8072,6 +8303,13 @@ do
 	local museumUpdateEvent = Remotes:WaitForChild("MuseumUpdate", 5)
 	if museumUpdateEvent then
 		museumUpdateEvent.OnClientEvent:Connect(DeepDigShowMuseumTierCompleteBurst)
+	end
+end
+
+do
+	local resurfaceCelebrationEvent = Remotes:WaitForChild("ResurfaceCelebration", 5)
+	if resurfaceCelebrationEvent then
+		resurfaceCelebrationEvent.OnClientEvent:Connect(DeepDigShowResurfaceCelebrationBurst)
 	end
 end
 
