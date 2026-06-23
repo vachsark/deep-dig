@@ -358,6 +358,239 @@ function DeepDigUpdateRareMeter(value, threshold, triggered)
 end
 end
 
+-- ─── Daily quest side panel ──────────────────────────────────────────────────
+
+(function()
+local QUEST_SIDE_PANEL_MAX_ROWS = 4
+local QUEST_SIDE_PANEL_ROW_HEIGHT = 38
+local QUEST_SIDE_PANEL_WIDTH = 234
+
+local questSidePanel = Instance.new("Frame")
+questSidePanel.Name = "DailyQuestSidePanel"
+questSidePanel.Size = UDim2.new(0, QUEST_SIDE_PANEL_WIDTH, 0, 40)
+questSidePanel.Position = UDim2.new(1, -254, 0, 66)
+questSidePanel.BackgroundColor3 = Color3.fromRGB(22, 25, 31)
+questSidePanel.BackgroundTransparency = 0.08
+questSidePanel.BorderSizePixel = 0
+questSidePanel.Visible = false
+questSidePanel.ZIndex = 6
+questSidePanel.Parent = screenGui
+
+local questSidePanelCorner = Instance.new("UICorner")
+questSidePanelCorner.CornerRadius = UDim.new(0, 8)
+questSidePanelCorner.Parent = questSidePanel
+
+local questSidePanelStroke = Instance.new("UIStroke")
+questSidePanelStroke.Color = Color3.fromRGB(78, 87, 104)
+questSidePanelStroke.Thickness = 1
+questSidePanelStroke.Transparency = 0.25
+questSidePanelStroke.Parent = questSidePanel
+
+local questSideTitle = Instance.new("TextLabel")
+questSideTitle.Name = "Title"
+questSideTitle.Size = UDim2.new(1, -18, 0, 24)
+questSideTitle.Position = UDim2.new(0, 9, 0, 4)
+questSideTitle.BackgroundTransparency = 1
+questSideTitle.Text = "Daily Quests"
+questSideTitle.TextColor3 = Color3.fromRGB(255, 210, 85)
+questSideTitle.TextSize = 13
+questSideTitle.Font = Enum.Font.GothamBlack
+questSideTitle.TextXAlignment = Enum.TextXAlignment.Left
+questSideTitle.ZIndex = 7
+questSideTitle.Parent = questSidePanel
+
+local questSideList = Instance.new("Frame")
+questSideList.Name = "Rows"
+questSideList.Size = UDim2.new(1, -18, 1, -32)
+questSideList.Position = UDim2.new(0, 9, 0, 29)
+questSideList.BackgroundTransparency = 1
+questSideList.ZIndex = 7
+questSideList.Parent = questSidePanel
+
+local questSideListLayout = Instance.new("UIListLayout")
+questSideListLayout.FillDirection = Enum.FillDirection.Vertical
+questSideListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+questSideListLayout.Padding = UDim.new(0, 5)
+questSideListLayout.Parent = questSideList
+
+local questSideRows = {}
+
+local function createQuestSideRow(index)
+	local row = Instance.new("Frame")
+	row.Name = "QuestRow" .. tostring(index)
+	row.Size = UDim2.new(1, 0, 0, QUEST_SIDE_PANEL_ROW_HEIGHT)
+	row.BackgroundTransparency = 1
+	row.LayoutOrder = index
+	row.Visible = false
+	row.ZIndex = 7
+	row.Parent = questSideList
+
+	local description = Instance.new("TextLabel")
+	description.Name = "Description"
+	description.Size = UDim2.new(1, -54, 0, 18)
+	description.Position = UDim2.new(0, 0, 0, 0)
+	description.BackgroundTransparency = 1
+	description.Text = ""
+	description.TextColor3 = Color3.fromRGB(235, 238, 245)
+	description.TextSize = 11
+	description.Font = Enum.Font.GothamBold
+	description.TextXAlignment = Enum.TextXAlignment.Left
+	description.TextTruncate = Enum.TextTruncate.AtEnd
+	description.ZIndex = 8
+	description.Parent = row
+
+	local progressLabel = Instance.new("TextLabel")
+	progressLabel.Name = "Progress"
+	progressLabel.Size = UDim2.new(0, 50, 0, 18)
+	progressLabel.Position = UDim2.new(1, -50, 0, 0)
+	progressLabel.BackgroundTransparency = 1
+	progressLabel.Text = ""
+	progressLabel.TextColor3 = Color3.fromRGB(174, 181, 196)
+	progressLabel.TextSize = 11
+	progressLabel.Font = Enum.Font.GothamMedium
+	progressLabel.TextXAlignment = Enum.TextXAlignment.Right
+	progressLabel.ZIndex = 8
+	progressLabel.Parent = row
+
+	local track = Instance.new("Frame")
+	track.Name = "Track"
+	track.Size = UDim2.new(1, 0, 0, 7)
+	track.Position = UDim2.new(0, 0, 0, 25)
+	track.BackgroundColor3 = Color3.fromRGB(44, 49, 59)
+	track.BorderSizePixel = 0
+	track.ZIndex = 8
+	track.Parent = row
+
+	local trackCorner = Instance.new("UICorner")
+	trackCorner.CornerRadius = UDim.new(0, 4)
+	trackCorner.Parent = track
+
+	local fill = Instance.new("Frame")
+	fill.Name = "Fill"
+	fill.Size = UDim2.new(0, 0, 1, 0)
+	fill.BackgroundColor3 = Color3.fromRGB(255, 196, 72)
+	fill.BorderSizePixel = 0
+	fill.ZIndex = 9
+	fill.Parent = track
+
+	local fillCorner = Instance.new("UICorner")
+	fillCorner.CornerRadius = UDim.new(0, 4)
+	fillCorner.Parent = fill
+
+	questSideRows[index] = {
+		row = row,
+		description = description,
+		progressLabel = progressLabel,
+		fill = fill,
+	}
+end
+
+for index = 1, QUEST_SIDE_PANEL_MAX_ROWS do
+	createQuestSideRow(index)
+end
+
+local function questSideSafeNumber(value)
+	if type(value) == "number" then
+		return value
+	end
+	return tonumber(value) or 0
+end
+
+local function questSideProgressRatio(progress, target)
+	if target <= 0 then
+		return 0
+	end
+
+	local ratio = progress / target
+	if ratio < 0 then
+		return 0
+	end
+	if ratio > 1 then
+		return 1
+	end
+	return ratio
+end
+
+local function questSideAccentColor(questType, complete)
+	if complete then
+		return Color3.fromRGB(80, 200, 105)
+	end
+	if questType == "kill_enemies" then
+		return Color3.fromRGB(255, 105, 85)
+	end
+	if questType == "coins_earned" then
+		return Color3.fromRGB(90, 210, 125)
+	end
+	if questType == "rarity_found" or questType == "items_found" then
+		return Color3.fromRGB(135, 170, 255)
+	end
+	if questType == "depth_reached" then
+		return Color3.fromRGB(180, 140, 255)
+	end
+	return Color3.fromRGB(255, 196, 72)
+end
+
+local function hideQuestSideRows()
+	for _, rowParts in ipairs(questSideRows) do
+		rowParts.row.Visible = false
+	end
+end
+
+function DeepDigUpdateQuestSidePanel(summary)
+	if type(summary) ~= "table" or type(summary.quests) ~= "table" then
+		questSidePanel.Visible = false
+		hideQuestSideRows()
+		return
+	end
+
+	local quests = {}
+	for _, quest in ipairs(summary.quests) do
+		if type(quest) == "table" then
+			local target = questSideSafeNumber(quest.target)
+			local description = type(quest.description) == "string" and quest.description or ""
+			if target > 0 and description ~= "" then
+				quests[#quests + 1] = quest
+			end
+		end
+	end
+
+	if #quests == 0 then
+		questSidePanel.Visible = false
+		hideQuestSideRows()
+		return
+	end
+
+	local visibleCount = math.min(#quests, QUEST_SIDE_PANEL_MAX_ROWS)
+	questSidePanel.Size = UDim2.new(
+		0,
+		QUEST_SIDE_PANEL_WIDTH,
+		0,
+		34 + (visibleCount * QUEST_SIDE_PANEL_ROW_HEIGHT) + ((visibleCount - 1) * 5)
+	)
+	questSidePanel.Visible = true
+
+	for index, rowParts in ipairs(questSideRows) do
+		local quest = quests[index]
+		if index <= visibleCount and quest then
+			local progress = math.floor(questSideSafeNumber(quest.progress))
+			local target = math.max(1, math.floor(questSideSafeNumber(quest.target)))
+			local complete = quest.complete == true or progress >= target
+			local color = questSideAccentColor(quest.type, complete)
+
+			rowParts.description.Text = quest.description
+			rowParts.description.TextColor3 = complete and color or Color3.fromRGB(235, 238, 245)
+			rowParts.progressLabel.Text = tostring(math.min(progress, target)) .. "/" .. tostring(target)
+			rowParts.progressLabel.TextColor3 = complete and color or Color3.fromRGB(174, 181, 196)
+			rowParts.fill.Size = UDim2.new(questSideProgressRatio(progress, target), 0, 1, 0)
+			rowParts.fill.BackgroundColor3 = color
+			rowParts.row.Visible = true
+		else
+			rowParts.row.Visible = false
+		end
+	end
+end
+end)()
+
 -- ─── Login streak display ────────────────────────────────────────────────────
 
 local streakLabel = Instance.new("TextLabel")
@@ -7551,6 +7784,9 @@ Remotes.UpdateHUD.OnClientEvent:Connect(function(data)
 	if data.rarePity ~= nil or data.rarePityThreshold ~= nil or data.rarePityTriggered then
 		DeepDigUpdateRareMeter(data.rarePity, data.rarePityThreshold, data.rarePityTriggered == true)
 	end
+	if data.questSummary ~= nil then
+		DeepDigUpdateQuestSidePanel(data.questSummary)
+	end
 	if data.nextToolCost ~= nil and data.nextToolName then
 		DeepDigToolHud.setUpgradeButtonText(data.nextToolName, data.nextToolCost, false)
 		affordanceNextToolCost = tonumber(data.nextToolCost)
@@ -7889,6 +8125,9 @@ task.spawn(function()
 			fragLabel.Text = "Fragments: " .. tostring(previousFragmentValue)
 		end
 		DeepDigUpdateRareMeter(data.rarePity, data.rarePityThreshold, false)
+		if data.questSummary ~= nil then
+			DeepDigUpdateQuestSidePanel(data.questSummary)
+		end
 		initializeFtueGuide(data)
 		refreshStreakRevivePrompt(data)
 		refreshFriendBoostIndicator(data)

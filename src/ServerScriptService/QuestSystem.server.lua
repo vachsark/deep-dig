@@ -474,9 +474,11 @@ local function buildQuestStatus(player)
 			quests[#quests + 1] = {
 				id = quest.id,
 				description = quest.description,
+				type = quest.type,
 				progress = progress,
 				target = quest.target,
 				complete = progress >= quest.target,
+				claimed = data.questClaimed[questId] == true,
 			}
 		end
 	end
@@ -501,6 +503,20 @@ local function buildQuestStatus(player)
 		day = data.questDay ~= "" and data.questDay or day,
 		weekly = weeklyStatus,
 	}
+end
+
+local function buildQuestHudSummary(player)
+	local status = buildQuestStatus(player)
+	return {
+		day = status.day,
+		quests = status.quests,
+	}
+end
+
+local function fireQuestHudUpdate(player)
+	UpdateHUDEvent:FireClient(player, {
+		questSummary = buildQuestHudSummary(player),
+	})
 end
 
 GetQuestStatusFunc.OnServerInvoke = function(player)
@@ -560,6 +576,7 @@ local function claimQuest(player, questId)
 		data.weeklyQuestClaimed = true
 		data.weeklyQuestProgress = weeklyQuest.target
 		grantQuestReward(player, data, weeklyQuest, true)
+		fireQuestHudUpdate(player)
 		return
 	end
 
@@ -588,6 +605,7 @@ local function claimQuest(player, questId)
 	data.questClaimed[questId] = true
 	incrementWeeklyQuestProgress(data)
 	grantQuestReward(player, data, quest, false)
+	fireQuestHudUpdate(player)
 end
 
 ClaimQuestEvent.OnServerEvent:Connect(function(player, questId)
@@ -596,6 +614,7 @@ end)
 
 BlockBrokenEvent.Event:Connect(function(player)
 	applyProgress(player, "blocks_dug", { amount = 1 })
+	fireQuestHudUpdate(player)
 end)
 
 EnemyKilledBindable.Event:Connect(function(player, _enemy)
@@ -604,6 +623,7 @@ EnemyKilledBindable.Event:Connect(function(player, _enemy)
 	end
 
 	applyProgress(player, "kill_enemies", { amount = 1 })
+	fireQuestHudUpdate(player)
 end)
 
 QuestProgressBindable.Event:Connect(function(player, eventType, eventData)
@@ -612,12 +632,19 @@ QuestProgressBindable.Event:Connect(function(player, eventType, eventData)
 	end
 
 	applyProgress(player, eventType, eventData)
+	fireQuestHudUpdate(player)
 end)
 
 local function onPlayerAdded(player)
 	task.spawn(function()
 		while player.Parent do
 			if ensureTodayQuests(player) then
+				fireQuestHudUpdate(player)
+				task.delay(2, function()
+					if player.Parent then
+						fireQuestHudUpdate(player)
+					end
+				end)
 				return
 			end
 			task.wait(0.2)
