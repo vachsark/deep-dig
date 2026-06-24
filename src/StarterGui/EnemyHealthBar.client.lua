@@ -215,6 +215,25 @@ activeFeedback.playerHitImpact = {
 	minIntensity = 0.85,
 	maxIntensity = 1.35,
 }
+activeFeedback.enemyHitImpact = {
+	guiName = "DeepDigEnemyHitImpact",
+	displayOrder = PLAYER_HIT_DISPLAY_ORDER - 2,
+	bindName = "DeepDigEnemyHitCameraKick",
+	kickDuration = 0.08,
+	kickPosition = 0.1,
+	kickRotation = 0.34,
+	slashDuration = 0.16,
+	slashTransparency = 0.32,
+	clearTransparency = 1,
+	gui = nil,
+	slashes = {},
+	tweens = {},
+	sequence = 0,
+	joltState = nil,
+	joltBound = false,
+	lastJoltCFrame = CFrame.new(),
+	lastJoltActive = false,
+}
 activeFeedback.digBlockedDirection = {
 	thickness = 86,
 	pulseTransparency = 0.34,
@@ -2799,6 +2818,219 @@ local function playPlayerHitJolt(intensity)
 	ensurePlayerHitJoltBinding()
 end
 
+function activeFeedback.createEnemyHitSlash(name, position, size, rotation, zIndex)
+	local config = activeFeedback.enemyHitImpact
+	local slash = Instance.new("Frame")
+	slash.Name = name
+	slash.AnchorPoint = Vector2.new(0.5, 0.5)
+	slash.Position = position
+	slash.Size = size
+	slash.Rotation = rotation
+	slash.BackgroundColor3 = Color3.fromRGB(255, 246, 188)
+	slash.BackgroundTransparency = config.clearTransparency
+	slash.BorderSizePixel = 0
+	slash.Visible = false
+	slash.ZIndex = zIndex
+	slash.Parent = config.gui
+
+	local gradient = Instance.new("UIGradient")
+	gradient.Rotation = 0
+	gradient.Transparency = NumberSequence.new({
+		NumberSequenceKeypoint.new(0, 1),
+		NumberSequenceKeypoint.new(0.18, 0.22),
+		NumberSequenceKeypoint.new(0.55, 0),
+		NumberSequenceKeypoint.new(0.82, 0.3),
+		NumberSequenceKeypoint.new(1, 1),
+	})
+	gradient.Parent = slash
+
+	return slash
+end
+
+function activeFeedback.ensureEnemyHitImpact()
+	local config = activeFeedback.enemyHitImpact
+	if config.gui and config.gui.Parent then
+		return config
+	end
+
+	local playerGui = player:FindFirstChildOfClass("PlayerGui") or player:WaitForChild("PlayerGui")
+	local existingGui = playerGui:FindFirstChild(config.guiName)
+	if existingGui and existingGui:IsA("ScreenGui") then
+		existingGui:ClearAllChildren()
+		config.gui = existingGui
+	else
+		config.gui = Instance.new("ScreenGui")
+		config.gui.Name = config.guiName
+		config.gui.Parent = playerGui
+	end
+
+	config.gui.ResetOnSpawn = false
+	config.gui.IgnoreGuiInset = true
+	config.gui.DisplayOrder = config.displayOrder
+	config.gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+
+	config.slashes = {
+		activeFeedback.createEnemyHitSlash(
+			"PrimarySlash",
+			UDim2.fromScale(0.51, 0.48),
+			UDim2.fromScale(0.58, 0.022),
+			-18,
+			3
+		),
+		activeFeedback.createEnemyHitSlash(
+			"SecondarySlash",
+			UDim2.fromScale(0.47, 0.56),
+			UDim2.fromScale(0.36, 0.014),
+			-18,
+			2
+		),
+	}
+
+	return config
+end
+
+function activeFeedback.cancelEnemyHitTweens()
+	local config = activeFeedback.enemyHitImpact
+	for _, tween in ipairs(config.tweens) do
+		if tween then
+			tween:Cancel()
+		end
+	end
+
+	config.tweens = {}
+end
+
+function activeFeedback.hideEnemyHitImpact()
+	local config = activeFeedback.enemyHitImpact
+	for _, slash in ipairs(config.slashes) do
+		if slash and slash.Parent then
+			slash.BackgroundTransparency = config.clearTransparency
+			slash.Visible = false
+		end
+	end
+end
+
+function activeFeedback.removeLastEnemyHitKick(camera)
+	local config = activeFeedback.enemyHitImpact
+	if camera and config.lastJoltActive then
+		camera.CFrame = camera.CFrame * config.lastJoltCFrame:Inverse()
+	end
+
+	config.lastJoltCFrame = CFrame.new()
+	config.lastJoltActive = false
+end
+
+function activeFeedback.clearEnemyHitKick(sequence)
+	local config = activeFeedback.enemyHitImpact
+	if sequence and sequence ~= config.sequence then
+		return
+	end
+
+	activeFeedback.removeLastEnemyHitKick(workspace.CurrentCamera)
+	config.joltState = nil
+
+	if config.joltBound then
+		RunService:UnbindFromRenderStep(config.bindName)
+		config.joltBound = false
+	end
+end
+
+function activeFeedback.ensureEnemyHitKickBinding()
+	local config = activeFeedback.enemyHitImpact
+	if config.joltBound then
+		return
+	end
+
+	config.joltBound = true
+	RunService:BindToRenderStep(config.bindName, Enum.RenderPriority.Camera.Value + 4, function()
+		local camera = workspace.CurrentCamera
+		local state = config.joltState
+		if not camera or not state then
+			activeFeedback.clearEnemyHitKick()
+			return
+		end
+
+		activeFeedback.removeLastEnemyHitKick(camera)
+
+		local progress = (os.clock() - state.startTime) / config.kickDuration
+		if progress >= 1 then
+			activeFeedback.clearEnemyHitKick(state.sequence)
+			return
+		end
+
+		local falloff = 1 - math.clamp(progress, 0, 1)
+		local snap = math.sin(progress * math.pi)
+		config.lastJoltCFrame = CFrame.new(
+			state.direction * config.kickPosition * falloff,
+			-config.kickPosition * 0.3 * snap * falloff,
+			0
+		) * CFrame.Angles(0, 0, math.rad(state.direction * config.kickRotation * falloff))
+		config.lastJoltActive = true
+		camera.CFrame = camera.CFrame * config.lastJoltCFrame
+	end)
+end
+
+function activeFeedback.playEnemyHitKick()
+	local config = activeFeedback.enemyHitImpact
+	local direction = 1
+	if math.random() < 0.5 then
+		direction = -1
+	end
+
+	config.joltState = {
+		sequence = config.sequence,
+		startTime = os.clock(),
+		direction = direction,
+	}
+
+	activeFeedback.ensureEnemyHitKickBinding()
+end
+
+function activeFeedback.playEnemyHitImpact()
+	local config = activeFeedback.ensureEnemyHitImpact()
+	config.sequence = config.sequence + 1
+	local sequence = config.sequence
+
+	activeFeedback.cancelEnemyHitTweens()
+	activeFeedback.hideEnemyHitImpact()
+	activeFeedback.playEnemyHitKick()
+
+	for index, slash in ipairs(config.slashes) do
+		if slash and slash.Parent then
+			local offset = (index - 1) * 0.035
+			local startPosition = UDim2.fromScale(0.51 - offset, 0.48 + offset)
+			slash.Visible = true
+			slash.Position = startPosition
+			slash.BackgroundTransparency = config.slashTransparency
+
+			local tween = TweenService:Create(slash, TweenInfo.new(
+				config.slashDuration,
+				Enum.EasingStyle.Quad,
+				Enum.EasingDirection.Out
+			), {
+				Position = UDim2.fromScale(0.545 - offset, 0.455 + offset),
+				BackgroundTransparency = config.clearTransparency,
+			})
+			table.insert(config.tweens, tween)
+			tween:Play()
+			tween.Completed:Once(function(playbackState)
+				if sequence ~= config.sequence or playbackState ~= Enum.PlaybackState.Completed then
+					return
+				end
+
+				slash.Visible = false
+			end)
+		end
+	end
+
+	task.delay(config.slashDuration + 0.04, function()
+		if sequence == config.sequence then
+			activeFeedback.hideEnemyHitImpact()
+			activeFeedback.cancelEnemyHitTweens()
+		end
+	end)
+end
+
 local function playPlayerHitFeedback(damage, enemyPosition)
 	local config = activeFeedback.playerHitImpact
 	local intensity = 1
@@ -4880,6 +5112,11 @@ player.CharacterRemoving:Connect(function(character)
 	if humanoid and humanoid.Parent == character then
 		disconnectLowHealthHumanoid()
 	end
+
+	activeFeedback.enemyHitImpact.sequence = activeFeedback.enemyHitImpact.sequence + 1
+	activeFeedback.cancelEnemyHitTweens()
+	activeFeedback.hideEnemyHitImpact()
+	activeFeedback.clearEnemyHitKick()
 end)
 
 if player.Character then
@@ -4956,6 +5193,7 @@ EnemyCombatFeedback.OnClientEvent:Connect(function(payload)
 	end
 
 	if feedbackType == "hit" then
+		activeFeedback.playEnemyHitImpact()
 		showDamageNumber(payload.model, payload.damage)
 	elseif feedbackType == "defeated" then
 		showRewardBurst(payload.model, payload.reward)
