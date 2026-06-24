@@ -44,7 +44,7 @@ if not enemiesFolder then
 	enemiesFolder.Parent = workspace
 end
 
-local SPAWN_INTERVAL = 30
+local DEFAULT_SPAWN_INTERVAL = 30
 local MAX_ENEMIES_PER_PLAYER = 5
 local ATTACK_RANGE = 8
 local ATTACK_COOLDOWN = 0.5
@@ -69,6 +69,17 @@ local HOLLOW_KING_ID = "hollow_king"
 local HOLLOW_KING_COOLDOWN = 5 * 60
 local MINIBOSS_ENRAGE_WALKSPEED_MULTIPLIER = 1.35
 local MINIBOSS_ENRAGE_DAMAGE_MULTIPLIER = 1.3
+local SPAWN_INTERVAL_BY_TIER = {
+	Stone = 30,
+	Bronze = 30,
+	Iron = 25,
+	Modern = 30,
+	Industrial = 30,
+	Medieval = 26,
+	Ancient = 24,
+	Prehistoric = 23,
+	Unknown = 21,
+}
 
 local liveEnemies = {}
 local enemiesByPlayer = {}
@@ -740,6 +751,16 @@ local function getBlockedEnemyIds(player)
 	return blockedEnemyIds
 end
 
+local function getSpawnIntervalForData(data)
+	local depth = data and (data.deepestBlock or 0) or 0
+	if depth < FIRST_ENEMY_DEPTH then
+		return DEFAULT_SPAWN_INTERVAL
+	end
+
+	local tierName = ItemDatabase.getTierForDepth(depth)
+	return SPAWN_INTERVAL_BY_TIER[tierName] or DEFAULT_SPAWN_INTERVAL
+end
+
 local function getPlayerRoot(player)
 	local character = player.Character
 	return character and character:FindFirstChild("HumanoidRootPart")
@@ -1141,7 +1162,7 @@ local function startSpawnLoop(player)
 
 		while player.Parent == Players do
 			spawnEnemyForPlayer(player)
-			task.wait(SPAWN_INTERVAL)
+			task.wait(getSpawnIntervalForData(getSharedData(player)))
 		end
 	end)
 end
