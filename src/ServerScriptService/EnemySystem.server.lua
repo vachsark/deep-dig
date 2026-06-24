@@ -274,6 +274,9 @@ local function removeEnemyRecord(record)
 	if record.diedConnection then
 		record.diedConnection:Disconnect()
 	end
+	if record.healthConnection then
+		record.healthConnection:Disconnect()
+	end
 
 	liveEnemies[record.model] = nil
 end
@@ -445,6 +448,17 @@ local function getEnemyMaxHealth(record)
 	return math.max(record.humanoid.MaxHealth, 1)
 end
 
+local function syncEnemyHealthAttributes(record)
+	if not record.model or not record.humanoid then
+		return
+	end
+
+	local maxHealth = math.max(record.humanoid.MaxHealth, 1)
+	local health = math.max(0, math.min(record.humanoid.Health, maxHealth))
+	record.model:SetAttribute("MaxHealth", maxHealth)
+	record.model:SetAttribute("Health", health)
+end
+
 local function getEnemyWalkSpeed(record)
 	if record.walkSpeed then
 		return record.walkSpeed
@@ -512,6 +526,7 @@ local function onEnemyDied(record)
 	end
 
 	record.dead = true
+	syncEnemyHealthAttributes(record)
 	local hollowKingCooldown = nil
 	if record.enemy.id == HOLLOW_KING_ID and record.owner and record.owner.Parent == Players then
 		startHollowKingCooldown(record.owner)
@@ -1047,6 +1062,7 @@ local function spawnEnemyForPlayer(player)
 	model:SetAttribute("IsMiniboss", enemy.isMiniboss == true)
 	model:SetAttribute("EnemyRank", enemy.isMiniboss and "Miniboss" or "Enemy")
 	model:SetAttribute("MaxHealth", enemy.hp)
+	model:SetAttribute("Health", enemy.hp)
 	model:SetAttribute("HasEnraged", false)
 	model:SetAttribute("IsEmerging", true)
 	model:SetAttribute("SpawnReadyAt", spawnReadyAt)
@@ -1098,9 +1114,13 @@ local function spawnEnemyForPlayer(player)
 	record.touchConnection = root.Touched:Connect(function(hit)
 		handleTouched(record, hit)
 	end)
+	record.healthConnection = humanoid.HealthChanged:Connect(function()
+		syncEnemyHealthAttributes(record)
+	end)
 	record.diedConnection = humanoid.Died:Connect(function()
 		onEnemyDied(record)
 	end)
+	syncEnemyHealthAttributes(record)
 
 	liveEnemies[model] = record
 	enemiesByPlayer[player] = enemiesByPlayer[player] or {}

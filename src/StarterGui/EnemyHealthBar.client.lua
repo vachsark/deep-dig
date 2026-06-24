@@ -968,11 +968,24 @@ local function getBossMaxHealth(model, humanoid)
 	return math.max(humanoid.MaxHealth, 1)
 end
 
+function activeFeedback.getEnemyHealth(model, humanoid)
+	local maxHealth = getBossMaxHealth(model, humanoid)
+	local attributeHealth = model:GetAttribute("Health")
+	if typeof(attributeHealth) == "number" then
+		return math.clamp(attributeHealth, 0, maxHealth), maxHealth
+	end
+
+	return math.clamp(humanoid.Health, 0, maxHealth), maxHealth
+end
+
 local function getFirstLiveMiniboss()
 	for _, model in ipairs(trackedEnemyOrder) do
 		local record = trackedEnemies[model]
-		if record and record.isMiniboss and model.Parent and record.humanoid and record.humanoid.Health > 0 then
-			return model, record
+		if record and record.isMiniboss and model.Parent and record.humanoid then
+			local health = activeFeedback.getEnemyHealth(model, record.humanoid)
+			if health > 0 then
+				return model, record
+			end
 		end
 	end
 
@@ -993,8 +1006,8 @@ local function updateBossBar()
 
 	activeBossModel = model
 	local humanoid = record.humanoid
-	local maxHealth = getBossMaxHealth(model, humanoid)
-	local ratio = math.clamp(humanoid.Health / maxHealth, 0, 1)
+	local health, maxHealth = activeFeedback.getEnemyHealth(model, humanoid)
+	local ratio = math.clamp(health / maxHealth, 0, 1)
 	bossBarNameLabel.Text = model:GetAttribute("EnemyName") or model.Name
 	bossBarPercentLabel.Text = string.format("%d%%", math.ceil(ratio * 100))
 	bossBarFill.Size = UDim2.fromScale(ratio, 1)
@@ -1417,20 +1430,21 @@ local function trackEnemy(model)
 		table.insert(trackedEnemyOrder, model)
 
 		local function update()
-			if not model.Parent or humanoid.Health <= 0 then
+			local health, maxHealth = activeFeedback.getEnemyHealth(model, humanoid)
+			if not model.Parent or health <= 0 then
 				cleanupEnemy(model)
 				return
 			end
 
-			local maxHealth = math.max(humanoid.MaxHealth, 1)
-			local ratio = math.clamp(humanoid.Health / maxHealth, 0, 1)
+			local ratio = math.clamp(health / maxHealth, 0, 1)
 			fill.Size = UDim2.fromScale(ratio, 1)
 			fill.BackgroundColor3 = getHealthColor(ratio)
-			hpLabel.Text = string.format("%d/%d", math.ceil(humanoid.Health), math.ceil(maxHealth))
+			hpLabel.Text = string.format("%d/%d", math.ceil(health), math.ceil(maxHealth))
 			updateBossBar()
 		end
 
 		table.insert(record.connections, humanoid.HealthChanged:Connect(update))
+		table.insert(record.connections, model:GetAttributeChangedSignal("Health"):Connect(update))
 		table.insert(record.connections, model:GetAttributeChangedSignal("EnemyName"):Connect(updateBossBar))
 		table.insert(record.connections, model:GetAttributeChangedSignal("MaxHealth"):Connect(updateBossBar))
 		table.insert(record.connections, model:GetAttributeChangedSignal("IsMiniboss"):Connect(function()
