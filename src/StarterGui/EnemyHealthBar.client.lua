@@ -3304,12 +3304,58 @@ local function showDamageNumber(model, damage)
 		return
 	end
 
+	local style = {
+		color = HIT_COLOR,
+		strokeColor = Color3.fromRGB(65, 46, 8),
+		strokeTransparency = 0.18,
+		strokeThickness = 1,
+		textSize = 18,
+		startSize = UDim2.fromOffset(64, 24),
+		endSize = UDim2.fromOffset(72, 28),
+		rise = 0.72,
+		duration = DAMAGE_NUMBER_DURATION,
+		easing = Enum.EasingStyle.Quad,
+	}
+
+	if damage >= 19 then
+		style.color = Color3.fromRGB(255, 104, 82)
+		style.strokeColor = Color3.fromRGB(48, 8, 6)
+		style.strokeTransparency = 0.04
+		style.strokeThickness = 2.2
+		style.textSize = 28
+		style.startSize = UDim2.fromOffset(96, 40)
+		style.endSize = UDim2.fromOffset(124, 52)
+		style.rise = 1.22
+		style.duration = 0.56
+		style.easing = Enum.EasingStyle.Back
+	elseif damage >= 14 then
+		style.color = Color3.fromRGB(255, 150, 70)
+		style.strokeColor = Color3.fromRGB(56, 22, 6)
+		style.strokeTransparency = 0.08
+		style.strokeThickness = 1.8
+		style.textSize = 24
+		style.startSize = UDim2.fromOffset(82, 33)
+		style.endSize = UDim2.fromOffset(102, 42)
+		style.rise = 1
+		style.duration = 0.5
+		style.easing = Enum.EasingStyle.Back
+	elseif damage >= 5 then
+		style.color = Color3.fromRGB(255, 220, 92)
+		style.strokeColor = Color3.fromRGB(66, 36, 8)
+		style.strokeTransparency = 0.12
+		style.strokeThickness = 1.3
+		style.textSize = 21
+		style.startSize = UDim2.fromOffset(70, 28)
+		style.endSize = UDim2.fromOffset(84, 34)
+		style.rise = 0.84
+	end
+
 	local billboard = Instance.new("BillboardGui")
 	billboard.Name = DAMAGE_NUMBER_NAME
 	billboard.Adornee = root
 	billboard.AlwaysOnTop = true
 	billboard.MaxDistance = MAX_DISTANCE
-	billboard.Size = UDim2.fromOffset(64, 24)
+	billboard.Size = style.startSize
 	billboard.StudsOffset = Vector3.new(math.random(-12, 12) / 100, 4.15, 0)
 	billboard.Parent = root
 
@@ -3318,28 +3364,28 @@ local function showDamageNumber(model, damage)
 	label.Size = UDim2.fromScale(1, 1)
 	label.BackgroundTransparency = 1
 	label.Text = string.format("-%d", math.floor(damage + 0.5))
-	label.TextColor3 = HIT_COLOR
-	label.TextStrokeTransparency = 0.18
-	label.TextSize = 18
+	label.TextColor3 = style.color
+	label.TextStrokeTransparency = style.strokeTransparency
+	label.TextSize = style.textSize
 	label.Font = Enum.Font.GothamBlack
 	label.Parent = billboard
 
 	local stroke = Instance.new("UIStroke")
-	stroke.Color = Color3.fromRGB(65, 46, 8)
+	stroke.Color = style.strokeColor
 	stroke.Transparency = 0.08
-	stroke.Thickness = 1
+	stroke.Thickness = style.strokeThickness
 	stroke.Parent = label
 
 	local riseTween = TweenService:Create(billboard, TweenInfo.new(
-		DAMAGE_NUMBER_DURATION,
-		Enum.EasingStyle.Quad,
+		style.duration,
+		style.easing,
 		Enum.EasingDirection.Out
 	), {
-		Size = UDim2.fromOffset(72, 28),
-		StudsOffset = billboard.StudsOffset + Vector3.new(0, 0.72, 0),
+		Size = style.endSize,
+		StudsOffset = billboard.StudsOffset + Vector3.new(0, style.rise, 0),
 	})
 	local fadeTween = TweenService:Create(label, TweenInfo.new(
-		DAMAGE_NUMBER_DURATION,
+		style.duration,
 		Enum.EasingStyle.Quad,
 		Enum.EasingDirection.Out
 	), {
@@ -3347,7 +3393,7 @@ local function showDamageNumber(model, damage)
 		TextStrokeTransparency = 1,
 	})
 	local strokeTween = TweenService:Create(stroke, TweenInfo.new(
-		DAMAGE_NUMBER_DURATION,
+		style.duration,
 		Enum.EasingStyle.Quad,
 		Enum.EasingDirection.Out
 	), {
@@ -3364,7 +3410,7 @@ local function showDamageNumber(model, damage)
 		end
 	end)
 
-	task.delay(DAMAGE_NUMBER_DURATION + 0.08, function()
+	task.delay(style.duration + 0.08, function()
 		if billboard.Parent then
 			billboard:Destroy()
 		end
