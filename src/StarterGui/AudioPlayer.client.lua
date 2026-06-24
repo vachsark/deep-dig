@@ -111,6 +111,12 @@ local SOUNDS = {
 		volume = 0.45,
 		playbackSpeed = 1.35,
 	},
+	enemy_blocked = {
+		id = "rbxassetid://5982968246", -- soft blocked-action warning
+		volume = 0.24,
+		playbackSpeed = 1.7,
+		pitchRange = { 1.04, 1.1 },
+	},
 	enemy_attack_warning = {
 		id = "rbxassetid://5982968246", -- compact attack windup warning
 		volume = 0.36,

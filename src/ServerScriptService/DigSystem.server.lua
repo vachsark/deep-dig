@@ -9,6 +9,7 @@ local PetDatabase = require(ReplicatedStorage:WaitForChild("PetDatabase"))
 
 local EXCAVATOR_TOOL_NAME = "Excavator"
 local REFRESH_EXCAVATOR_VISUAL_EVENT_NAME = "RefreshExcavatorVisual"
+local ENEMY_DIG_BLOCKED_EVENT_NAME = "EnemyDigBlocked"
 
 local function getData(player)
 	return _G.DeepDig_playerData and _G.DeepDig_playerData[player.UserId]
@@ -405,7 +406,20 @@ local function hasBlockingEnemyNearDig(player, playerRoot, block)
 	return false, nil
 end
 
-local function notifyDigBlockedByEnemy(player, blockingEnemyModel)
+local function getOrCreateRemoteEvent(parent, eventName)
+	local remote = parent:FindFirstChild(eventName)
+	if remote and remote:IsA("RemoteEvent") then
+		return remote
+	end
+
+	remote = Instance.new("RemoteEvent")
+	remote.Name = eventName
+	remote.Parent = parent
+
+	return remote
+end
+
+local function notifyDigBlockedByEnemy(player, blockingEnemyModel, block)
 	local userId = player.UserId
 	local now = os.clock()
 	local nextNotifyAt = enemyBlockedNotifyByUserId[userId] or 0
@@ -421,8 +435,18 @@ local function notifyDigBlockedByEnemy(player, blockingEnemyModel)
 		Notify:FireClient(player, "Defeat this enemy first before digging.", "Rare")
 	end
 
+	local sentEnemyDigBlocked = false
+	local EnemyDigBlocked = getOrCreateRemoteEvent(Remotes, ENEMY_DIG_BLOCKED_EVENT_NAME)
+	if EnemyDigBlocked and blockingEnemyModel and blockingEnemyModel.Parent and block and block.Parent then
+		EnemyDigBlocked:FireClient(player, {
+			enemy = blockingEnemyModel,
+			block = block,
+		})
+		sentEnemyDigBlocked = true
+	end
+
 	local EnemyCombatFeedback = Remotes:FindFirstChild("EnemyCombatFeedback")
-	if EnemyCombatFeedback and blockingEnemyModel and blockingEnemyModel.Parent then
+	if EnemyCombatFeedback and not sentEnemyDigBlocked and blockingEnemyModel and blockingEnemyModel.Parent then
 		EnemyCombatFeedback:FireClient(player, {
 			type = "aggro",
 			reason = "dig_blocked",
@@ -464,7 +488,7 @@ local function breakBlock(player, block)
 
 	local hasBlockingEnemy, blockingEnemyModel = hasBlockingEnemyNearDig(player, hrp, block)
 	if hasBlockingEnemy then
-		notifyDigBlockedByEnemy(player, blockingEnemyModel)
+		notifyDigBlockedByEnemy(player, blockingEnemyModel, block)
 		return false
 	end
 
@@ -625,6 +649,7 @@ end
 -- Listen for dig requests from client
 local function setupDigRemote()
 	local Remotes = ReplicatedStorage:WaitForChild("Remotes")
+	getOrCreateRemoteEvent(Remotes, ENEMY_DIG_BLOCKED_EVENT_NAME)
 
 	-- Create the DigRequest remote for client→server block targeting
 	local digRequest = Instance.new("RemoteEvent")

@@ -225,6 +225,15 @@ activeFeedback.digBlockedDirection = {
 	tweens = {},
 	sequence = 0,
 }
+activeFeedback.digBlockedCue = {
+	guiName = "DeepDigEnemyDigBlockedCue",
+	blockPulseScale = 1.05,
+	blockPulseDuration = 0.18,
+	blockRestoreDelay = 0.42,
+	cueDuration = 0.56,
+	cueFadeDuration = 0.16,
+	blocks = {},
+}
 activeFeedback.minibossSpawnOverlay = {
 	guiName = "DeepDigMinibossSpawnOverlay",
 	displayOrder = 94,
@@ -1868,6 +1877,173 @@ function activeFeedback.playDigBlockedDirectionPulse(model)
 		end
 
 		config.tweens[edgeDirection] = nil
+	end)
+end
+
+function activeFeedback.playDigBlockedBlockPulse(block)
+	if not block or not block:IsA("BasePart") or not block:IsDescendantOf(workspace) then
+		return
+	end
+
+	local config = activeFeedback.digBlockedCue
+	local record = config.blocks[block]
+	if not record then
+		record = {
+			color = block.Color,
+			material = block.Material,
+			size = block.Size,
+			transparency = block.Transparency,
+			token = 0,
+			tween = nil,
+		}
+		config.blocks[block] = record
+	end
+
+	record.token = record.token + 1
+	local token = record.token
+
+	if record.tween then
+		record.tween:Cancel()
+		record.tween = nil
+	end
+
+	block.Color = ATTACK_WARNING_COLOR
+	block.Material = Enum.Material.Neon
+	block.Size = record.size * config.blockPulseScale
+	block.Transparency = math.min(record.transparency, 0.08)
+
+	record.tween = TweenService:Create(block, TweenInfo.new(
+		config.blockPulseDuration,
+		Enum.EasingStyle.Quad,
+		Enum.EasingDirection.Out
+	), {
+		Color = record.color,
+		Size = record.size,
+		Transparency = record.transparency,
+	})
+	record.tween:Play()
+	record.tween.Completed:Once(function()
+		if config.blocks[block] ~= record or record.token ~= token then
+			return
+		end
+
+		if block.Parent then
+			block.Color = record.color
+			block.Material = record.material
+			block.Size = record.size
+			block.Transparency = record.transparency
+		end
+		config.blocks[block] = nil
+	end)
+
+	task.delay(config.blockRestoreDelay, function()
+		if config.blocks[block] ~= record or record.token ~= token then
+			return
+		end
+
+		if block.Parent then
+			block.Color = record.color
+			block.Material = record.material
+			block.Size = record.size
+			block.Transparency = record.transparency
+		end
+		config.blocks[block] = nil
+	end)
+end
+
+function activeFeedback.showDigBlockedCue(model, block)
+	if not model or not model:IsA("Model") or not model:IsDescendantOf(workspace) then
+		activeFeedback.playDigBlockedBlockPulse(block)
+		return
+	end
+
+	local root = model:FindFirstChild("HumanoidRootPart")
+	if not root or not root:IsA("BasePart") then
+		activeFeedback.playDigBlockedBlockPulse(block)
+		return
+	end
+
+	activeFeedback.playDigBlockedBlockPulse(block)
+
+	local config = activeFeedback.digBlockedCue
+	local existing = root:FindFirstChild(config.guiName)
+	if existing then
+		existing:Destroy()
+	end
+
+	local billboard = Instance.new("BillboardGui")
+	billboard.Name = config.guiName
+	billboard.Adornee = root
+	billboard.AlwaysOnTop = true
+	billboard.MaxDistance = MAX_DISTANCE
+	billboard.Size = UDim2.fromOffset(122, 30)
+	billboard.StudsOffset = Vector3.new(0, 4.45, 0)
+	billboard.Parent = root
+
+	local frame = Instance.new("Frame")
+	frame.Name = "Cue"
+	frame.Size = UDim2.fromScale(1, 1)
+	frame.BackgroundColor3 = Color3.fromRGB(92, 10, 10)
+	frame.BackgroundTransparency = 0.06
+	frame.BorderSizePixel = 0
+	frame.Parent = billboard
+
+	local corner = Instance.new("UICorner")
+	corner.CornerRadius = UDim.new(0, 6)
+	corner.Parent = frame
+
+	local stroke = Instance.new("UIStroke")
+	stroke.Color = ATTACK_WARNING_COLOR
+	stroke.Transparency = 0.02
+	stroke.Thickness = 2
+	stroke.Parent = frame
+
+	local label = Instance.new("TextLabel")
+	label.Name = "Label"
+	label.Size = UDim2.fromScale(1, 1)
+	label.BackgroundTransparency = 1
+	label.Text = "DEFEAT FIRST"
+	label.TextColor3 = Color3.fromRGB(255, 240, 232)
+	label.TextStrokeTransparency = 0.32
+	label.TextSize = 13
+	label.Font = Enum.Font.GothamBlack
+	label.TextXAlignment = Enum.TextXAlignment.Center
+	label.TextYAlignment = Enum.TextYAlignment.Center
+	label.Parent = frame
+
+	local scale = Instance.new("UIScale")
+	scale.Scale = 0.88
+	scale.Parent = frame
+
+	TweenService:Create(scale, TweenInfo.new(
+		0.1,
+		Enum.EasingStyle.Back,
+		Enum.EasingDirection.Out
+	), {
+		Scale = 1.06,
+	}):Play()
+
+	task.delay(config.cueDuration, function()
+		if not billboard.Parent then
+			return
+		end
+
+		TweenService:Create(frame, TweenInfo.new(config.cueFadeDuration), {
+			BackgroundTransparency = 1,
+		}):Play()
+		TweenService:Create(stroke, TweenInfo.new(config.cueFadeDuration), {
+			Transparency = 1,
+		}):Play()
+		TweenService:Create(label, TweenInfo.new(config.cueFadeDuration), {
+			TextTransparency = 1,
+			TextStrokeTransparency = 1,
+		}):Play()
+
+		task.delay(config.cueFadeDuration + 0.04, function()
+			if billboard.Parent then
+				billboard:Destroy()
+			end
+		end)
 	end)
 end
 
@@ -4628,6 +4804,7 @@ local function pulseEnemy(model, feedbackType)
 
 	local isDefeated = feedbackType == "defeated"
 	local isAggro = feedbackType == "aggro"
+	local isDigBlocked = feedbackType == "dig_blocked"
 	local isAttackWarning = feedbackType == "enemy_attack_warning"
 	local isEnemySpawn = feedbackType == "enemy_spawn"
 	local isMinibossSpawn = feedbackType == "miniboss_spawn"
@@ -4650,6 +4827,11 @@ local function pulseEnemy(model, feedbackType)
 		pulseColor = AGGRO_COLOR
 		pulseScale = AGGRO_SCALE
 		pulseDuration = 0.24
+		restoreDelay = 0.4
+	elseif isDigBlocked then
+		pulseColor = ATTACK_WARNING_COLOR
+		pulseScale = AGGRO_SCALE
+		pulseDuration = 0.2
 		restoreDelay = 0.4
 	elseif isAttackWarning then
 		pulseColor = ATTACK_WARNING_COLOR
@@ -4705,6 +4887,23 @@ if player.Character then
 		attachLowHealthHumanoid(player.Character)
 	end)
 end
+
+Remotes:WaitForChild("EnemyDigBlocked").OnClientEvent:Connect(function(payload)
+	if typeof(payload) ~= "table" then
+		return
+	end
+
+	local model = payload.enemy or payload.model
+	local block = payload.block
+	activeFeedback.showDigBlockedCue(model, block)
+	activeFeedback.playDigBlockedDirectionPulse(model)
+	pulseEnemy(model, "dig_blocked")
+	playHapticBump(0.08, 0.06, 0.1)
+
+	if LocalPlaySound and LocalPlaySound:IsA("BindableEvent") then
+		LocalPlaySound:Fire("enemy_blocked")
+	end
+end)
 
 EnemyCombatFeedback.OnClientEvent:Connect(function(payload)
 	if typeof(payload) ~= "table" then
