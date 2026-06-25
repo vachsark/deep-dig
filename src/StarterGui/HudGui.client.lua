@@ -5650,6 +5650,176 @@ function showSellAllSummaryBurst(payload)
 end
 end
 
+DeepDigShowBackpackFullBurst = (function()
+local backpackFullUi = {}
+backpackFullUi.panel = Instance.new("Frame")
+backpackFullUi.panel.Name = "BackpackFullBurst"
+backpackFullUi.panel.AnchorPoint = Vector2.new(0.5, 0.5)
+backpackFullUi.panel.Size = UDim2.fromOffset(334, 112)
+backpackFullUi.panel.Position = UDim2.fromScale(0.5, 0.50)
+backpackFullUi.panel.BackgroundColor3 = Color3.fromRGB(42, 24, 20)
+backpackFullUi.panel.BackgroundTransparency = 1
+backpackFullUi.panel.BorderSizePixel = 0
+backpackFullUi.panel.Visible = false
+backpackFullUi.panel.ZIndex = 82
+backpackFullUi.panel.Parent = screenGui
+
+backpackFullUi.corner = Instance.new("UICorner")
+backpackFullUi.corner.CornerRadius = UDim.new(0, 11)
+backpackFullUi.corner.Parent = backpackFullUi.panel
+
+backpackFullUi.stroke = Instance.new("UIStroke")
+backpackFullUi.stroke.Color = Color3.fromRGB(255, 112, 82)
+backpackFullUi.stroke.Thickness = 2
+backpackFullUi.stroke.Transparency = 1
+backpackFullUi.stroke.Parent = backpackFullUi.panel
+
+local function constrainBackpackFullText(label, maxTextSize, minTextSize)
+	label.TextScaled = true
+	label.TextWrapped = true
+
+	local constraint = Instance.new("UITextSizeConstraint")
+	constraint.MaxTextSize = maxTextSize
+	constraint.MinTextSize = minTextSize or 10
+	constraint.Parent = label
+end
+
+backpackFullUi.title = Instance.new("TextLabel")
+backpackFullUi.title.Name = "Title"
+backpackFullUi.title.Size = UDim2.new(1, -28, 0, 26)
+backpackFullUi.title.Position = UDim2.fromOffset(14, 10)
+backpackFullUi.title.BackgroundTransparency = 1
+backpackFullUi.title.Text = "BACKPACK FULL"
+backpackFullUi.title.TextColor3 = Color3.fromRGB(255, 142, 104)
+backpackFullUi.title.TextTransparency = 1
+backpackFullUi.title.Font = Enum.Font.GothamBlack
+backpackFullUi.title.TextXAlignment = Enum.TextXAlignment.Center
+backpackFullUi.title.ZIndex = 83
+constrainBackpackFullText(backpackFullUi.title, 22, 12)
+backpackFullUi.title.Parent = backpackFullUi.panel
+
+backpackFullUi.item = Instance.new("TextLabel")
+backpackFullUi.item.Name = "Item"
+backpackFullUi.item.Size = UDim2.new(1, -32, 0, 32)
+backpackFullUi.item.Position = UDim2.fromOffset(16, 39)
+backpackFullUi.item.BackgroundTransparency = 1
+backpackFullUi.item.Text = "Found item blocked"
+backpackFullUi.item.TextColor3 = Color3.fromRGB(255, 238, 220)
+backpackFullUi.item.TextTransparency = 1
+backpackFullUi.item.Font = Enum.Font.GothamBlack
+backpackFullUi.item.TextXAlignment = Enum.TextXAlignment.Center
+backpackFullUi.item.ZIndex = 83
+constrainBackpackFullText(backpackFullUi.item, 20, 11)
+backpackFullUi.item.Parent = backpackFullUi.panel
+
+backpackFullUi.action = Instance.new("TextLabel")
+backpackFullUi.action.Name = "Action"
+backpackFullUi.action.Size = UDim2.new(1, -32, 0, 26)
+backpackFullUi.action.Position = UDim2.fromOffset(16, 75)
+backpackFullUi.action.BackgroundTransparency = 1
+backpackFullUi.action.Text = "Use Sell All to make room"
+backpackFullUi.action.TextColor3 = Color3.fromRGB(255, 214, 120)
+backpackFullUi.action.TextTransparency = 1
+backpackFullUi.action.Font = Enum.Font.GothamBold
+backpackFullUi.action.TextXAlignment = Enum.TextXAlignment.Center
+backpackFullUi.action.ZIndex = 83
+constrainBackpackFullText(backpackFullUi.action, 16, 10)
+backpackFullUi.action.Parent = backpackFullUi.panel
+
+local backpackFullFx = {
+	sequence = 0,
+	tweens = {},
+}
+
+local function clearBackpackFullTweens()
+	for _, tween in ipairs(backpackFullFx.tweens) do
+		tween:Cancel()
+	end
+	backpackFullFx.tweens = {}
+end
+
+local function tweenBackpackFull(instance, duration, goal, easingStyle, easingDirection)
+	local tween = TweenService:Create(
+		instance,
+		TweenInfo.new(duration, easingStyle or Enum.EasingStyle.Quad, easingDirection or Enum.EasingDirection.Out),
+		goal
+	)
+	table.insert(backpackFullFx.tweens, tween)
+	tween:Play()
+	return tween
+end
+
+return function(payload)
+	if type(payload) ~= "table" then
+		return
+	end
+	if payload.inventoryCapacity == "unlimited" then
+		return
+	end
+
+	local itemName = tostring(payload.name or "item")
+	local rarity = tostring(payload.rarity or "Common")
+	local capacity = tonumber(payload.inventoryCapacity)
+	local count = math.floor(tonumber(payload.inventoryCount) or capacity or 0)
+	local capacityText = capacity and (tostring(count) .. "/" .. tostring(capacity)) or "full"
+
+	backpackFullFx.sequence = backpackFullFx.sequence + 1
+	local sequence = backpackFullFx.sequence
+	clearBackpackFullTweens()
+
+	backpackFullUi.item.Text = rarity .. " " .. itemName .. " could not fit"
+	backpackFullUi.action.Text = "Backpack " .. capacityText .. " - use Sell All"
+	backpackFullUi.panel.Visible = true
+	backpackFullUi.panel.Size = UDim2.fromOffset(306, 102)
+	backpackFullUi.panel.Position = UDim2.fromScale(0.5, 0.52)
+	backpackFullUi.panel.BackgroundTransparency = 1
+	backpackFullUi.stroke.Transparency = 1
+	backpackFullUi.stroke.Thickness = 2
+	backpackFullUi.title.TextTransparency = 1
+	backpackFullUi.item.TextTransparency = 1
+	backpackFullUi.action.TextTransparency = 1
+
+	pulseSellAllButton()
+	if LocalPlaySound and LocalPlaySound:IsA("BindableEvent") then
+		LocalPlaySound:Fire("enemy_blocked")
+	end
+
+	tweenBackpackFull(backpackFullUi.panel, 0.16, {
+		Size = UDim2.fromOffset(352, 118),
+		Position = UDim2.fromScale(0.5, 0.44),
+		BackgroundTransparency = 0.04,
+	}, Enum.EasingStyle.Back)
+	tweenBackpackFull(backpackFullUi.stroke, 0.16, {
+		Transparency = 0,
+		Thickness = 3,
+	})
+	tweenBackpackFull(backpackFullUi.title, 0.12, { TextTransparency = 0 })
+	tweenBackpackFull(backpackFullUi.item, 0.16, { TextTransparency = 0 })
+	tweenBackpackFull(backpackFullUi.action, 0.2, { TextTransparency = 0 })
+
+	task.delay(2.2, function()
+		if sequence ~= backpackFullFx.sequence then
+			return
+		end
+
+		tweenBackpackFull(backpackFullUi.panel, 0.22, {
+			Position = UDim2.fromScale(0.5, 0.39),
+			BackgroundTransparency = 1,
+		}, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+		tweenBackpackFull(backpackFullUi.stroke, 0.2, { Transparency = 1 }, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+		tweenBackpackFull(backpackFullUi.title, 0.16, { TextTransparency = 1 }, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+		tweenBackpackFull(backpackFullUi.item, 0.16, { TextTransparency = 1 }, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+		local actionFade = tweenBackpackFull(backpackFullUi.action, 0.16, { TextTransparency = 1 }, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+		actionFade.Completed:Connect(function()
+			if sequence ~= backpackFullFx.sequence then
+				return
+			end
+			backpackFullUi.panel.Visible = false
+		end)
+	end)
+end
+end)()
+
 DeepDigShowMuseumTierCompleteBurst = (function()
 local museumTierCompleteUi = {}
 museumTierCompleteUi.panel = Instance.new("Frame")
@@ -8282,6 +8452,9 @@ Remotes.UpdateHUD.OnClientEvent:Connect(function(data)
 	end
 	if data.sellAllSummary then
 		showSellAllSummaryBurst(data.sellAllSummary)
+	end
+	if data.backpackFull then
+		DeepDigShowBackpackFullBurst(data.backpackFull)
 	end
 	if data.enemyDangerUnlocked then
 		showEnemyDangerUnlockedBurst(data.enemyDangerUnlocked)

@@ -1337,6 +1337,7 @@ BlockBrokenEvent.Event:Connect(function(player, blockPosition)
 
 	local autoCollectedPayload = nil
 	local artifactDetectedPayload = nil
+	local backpackFullPayload = nil
 	local rarePityTriggeredPayload = false
 
 	if math.random() < dropChance then
@@ -1524,6 +1525,13 @@ BlockBrokenEvent.Event:Connect(function(player, blockPosition)
 							end
 						end
 					end
+				else
+					backpackFullPayload = {
+						name = item.name,
+						rarity = item.rarity,
+						inventoryCount = data.inventory and #data.inventory or 0,
+						inventoryCapacity = getInventoryCapacityLabel(data),
+					}
 				end
 			end
 		end
@@ -1564,6 +1572,7 @@ BlockBrokenEvent.Event:Connect(function(player, blockPosition)
 		rebirths = data.rebirths or 0,
 		autoCollected = autoCollectedPayload,
 		artifactDetected = artifactDetectedPayload,
+		backpackFull = backpackFullPayload,
 		enemyDangerUnlocked = enemyDangerUnlockedPayload,
 		depthTierUnlocked = depthTierUnlockedPayload,
 		depthMilestone = depthMilestonePayload,
