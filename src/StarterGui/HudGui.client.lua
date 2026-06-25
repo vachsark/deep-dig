@@ -8377,10 +8377,6 @@ Remotes.EventTriggered.OnClientEvent:Connect(function(eventName, message, durati
 	DeepDigActiveEventHud.show(eventName, message, duration, effectId)
 	DeepDigEventStartFlash.play(eventName, message, duration, effectId)
 
-	if shouldPlayEventCameraShake(duration) and not isEarthquakeEvent(eventName, message, effectId) then
-		playEventCameraShake(eventName, effectId)
-	end
-
 	showNotification("⚡ " .. tostring(message or ""), "Legendary")
 end)
 
