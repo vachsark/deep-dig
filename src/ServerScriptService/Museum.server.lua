@@ -14,6 +14,7 @@ local Config = require(ReplicatedStorage:WaitForChild("Config"))
 local ItemDatabase = require(ReplicatedStorage:WaitForChild("ItemDatabase"))
 
 local Remotes = ReplicatedStorage:WaitForChild("Remotes")
+local NotifyEvent = Remotes:WaitForChild("Notify")
 local ServerEvents = ReplicatedStorage:WaitForChild("ServerEvents")
 local PlayerDataReady = ServerEvents:WaitForChild("PlayerDataReady")
 local ItemFoundBindable = ServerEvents:WaitForChild("ItemFoundBindable")
@@ -310,6 +311,20 @@ local function updateSeasonalVault(museum, data)
 			setSeasonalVaultState(placeholder, exclusive, hasCollectedSeasonalExclusive(data.collections, exclusive))
 		end
 	end
+end
+
+local function countCollectedSeasonalVaults(collections)
+	local collected = 0
+	local total = 0
+
+	for _, exclusive in ipairs(ItemDatabase.SEASONAL_EXCLUSIVES or {}) do
+		total = total + 1
+		if hasCollectedSeasonalExclusive(collections, exclusive) then
+			collected = collected + 1
+		end
+	end
+
+	return collected, total
 end
 
 local function isSeasonalExclusiveName(itemName)
@@ -695,7 +710,6 @@ DisplayItemEvent.OnServerEvent:Connect(function(player, inventoryIndex)
 	if not data.collections[item.name] then return end
 
 	if museum.displayedItems[item.name] then
-		local NotifyEvent = Remotes:FindFirstChild("Notify")
 		if NotifyEvent then
 			NotifyEvent:FireClient(player, item.name .. " is already on display.", "Common")
 		end
@@ -826,6 +840,12 @@ ItemFoundBindable.Event:Connect(function(player, item)
 
 		if wasLocked and nowUnlocked then
 			pulseSeasonalVaultUnlock(placeholder, exclusive)
+			NotifyEvent:FireClient(player, exclusive.season .. " Seasonal Vault unlocked: " .. item.name .. "!", exclusive.rarity or item.rarity or "Legendary")
+
+			local collectedVaults, totalVaults = countCollectedSeasonalVaults(data.collections)
+			if totalVaults > 0 and collectedVaults == totalVaults then
+				NotifyEvent:FireClient(player, "Seasonal Vault complete! All seasonal exclusives collected.", "Mythic")
+			end
 		end
 	end
 end)
