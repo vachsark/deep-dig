@@ -13,6 +13,17 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local SoundService = game:GetService("SoundService")
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
+local HapticService = nil
+
+do
+	local ok, service = pcall(function()
+		return game:GetService("HapticService")
+	end)
+
+	if ok then
+		HapticService = service
+	end
+end
 
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
@@ -71,10 +82,108 @@ local RarityColors = {
 local playing = false
 local pending = {}
 local skipRequested = false
+local hapticSupportChecked = false
+local hapticSupported = false
+local hapticMotorSupport = {}
+local hapticSequence = 0
+
+local HAPTIC_INPUT_TYPE = Enum.UserInputType.Gamepad1
+local HAPTIC_SMALL_MOTOR = Enum.VibrationMotor.Small
+local HAPTIC_LARGE_MOTOR = Enum.VibrationMotor.Large
+local CRACK_HAPTIC_DURATION = 0.055
+local CRACK_HAPTIC_SMALL_STRENGTH = 0.08
+local CRACK_HAPTIC_LARGE_STRENGTH = 0.14
+
+local RevealHapticProfiles = {
+	Common = { small = 0.06, large = 0.12, duration = 0.12 },
+	Uncommon = { small = 0.07, large = 0.14, duration = 0.14 },
+	Rare = { small = 0.08, large = 0.17, duration = 0.16 },
+	Epic = { small = 0.11, large = 0.24, duration = 0.2 },
+	Legendary = { small = 0.16, large = 0.36, duration = 0.28 },
+	Mythic = { small = 0.2, large = 0.45, duration = 0.34 },
+}
 
 -- ═══════════════════════════════════════════════════════════════════
 -- Animation
 -- ═══════════════════════════════════════════════════════════════════
+
+local function canUseHaptics()
+	if hapticSupportChecked then
+		return hapticSupported
+	end
+
+	hapticSupportChecked = true
+	if not HapticService then
+		return false
+	end
+
+	local ok, supported = pcall(function()
+		return HapticService:IsVibrationSupported(HAPTIC_INPUT_TYPE)
+	end)
+	hapticSupported = ok and supported == true
+	return hapticSupported
+end
+
+local function canUseHapticMotor(motor)
+	if not canUseHaptics() then
+		return false
+	end
+
+	if hapticMotorSupport[motor] ~= nil then
+		return hapticMotorSupport[motor]
+	end
+
+	local ok, supported = pcall(function()
+		return HapticService:IsMotorSupported(HAPTIC_INPUT_TYPE, motor)
+	end)
+	hapticMotorSupport[motor] = ok and supported == true
+	return hapticMotorSupport[motor]
+end
+
+local function setHapticMotor(motor, strength)
+	if not canUseHapticMotor(motor) then
+		return
+	end
+
+	pcall(function()
+		HapticService:SetMotor(HAPTIC_INPUT_TYPE, motor, strength)
+	end)
+end
+
+local function clearHapticPulse(sequence)
+	if sequence and sequence ~= hapticSequence then
+		return
+	end
+
+	setHapticMotor(HAPTIC_SMALL_MOTOR, 0)
+	setHapticMotor(HAPTIC_LARGE_MOTOR, 0)
+end
+
+local function playHapticPulse(smallStrength, largeStrength, duration)
+	hapticSequence = hapticSequence + 1
+	local sequence = hapticSequence
+
+	setHapticMotor(HAPTIC_SMALL_MOTOR, smallStrength)
+	setHapticMotor(HAPTIC_LARGE_MOTOR, largeStrength)
+
+	task.delay(duration, function()
+		clearHapticPulse(sequence)
+	end)
+end
+
+local function stopHaptics()
+	hapticSequence = hapticSequence + 1
+	clearHapticPulse()
+end
+
+local function playCrackHaptics()
+	playHapticPulse(CRACK_HAPTIC_SMALL_STRENGTH, CRACK_HAPTIC_LARGE_STRENGTH, CRACK_HAPTIC_DURATION)
+end
+
+local function playRevealHaptics(rarity)
+	local profile = RevealHapticProfiles[rarity] or RevealHapticProfiles.Common
+	playHapticPulse(profile.small, profile.large, profile.duration)
+end
 
 local function getPetColor(name)
 	if PetDatabase and type(PetDatabase.getPet) == "function" then
@@ -189,6 +298,7 @@ local function playRevealAnimation(rarity, name)
 			uisConn:Disconnect()
 			uisConn = nil
 		end
+		stopHaptics()
 		cleanup()
 		return true
 	end
@@ -325,8 +435,11 @@ local function playRevealAnimation(rarity, name)
 			UDim2.new(0.5, 6, 0.5, 0),
 			origPos,
 		}
-		for _, target in ipairs(wobbles) do
+		for i, target in ipairs(wobbles) do
 			if skipRequested then break end
+			if i == 1 or i == 3 or i == 5 then
+				playCrackHaptics()
+			end
 			tweenAndWait(
 				eggHolder,
 				TweenInfo.new(0.4 / #wobbles, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut),
@@ -340,6 +453,7 @@ local function playRevealAnimation(rarity, name)
 	-- (4) White flash — fade IN to fully white, then OUT while the egg
 	-- shrinks to nothing. The crack moment.
 	playLocalSound("egg_crack")
+	playCrackHaptics()
 	local flashIn = TweenService:Create(
 		eggFlash,
 		TweenInfo.new(0.1, Enum.EasingStyle.Linear),
@@ -369,6 +483,7 @@ local function playRevealAnimation(rarity, name)
 	-- (5) Pet-name flourish — fade in + scale up to slightly past 1, then
 	-- settle, then hold. 1.0s total display.
 	playLocalSound(revealSoundKey)
+	playRevealHaptics(rarity)
 	nameLabel.Visible = true
 	local nameTextIn = TweenService:Create(
 		nameLabel,
