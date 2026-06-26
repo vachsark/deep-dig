@@ -7,7 +7,7 @@
 --     itemName = item.name,
 --   })
 -- Supported event types:
---   blocks_dug, items_found, rarity_found, coins_earned, kill_enemies, depth_reached
+--   blocks_dug, items_found, rarity_found, coins_earned, kill_enemies, miniboss_kills, depth_reached
 -- Block breaks still come through ServerEvents.BlockBroken.
 -- Enemy kills come through ServerEvents.EnemyKilledBindable.
 
@@ -264,6 +264,13 @@ local function getEventRarity(eventData)
 	return nil
 end
 
+local function getEventEnemyId(eventData)
+	if type(eventData) == "table" then
+		return eventData.enemyId or eventData.id
+	end
+	return nil
+end
+
 local function normalizeEventType(eventType)
 	if type(eventType) ~= "string" then
 		return nil
@@ -282,6 +289,10 @@ local function normalizeEventType(eventType)
 		enemies_killed = "kill_enemies",
 		kill_enemy = "kill_enemies",
 		kill_enemies = "kill_enemies",
+		miniboss_killed = "miniboss_kills",
+		miniboss_defeated = "miniboss_kills",
+		miniboss_kills = "miniboss_kills",
+		hollow_king_defeated = "miniboss_kills",
 		depth = "depth_reached",
 		depth_reached = "depth_reached",
 		rarity_found = "rarity_found",
@@ -404,6 +415,23 @@ local function applyProgress(player, eventType, eventData)
 		return
 	end
 
+	if normalizedType == "miniboss_kills" then
+		local weeklyQuest = resolveWeeklyQuest(data)
+		if type(weeklyQuest) ~= "table" or weeklyQuest.type ~= "miniboss_kills" or data.weeklyQuestClaimed then
+			return
+		end
+
+		local enemyId = getEventEnemyId(eventData)
+		if weeklyQuest.enemyIdFilter and weeklyQuest.enemyIdFilter ~= enemyId then
+			return
+		end
+
+		local amount = getEventAmount(eventData, 1)
+		local current = getNumber(data.weeklyQuestProgress, 0)
+		data.weeklyQuestProgress = math.min(weeklyQuest.target, current + amount)
+		return
+	end
+
 	if normalizedType == "depth_reached" then
 		local depth = getEventDepth(eventData)
 		if not depth then
@@ -451,6 +479,7 @@ local function buildQuestStatus(player)
 			weeklyStatus = {
 				id = weeklyQuest.id,
 				description = weeklyQuest.description,
+				type = weeklyQuest.type,
 				progress = 0,
 				target = weeklyQuest.target,
 				complete = false,
@@ -489,6 +518,7 @@ local function buildQuestStatus(player)
 		weeklyStatus = {
 			id = weeklyQuest.id,
 			description = weeklyQuest.description,
+			type = weeklyQuest.type,
 			progress = progress,
 			target = weeklyQuest.target,
 			complete = progress >= weeklyQuest.target,
@@ -510,6 +540,7 @@ local function buildQuestHudSummary(player)
 	return {
 		day = status.day,
 		quests = status.quests,
+		weekly = status.weekly,
 	}
 end
 

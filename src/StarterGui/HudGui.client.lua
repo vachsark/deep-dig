@@ -518,6 +518,9 @@ local function questSideAccentColor(questType, complete)
 	if questType == "kill_enemies" then
 		return Color3.fromRGB(255, 105, 85)
 	end
+	if questType == "miniboss_kills" then
+		return Color3.fromRGB(215, 85, 255)
+	end
 	if questType == "coins_earned" then
 		return Color3.fromRGB(90, 210, 125)
 	end
@@ -553,6 +556,15 @@ function DeepDigUpdateQuestSidePanel(summary)
 			end
 		end
 	end
+	local hasWeeklyQuest = false
+	if type(summary.weekly) == "table" then
+		local target = questSideSafeNumber(summary.weekly.target)
+		local description = type(summary.weekly.description) == "string" and summary.weekly.description or ""
+		if target > 0 and description ~= "" then
+			quests[#quests + 1] = summary.weekly
+			hasWeeklyQuest = true
+		end
+	end
 
 	if #quests == 0 then
 		questSidePanel.Visible = false
@@ -561,6 +573,7 @@ function DeepDigUpdateQuestSidePanel(summary)
 	end
 
 	local visibleCount = math.min(#quests, QUEST_SIDE_PANEL_MAX_ROWS)
+	questSideTitle.Text = hasWeeklyQuest and "Quests" or "Daily Quests"
 	questSidePanel.Size = UDim2.new(
 		0,
 		QUEST_SIDE_PANEL_WIDTH,

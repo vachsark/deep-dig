@@ -108,6 +108,14 @@ module.weeklyQuest = {
 module.weeklyQuests = {
 	module.weeklyQuest,
 	{
+		id = "weekly_hollow_king",
+		description = "Defeat Hollow King this week",
+		type = "miniboss_kills",
+		target = 1,
+		enemyIdFilter = "hollow_king",
+		reward = { coins = 5000, fragments = 40 },
+	},
+	{
 		id = "weekly_depth_100",
 		description = "Reach depth 100 this week",
 		type = "depth_reached",

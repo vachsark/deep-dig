@@ -563,6 +563,13 @@ local function onEnemyDied(record)
 			}
 		end
 		fireEnemyCombatFeedback(feedbackPlayer, "miniboss_defeated", record.model, nil, minibossDefeatReward)
+		if rewardedPlayer and record.enemy.id == HOLLOW_KING_ID then
+			fireQuestProgress(rewardedPlayer, "miniboss_kills", {
+				amount = 1,
+				enemyId = HOLLOW_KING_ID,
+				enemyName = record.enemy.name or "Hollow King",
+			})
+		end
 	end
 	notifyMinibossDefeat(record, rewardedPlayer)
 	task.delay(2, function()
