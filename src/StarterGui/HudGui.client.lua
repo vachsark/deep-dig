@@ -2634,6 +2634,51 @@ local RARITY_COLORS = {
 	Mythic    = Color3.fromRGB(255, 50, 50),
 }
 
+DeepDigRareRevealSound = {
+	rarityRank = {
+		Common = 1,
+		Uncommon = 2,
+		Rare = 3,
+		Epic = 4,
+		Legendary = 5,
+		Mythic = 6,
+	},
+	minRank = 5,
+	lowRarities = {
+		Common = true,
+		Uncommon = true,
+		Rare = true,
+		Epic = true,
+	},
+	cooldown = 0.45,
+	lastPlayedAt = -math.huge,
+}
+
+function DeepDigShouldPlayRareRevealForRarity(rarity)
+	if typeof(rarity) ~= "string" then
+		return false
+	end
+
+	local rank = DeepDigRareRevealSound.rarityRank[rarity]
+	if rank then
+		return rank >= DeepDigRareRevealSound.minRank
+	end
+
+	return DeepDigRareRevealSound.lowRarities[rarity] ~= true
+end
+
+function DeepDigPlayRareRevealSound()
+	local now = os.clock()
+	if now - DeepDigRareRevealSound.lastPlayedAt < DeepDigRareRevealSound.cooldown then
+		return
+	end
+
+	DeepDigRareRevealSound.lastPlayedAt = now
+	if LocalPlaySound and LocalPlaySound:IsA("BindableEvent") then
+		LocalPlaySound:Fire("rare_reveal")
+	end
+end
+
 local LEGENDARY_FIND_FLASH_RARITIES = {
 	Legendary = {
 		overlayColor = Color3.fromRGB(255, 218, 82),
@@ -3009,8 +3054,8 @@ function DeepDigPlaySeasonalExclusiveReveal(item)
 		}):Play()
 	end)
 
-	if LocalPlaySound and LocalPlaySound:IsA("BindableEvent") then
-		LocalPlaySound:Fire("rare_reveal")
+	if DeepDigShouldPlayRareRevealForRarity(rarity) then
+		DeepDigPlayRareRevealSound()
 	end
 
 	task.delay(1.35, function()
@@ -8517,6 +8562,8 @@ end
 
 Remotes.ItemFound.OnClientEvent:Connect(function(item)
 	local function playItemFoundFlow()
+		local playedSeasonalReveal = false
+
 		if item and LEGENDARY_FIND_FLASH_RARITIES[item.rarity] then
 			playLegendaryFindFlash(item.rarity, item)
 			LEGENDARY_FIND_FLASH_RARITIES._cameraBump.play(item.rarity)
@@ -8527,7 +8574,12 @@ Remotes.ItemFound.OnClientEvent:Connect(function(item)
 		end
 
 		if item and (item.seasonalExclusive == true or item.seasonId ~= nil) then
+			playedSeasonalReveal = true
 			DeepDigPlaySeasonalExclusiveReveal(item)
+		end
+
+		if item and not playedSeasonalReveal and DeepDigShouldPlayRareRevealForRarity(item.rarity) then
+			DeepDigPlayRareRevealSound()
 		end
 
 		if item then
