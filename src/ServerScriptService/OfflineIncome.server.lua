@@ -60,8 +60,20 @@ local function hasOwnedGamepass(data, passId, passKey)
 	return ownedGamepasses[passId] == true or (passKey and ownedGamepasses[passKey] == true)
 end
 
+local function hasForemanPass(data)
+	return hasOwnedGamepass(data, Config.GAMEPASS_FOREMAN_ID, Config.GAMEPASS_FOREMAN)
+end
+
+local function isForemanPassAvailable()
+	return type(Config.isGamepassIdAvailable) == "function"
+		and Config.isGamepassIdAvailable(Config.GAMEPASS_FOREMAN_ID)
+end
+
 local function getOfflineSecondsCap(data)
-	-- Foreman's Pass is intentionally not wired yet; keep v1 capped at 8h.
+	if hasForemanPass(data) then
+		return Config.OFFLINE_INCOME_FOREMAN_CAP_SECONDS
+	end
+
 	return Config.OFFLINE_INCOME_DEFAULT_CAP_SECONDS
 end
 
@@ -114,6 +126,7 @@ local function grantOfflineIncome(player)
 	local offlineSecondsCap = getOfflineSecondsCap(data)
 	local offlineSeconds = processedAt - previousLastSeenAt
 	local elapsed = math.min(offlineSeconds, offlineSecondsCap)
+	local foremanPassOwned = hasForemanPass(data)
 	local tool = Config.TOOLS[data.toolTier] or Config.TOOLS[1]
 	local toolDamage = tool and tool.damage or 1
 	local coinsPerMinute = toolDamage * Config.OFFLINE_INCOME_COINS_PER_DAMAGE_PER_MINUTE
@@ -145,6 +158,9 @@ local function grantOfflineIncome(player)
 		toolName = tool and tool.name or "Tool",
 		coinsPerMinute = coinsPerMinute,
 		hitCap = offlineSeconds >= offlineSecondsCap,
+		foremanPassOwned = foremanPassOwned,
+		foremanPassAvailable = isForemanPassAvailable(),
+		foremanPassId = Config.GAMEPASS_FOREMAN_ID,
 	}
 
 	NotifyEvent:FireClient(

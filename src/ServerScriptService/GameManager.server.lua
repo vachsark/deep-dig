@@ -387,8 +387,20 @@ local addStandardHudFields
 local getEquippedPetRecord
 local getEquippedPetMultipliers
 
+local function hasForemanPass(data)
+	return hasOwnedGamepass(data, Config.GAMEPASS_FOREMAN_ID, Config.GAMEPASS_FOREMAN)
+end
+
+local function isForemanPassAvailable()
+	return type(Config.isGamepassIdAvailable) == "function"
+		and Config.isGamepassIdAvailable(Config.GAMEPASS_FOREMAN_ID)
+end
+
 local function getOfflineIncomeCapSeconds(data)
-	-- Foreman's Pass is intentionally not wired yet; keep v1 capped at 8h.
+	if hasForemanPass(data) then
+		return Config.OFFLINE_INCOME_FOREMAN_CAP_SECONDS
+	end
+
 	return Config.OFFLINE_INCOME_DEFAULT_CAP_SECONDS
 end
 
@@ -433,6 +445,7 @@ local function grantOfflineIncome(player, data)
 		return nil
 	end
 
+	local foremanPassOwned = hasForemanPass(data)
 	local capSeconds = getOfflineIncomeCapSeconds(data)
 	local countedSeconds = math.min(offlineSeconds, capSeconds)
 	local tool = Config.TOOLS[data.toolTier] or Config.TOOLS[1]
@@ -456,6 +469,9 @@ local function grantOfflineIncome(player, data)
 		toolName = tool and tool.name or "Tool",
 		coinsPerMinute = coinsPerMinute,
 		hitCap = offlineSeconds >= capSeconds,
+		foremanPassOwned = foremanPassOwned,
+		foremanPassAvailable = isForemanPassAvailable(),
+		foremanPassId = Config.GAMEPASS_FOREMAN_ID,
 	}
 end
 
@@ -482,6 +498,9 @@ local function notifyOfflineIncome(player, data, result)
 				toolName = result.toolName,
 				coinsPerMinute = result.coinsPerMinute,
 				hitCap = result.hitCap == true,
+				foremanPassOwned = result.foremanPassOwned == true,
+				foremanPassAvailable = result.foremanPassAvailable == true,
+				foremanPassId = result.foremanPassId,
 			},
 		}, data, player))
 	end)

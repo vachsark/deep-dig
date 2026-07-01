@@ -6774,6 +6774,7 @@ do
 		maxSparkles = 14,
 		foremanUpsellActive = false,
 		foremanUpsellAvailable = false,
+		foremanPassId = Config.GAMEPASS_FOREMAN_ID,
 	}
 	offlineIncomeState.foremanUpsell = offlineIncomePanel:WaitForChild("ForemanPass")
 
@@ -6933,10 +6934,14 @@ do
 		local cappedAwayDuration = summary.cappedAwayDuration or "0m"
 		local toolName = summary.toolName or "Your tool"
 		local coinsPerMinute = math.floor(tonumber(summary.coinsPerMinute) or 0)
+		local foremanPassId = tonumber(summary.foremanPassId) or Config.GAMEPASS_FOREMAN_ID
+		local foremanPassOwned = summary.foremanPassOwned == true
+		local foremanPassAvailable = summary.foremanPassAvailable == true
+			and type(Config.isGamepassIdAvailable) == "function"
+			and Config.isGamepassIdAvailable(foremanPassId)
+		local showForemanUpsell = summary.hitCap == true and not foremanPassOwned and foremanPassAvailable
 		local sourceLine = toolName .. " earned " .. tostring(coinsPerMinute) .. "/min while you were away"
-		local popupKey = tostring(reward) .. "|" .. tostring(countedDuration) .. "|" .. tostring(capDuration) .. "|" .. tostring(totalDuration) .. "|" .. tostring(cappedAwayDuration) .. "|" .. tostring(toolName) .. "|" .. tostring(coinsPerMinute) .. "|" .. tostring(summary.hitCap == true)
-		local showForemanUpsell = false
-		local foremanPassAvailable = false
+		local popupKey = tostring(reward) .. "|" .. tostring(countedDuration) .. "|" .. tostring(capDuration) .. "|" .. tostring(totalDuration) .. "|" .. tostring(cappedAwayDuration) .. "|" .. tostring(toolName) .. "|" .. tostring(coinsPerMinute) .. "|" .. tostring(summary.hitCap == true) .. "|" .. tostring(foremanPassOwned) .. "|" .. tostring(foremanPassAvailable)
 		if popupKey == offlineIncomeState.lastKey then
 			return
 		end
@@ -6946,25 +6951,30 @@ do
 		local sequence = offlineIncomeState.sequence
 		offlineIncomeState.foremanUpsellActive = showForemanUpsell
 		offlineIncomeState.foremanUpsellAvailable = foremanPassAvailable
+		offlineIncomeState.foremanPassId = foremanPassId
 		clearOfflineIncomeSparkles()
 		clearOfflineIncomeTweens()
 
 		offlineIncomeReward.Text = "+" .. tostring(reward) .. " coins"
 		offlineIncomeClaim.Text = "Collect"
-		offlineIncomeClaim.Size = UDim2.new(0, 150, 0, 34)
-		offlineIncomeClaim.Position = UDim2.new(0.5, -75, 1, -44)
+		offlineIncomeClaim.Size = showForemanUpsell and UDim2.new(0, 132, 0, 34) or UDim2.new(0, 150, 0, 34)
+		offlineIncomeClaim.Position = showForemanUpsell and UDim2.new(0.5, -140, 1, -44) or UDim2.new(0.5, -75, 1, -44)
 		offlineIncomeClaim.BackgroundColor3 = Color3.fromRGB(255, 200, 50)
 		offlineIncomeClaim.TextColor3 = Color3.fromRGB(40, 20, 0)
-		offlineIncomeState.foremanUpsell.Visible = false
-		offlineIncomeState.foremanUpsell.Active = false
-		offlineIncomeState.foremanUpsell.AutoButtonColor = false
+		offlineIncomeState.foremanUpsell.Size = UDim2.new(0, 150, 0, 34)
+		offlineIncomeState.foremanUpsell.Position = UDim2.new(0.5, -2, 1, -44)
+		offlineIncomeState.foremanUpsell.Visible = showForemanUpsell
+		offlineIncomeState.foremanUpsell.Active = showForemanUpsell
+		offlineIncomeState.foremanUpsell.AutoButtonColor = showForemanUpsell
 		offlineIncomeState.foremanUpsell.BackgroundColor3 = Color3.fromRGB(95, 205, 160)
 		offlineIncomeState.foremanUpsell.TextColor3 = Color3.fromRGB(8, 35, 24)
-		offlineIncomeState.foremanUpsell.Text = "Foreman's Pass"
+		offlineIncomeState.foremanUpsell.Text = "Get 24h Pass"
 
 		offlineIncomeBody.Text = sourceLine .. "."
 		if summary.hitCap == true then
 			offlineIncomeCap.Text = "Counted " .. countedDuration .. " of " .. totalDuration .. " away; " .. cappedAwayDuration .. " not counted by the " .. capDuration .. " cap."
+		elseif foremanPassOwned then
+			offlineIncomeCap.Text = "Foreman's Pass active: offline income can count up to " .. capDuration .. "."
 		else
 			offlineIncomeCap.Text = "Offline time counted: " .. countedDuration
 		end
@@ -7024,7 +7034,14 @@ do
 	end)
 
 	offlineIncomeState.foremanUpsell.MouseButton1Click:Connect(function()
-		return
+		if not offlineIncomeState.foremanUpsellActive or not offlineIncomeState.foremanUpsellAvailable then
+			return
+		end
+
+		local promptGamepass = Remotes:FindFirstChild("PromptGamepass")
+		if promptGamepass and promptGamepass:IsA("RemoteEvent") then
+			promptGamepass:FireServer(offlineIncomeState.foremanPassId or Config.GAMEPASS_FOREMAN_ID)
+		end
 	end)
 end
 
