@@ -213,8 +213,6 @@ local function addItemReward(player, data, tierName, dropPosition)
 		if data.collections then
 			data.collections[item.name] = true
 		end
-		fireQuestProgress(player, "items_found", { amount = 1 })
-		fireQuestProgress(player, "rarity_found", { amount = 1, rarity = item.rarity })
 		if ItemFoundEvent then
 			local clientPayload = table.clone(item)
 			if (item.rarity == "Legendary" or item.rarity == "Mythic") and dropPosition then
@@ -318,7 +316,6 @@ local function payEnemyReward(record)
 	data.fragments = (data.fragments or 0) + enemy.fragmentDrop
 	data.totalEarned = (data.totalEarned or 0) + coinReward
 
-	fireQuestProgress(player, "coins_earned", { amount = coinReward })
 	EnemyKilledBindable:Fire(player, enemy)
 
 	local itemReward = nil

@@ -92,7 +92,7 @@ local module = {
 	{
 		id = "defeat_3_enemies",
 		description = "Defeat 3 buried enemies",
-		shortName = "Defeat 3",
+		shortName = "Defeat 3 Enemies",
 		type = "kill_enemies",
 		target = 3,
 		rarityFilter = nil,
@@ -101,13 +101,13 @@ local module = {
 	},
 	{
 		id = "defeat_6_enemies",
-		description = "Defeat 6 buried enemies",
-		shortName = "Defeat 6",
+		description = "Defeat 5 buried enemies",
+		shortName = "Defeat 5 Enemies",
 		type = "kill_enemies",
-		target = 6,
+		target = 5,
 		rarityFilter = nil,
-		reward = { coins = 1300, fragments = 9 },
-		rewardText = "+1,300 coins, +9 fragments",
+		reward = { coins = 1100, fragments = 8 },
+		rewardText = "+1,100 coins, +8 fragments",
 	},
 	{
 		id = "reach_depth_50",
