@@ -61,10 +61,7 @@ local function hasOwnedGamepass(data, passId, passKey)
 end
 
 local function getOfflineSecondsCap(data)
-	if hasOwnedGamepass(data, Config.GAMEPASS_FOREMAN_ID, Config.GAMEPASS_FOREMAN) then
-		return Config.OFFLINE_INCOME_FOREMAN_CAP_SECONDS
-	end
-
+	-- Foreman's Pass is intentionally not wired yet; keep v1 capped at 8h.
 	return Config.OFFLINE_INCOME_DEFAULT_CAP_SECONDS
 end
 
@@ -100,19 +97,27 @@ local function grantOfflineIncome(player)
 		return
 	end
 
-	local previousLastSeenAt = data.lastSeenAt or 0
+	local processedAt = os.time()
+	local previousLastSeenAt = math.floor(tonumber(data.lastSeenAt) or 0)
+	data.lastLoginAt = processedAt
+
 	if previousLastSeenAt <= 0 then
+		data.lastSeenAt = processedAt
+		return
+	end
+
+	if previousLastSeenAt > processedAt then
+		data.lastSeenAt = processedAt
 		return
 	end
 
 	local offlineSecondsCap = getOfflineSecondsCap(data)
-	local offlineSeconds = math.max(0, os.time() - previousLastSeenAt)
+	local offlineSeconds = processedAt - previousLastSeenAt
 	local elapsed = math.min(offlineSeconds, offlineSecondsCap)
 	local tool = Config.TOOLS[data.toolTier] or Config.TOOLS[1]
 	local toolDamage = tool and tool.damage or 1
 	local coinsPerMinute = toolDamage * Config.OFFLINE_INCOME_COINS_PER_DAMAGE_PER_MINUTE
 	local reward = math.floor((elapsed / 60) * coinsPerMinute)
-	local processedAt = os.time()
 
 	if reward < 1 then
 		data.lastSeenAt = processedAt

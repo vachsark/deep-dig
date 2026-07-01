@@ -6830,10 +6830,10 @@ do
 		local cappedAwayDuration = summary.cappedAwayDuration or "0m"
 		local toolName = summary.toolName or "Your tool"
 		local coinsPerMinute = math.floor(tonumber(summary.coinsPerMinute) or 0)
-		local sourceLine = toolName .. " earned " .. tostring(coinsPerMinute) .. "/min"
+		local sourceLine = toolName .. " earned " .. tostring(coinsPerMinute) .. "/min while you were away"
 		local popupKey = tostring(reward) .. "|" .. tostring(countedDuration) .. "|" .. tostring(capDuration) .. "|" .. tostring(totalDuration) .. "|" .. tostring(cappedAwayDuration) .. "|" .. tostring(toolName) .. "|" .. tostring(coinsPerMinute) .. "|" .. tostring(summary.hitCap == true)
-		local showForemanUpsell = summary.hitCap == true and tostring(capDuration) == offlineIncomeState.normalCapDuration
-		local foremanPassAvailable = Config.isGamepassIdAvailable(Config.GAMEPASS_FOREMAN_ID)
+		local showForemanUpsell = false
+		local foremanPassAvailable = false
 		if popupKey == offlineIncomeState.lastKey then
 			return
 		end
@@ -6859,27 +6859,10 @@ do
 		offlineIncomeState.foremanUpsell.TextColor3 = Color3.fromRGB(8, 35, 24)
 		offlineIncomeState.foremanUpsell.Text = "Foreman's Pass"
 
-		if showForemanUpsell then
-			offlineIncomeBody.Text = sourceLine .. ". Counted " .. countedDuration .. " of " .. totalDuration .. " away."
-			offlineIncomeCap.Text = cappedAwayDuration .. " not counted. Foreman's Pass extends earnings to " .. offlineIncomeState.foremanCapDuration .. "."
-			offlineIncomeClaim.Size = UDim2.new(0, 130, 0, 34)
-			offlineIncomeClaim.Position = UDim2.new(0.5, -140, 1, -44)
-			offlineIncomeState.foremanUpsell.Position = UDim2.new(0.5, -5, 1, -44)
-			offlineIncomeState.foremanUpsell.Visible = true
-			if foremanPassAvailable then
-				offlineIncomeState.foremanUpsell.Active = true
-				offlineIncomeState.foremanUpsell.AutoButtonColor = true
-			else
-				offlineIncomeState.foremanUpsell.Text = Config.UNAVAILABLE_GAMEPASS_LABEL or "Coming Soon"
-				offlineIncomeState.foremanUpsell.BackgroundColor3 = Color3.fromRGB(80, 76, 70)
-				offlineIncomeState.foremanUpsell.TextColor3 = Color3.fromRGB(190, 184, 170)
-			end
-		else
-			offlineIncomeBody.Text = sourceLine .. "."
-		end
-		if summary.hitCap == true and not showForemanUpsell then
+		offlineIncomeBody.Text = sourceLine .. "."
+		if summary.hitCap == true then
 			offlineIncomeCap.Text = "Counted " .. countedDuration .. " of " .. totalDuration .. " away; " .. cappedAwayDuration .. " not counted by the " .. capDuration .. " cap."
-		elseif not showForemanUpsell then
+		else
 			offlineIncomeCap.Text = "Offline time counted: " .. countedDuration
 		end
 
@@ -6938,12 +6921,7 @@ do
 	end)
 
 	offlineIncomeState.foremanUpsell.MouseButton1Click:Connect(function()
-		if not offlineIncomeState.foremanUpsellActive or not offlineIncomeState.foremanUpsellAvailable then
-			return
-		end
-		if Remotes:FindFirstChild("PromptGamepass") then
-			Remotes.PromptGamepass:FireServer(Config.GAMEPASS_FOREMAN_ID)
-		end
+		return
 	end)
 end
 

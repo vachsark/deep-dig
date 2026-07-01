@@ -187,6 +187,7 @@ local DEFAULT_DATA = {
 	enemyKillCounts = {}, -- { [enemyId] = defeatedCount }
 	totalEarned = 0,
 	lastSeenAt = 0,      -- Unix timestamp of the last successful save
+	lastLoginAt = 0,     -- Unix timestamp of the current/most recent login
 	lastLoginDate = "",   -- "YYYY-MM-DD" for streak tracking
 	loginStreak = 0,      -- Consecutive daily login count
 	streakReviveEligible = false,
@@ -387,10 +388,7 @@ local getEquippedPetRecord
 local getEquippedPetMultipliers
 
 local function getOfflineIncomeCapSeconds(data)
-	if hasOwnedGamepass(data, Config.GAMEPASS_FOREMAN_ID, Config.GAMEPASS_FOREMAN) then
-		return Config.OFFLINE_INCOME_FOREMAN_CAP_SECONDS
-	end
-
+	-- Foreman's Pass is intentionally not wired yet; keep v1 capped at 8h.
 	return Config.OFFLINE_INCOME_DEFAULT_CAP_SECONDS
 end
 
@@ -414,13 +412,21 @@ end
 local function grantOfflineIncome(player, data)
 	offlineIncomeHandled[player.UserId] = true
 
-	local previousLastSeenAt = data.lastSeenAt or 0
+	local now = os.time()
+	local previousLastSeenAt = math.floor(tonumber(data.lastSeenAt) or 0)
+	data.lastLoginAt = now
+
 	if previousLastSeenAt <= 0 then
+		data.lastSeenAt = now
 		return nil
 	end
 
-	local now = os.time()
-	local offlineSeconds = math.max(0, now - previousLastSeenAt)
+	if previousLastSeenAt > now then
+		data.lastSeenAt = now
+		return nil
+	end
+
+	local offlineSeconds = now - previousLastSeenAt
 	data.lastSeenAt = now
 
 	if offlineSeconds < Config.OFFLINE_INCOME_MIN_SECONDS then
