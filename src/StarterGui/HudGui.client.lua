@@ -361,9 +361,28 @@ end
 -- ─── Daily quest side panel ──────────────────────────────────────────────────
 
 (function()
+local QuestDatabase = require(ReplicatedStorage:WaitForChild("QuestDatabase"))
 local QUEST_SIDE_PANEL_MAX_ROWS = 4
-local QUEST_SIDE_PANEL_ROW_HEIGHT = 38
+local QUEST_SIDE_PANEL_ROW_HEIGHT = 43
 local QUEST_SIDE_PANEL_WIDTH = 234
+local questSideDefinitions = {}
+
+local function addQuestSideDefinition(quest)
+	if type(quest) == "table" and type(quest.id) == "string" then
+		questSideDefinitions[quest.id] = quest
+	end
+end
+
+for _, quest in ipairs(QuestDatabase) do
+	addQuestSideDefinition(quest)
+end
+
+addQuestSideDefinition(QuestDatabase.weeklyQuest)
+if type(QuestDatabase.weeklyQuests) == "table" then
+	for _, quest in ipairs(QuestDatabase.weeklyQuests) do
+		addQuestSideDefinition(quest)
+	end
+end
 
 local questSidePanel = Instance.new("Frame")
 questSidePanel.Name = "DailyQuestSidePanel"
@@ -439,6 +458,20 @@ local function createQuestSideRow(index)
 	description.ZIndex = 8
 	description.Parent = row
 
+	local reward = Instance.new("TextLabel")
+	reward.Name = "Reward"
+	reward.Size = UDim2.new(1, -54, 0, 14)
+	reward.Position = UDim2.new(0, 0, 0, 16)
+	reward.BackgroundTransparency = 1
+	reward.Text = ""
+	reward.TextColor3 = Color3.fromRGB(255, 214, 118)
+	reward.TextSize = 10
+	reward.Font = Enum.Font.GothamMedium
+	reward.TextXAlignment = Enum.TextXAlignment.Left
+	reward.TextTruncate = Enum.TextTruncate.AtEnd
+	reward.ZIndex = 8
+	reward.Parent = row
+
 	local progressLabel = Instance.new("TextLabel")
 	progressLabel.Name = "Progress"
 	progressLabel.Size = UDim2.new(0, 50, 0, 18)
@@ -455,7 +488,7 @@ local function createQuestSideRow(index)
 	local track = Instance.new("Frame")
 	track.Name = "Track"
 	track.Size = UDim2.new(1, 0, 0, 7)
-	track.Position = UDim2.new(0, 0, 0, 25)
+	track.Position = UDim2.new(0, 0, 0, 33)
 	track.BackgroundColor3 = Color3.fromRGB(44, 49, 59)
 	track.BorderSizePixel = 0
 	track.ZIndex = 8
@@ -480,6 +513,7 @@ local function createQuestSideRow(index)
 	questSideRows[index] = {
 		row = row,
 		description = description,
+		reward = reward,
 		progressLabel = progressLabel,
 		fill = fill,
 	}
@@ -511,9 +545,12 @@ local function questSideProgressRatio(progress, target)
 	return ratio
 end
 
-local function questSideAccentColor(questType, complete)
+local function questSideAccentColor(questType, complete, weekly)
 	if complete then
 		return Color3.fromRGB(80, 200, 105)
+	end
+	if weekly then
+		return Color3.fromRGB(190, 122, 255)
 	end
 	if questType == "kill_enemies" then
 		return Color3.fromRGB(255, 105, 85)
@@ -539,6 +576,52 @@ local function hideQuestSideRows()
 	end
 end
 
+local function questSideDisplayText(quest, definition, fieldName, fallbackName)
+	local value = quest[fieldName]
+	if type(value) == "string" and value ~= "" then
+		return value
+	end
+
+	value = definition and definition[fieldName]
+	if type(value) == "string" and value ~= "" then
+		return value
+	end
+
+	value = quest[fallbackName]
+	if type(value) == "string" then
+		return value
+	end
+	return ""
+end
+
+local function questSideRewardText(quest, definition)
+	local text = questSideDisplayText(quest, definition, "rewardText", "rewardText")
+	if text ~= "" then
+		return text
+	end
+
+	local reward = quest.reward
+	if type(reward) ~= "table" and definition then
+		reward = definition.reward
+	end
+	if type(reward) ~= "table" then
+		return ""
+	end
+
+	local coins = math.floor(questSideSafeNumber(reward.coins))
+	local fragments = math.floor(questSideSafeNumber(reward.fragments))
+	if coins > 0 and fragments > 0 then
+		return "+" .. tostring(coins) .. " coins, +" .. tostring(fragments) .. " fragments"
+	end
+	if coins > 0 then
+		return "+" .. tostring(coins) .. " coins"
+	end
+	if fragments > 0 then
+		return "+" .. tostring(fragments) .. " fragments"
+	end
+	return ""
+end
+
 function DeepDigUpdateQuestSidePanel(summary)
 	if type(summary) ~= "table" or type(summary.quests) ~= "table" then
 		questSidePanel.Visible = false
@@ -547,21 +630,31 @@ function DeepDigUpdateQuestSidePanel(summary)
 	end
 
 	local quests = {}
+	local hasWeeklyQuest = false
 	for _, quest in ipairs(summary.quests) do
 		if type(quest) == "table" then
 			local target = questSideSafeNumber(quest.target)
-			local description = type(quest.description) == "string" and quest.description or ""
+			local definition = questSideDefinitions[quest.id]
+			local description = questSideDisplayText(quest, definition, "shortName", "description")
 			if target > 0 and description ~= "" then
 				quests[#quests + 1] = quest
 			end
 		end
 	end
-	local hasWeeklyQuest = false
 	if type(summary.weekly) == "table" then
-		local target = questSideSafeNumber(summary.weekly.target)
-		local description = type(summary.weekly.description) == "string" and summary.weekly.description or ""
+		local weeklyQuest = summary.weekly
+		local target = questSideSafeNumber(weeklyQuest.target)
+		local definition = questSideDefinitions[weeklyQuest.id]
+		if target <= 0 and definition then
+			target = questSideSafeNumber(definition.target)
+		end
+		local description = questSideDisplayText(weeklyQuest, definition, "shortName", "description")
 		if target > 0 and description ~= "" then
-			quests[#quests + 1] = summary.weekly
+			quests[#quests + 1] = {
+				definition = definition,
+				quest = weeklyQuest,
+				weekly = true,
+			}
 			hasWeeklyQuest = true
 		end
 	end
@@ -583,16 +676,26 @@ function DeepDigUpdateQuestSidePanel(summary)
 	questSidePanel.Visible = true
 
 	for index, rowParts in ipairs(questSideRows) do
-		local quest = quests[index]
-		if index <= visibleCount and quest then
+		local questEntry = quests[index]
+		if index <= visibleCount and questEntry then
+			local quest = questEntry.quest or questEntry
+			local definition = questEntry.definition or questSideDefinitions[quest.id]
+			local weekly = questEntry.weekly == true
 			local progress = math.floor(questSideSafeNumber(quest.progress))
-			local target = math.max(1, math.floor(questSideSafeNumber(quest.target)))
+			local target = questSideSafeNumber(quest.target)
+			if target <= 0 and definition then
+				target = questSideSafeNumber(definition.target)
+			end
+			target = math.max(1, math.floor(target))
 			local complete = quest.complete == true or progress >= target
-			local color = questSideAccentColor(quest.type, complete)
+			local color = questSideAccentColor(quest.type, complete, weekly)
+			local rewardText = questSideRewardText(quest, definition)
 
-			rowParts.description.Text = quest.description
-			rowParts.description.TextColor3 = complete and color or Color3.fromRGB(235, 238, 245)
-			rowParts.progressLabel.Text = tostring(math.min(progress, target)) .. "/" .. tostring(target)
+			rowParts.description.Text = questSideDisplayText(quest, definition, "shortName", "description")
+			rowParts.description.TextColor3 = (complete or weekly) and color or Color3.fromRGB(235, 238, 245)
+			rowParts.reward.Text = rewardText
+			rowParts.reward.TextColor3 = complete and Color3.fromRGB(154, 235, 171) or (weekly and Color3.fromRGB(220, 190, 255) or Color3.fromRGB(255, 214, 118))
+			rowParts.progressLabel.Text = complete and "Done" or tostring(math.min(progress, target)) .. "/" .. tostring(target)
 			rowParts.progressLabel.TextColor3 = complete and color or Color3.fromRGB(174, 181, 196)
 			rowParts.fill.Size = UDim2.new(questSideProgressRatio(progress, target), 0, 1, 0)
 			rowParts.fill.BackgroundColor3 = color
