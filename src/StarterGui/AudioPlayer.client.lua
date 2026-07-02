@@ -57,10 +57,10 @@ local SOUNDS = {
 		volume = 0.8,
 	},
 	offline_income = {
-		id = "rbxassetid://5852285683", -- welcome-back reward shimmer
-		volume = 0.8,
-		playbackSpeed = 1.08,
-		pitchRange = { 0.98, 1.04 },
+		id = "rbxassetid://6837730320", -- welcome-back coin clink
+		volume = 0.72,
+		playbackSpeed = 1.12,
+		pitchRange = { 1.0, 1.08 },
 	},
 	sell_all_bonus = {
 		id = "rbxassetid://5852285683", -- centered sell-all payout shimmer

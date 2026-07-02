@@ -2814,7 +2814,7 @@ local LEGENDARY_FIND_FLASH_RARITIES = {
 		hapticDuration = 0.12,
 	},
 	Mythic = {
-		overlayColor = Color3.fromRGB(255, 34, 64),
+		overlayColor = Color3.fromRGB(255, 218, 82),
 		peakTransparency = 0.07,
 		flashInDuration = 0.06,
 		flashOutDuration = 0.44,
@@ -6771,7 +6771,9 @@ do
 		lastKey = nil,
 		tweens = {},
 		sparkles = {},
+		coinParticles = {},
 		maxSparkles = 14,
+		maxCoinParticles = 12,
 		foremanUpsellActive = false,
 		foremanUpsellAvailable = false,
 		foremanPassId = Config.GAMEPASS_FOREMAN_ID,
@@ -6823,6 +6825,12 @@ do
 			end
 		end
 		offlineIncomeState.sparkles = {}
+		for _, particle in ipairs(offlineIncomeState.coinParticles) do
+			if particle and particle.Parent then
+				particle:Destroy()
+			end
+		end
+		offlineIncomeState.coinParticles = {}
 	end
 
 	local function playOfflineIncomeSparkleBurst(reward, sequence)
@@ -6881,6 +6889,76 @@ do
 				if sparkle.Parent then
 					sparkle:Destroy()
 				end
+			end)
+		end
+
+		local rewardPosition = offlineIncomeReward.AbsolutePosition
+		local rewardSize = offlineIncomeReward.AbsoluteSize
+		local coinPosition = coinsLabel.AbsolutePosition
+		local coinSize = coinsLabel.AbsoluteSize
+		local startCenter = rewardPosition + Vector2.new(rewardSize.X * 0.5, rewardSize.Y * 0.5)
+		local endCenter = coinPosition + Vector2.new(math.min(34, coinSize.X * 0.22), coinSize.Y * 0.5)
+		local coinCount = math.min(offlineIncomeState.maxCoinParticles, math.max(7, math.floor(sparkleCount * 0.8)))
+
+		for index = 1, coinCount do
+			local particle = Instance.new("TextLabel")
+			local size = math.random(18, 25)
+			local startOffset = Vector2.new(math.random(-118, 118), math.random(-18, 38))
+			local midLift = math.random(34, 82)
+			local endOffset = Vector2.new(math.random(-8, 18), math.random(-8, 8))
+			local delayTime = 0.08 + (index - 1) * 0.026
+
+			particle.Name = "OfflineIncomeCounterCoin"
+			particle.AnchorPoint = Vector2.new(0.5, 0.5)
+			particle.Size = UDim2.fromOffset(32, 32)
+			particle.Position = UDim2.fromOffset(startCenter.X + startOffset.X, startCenter.Y + startOffset.Y)
+			particle.BackgroundTransparency = 1
+			particle.Text = "🪙"
+			particle.TextColor3 = Color3.fromRGB(255, 222, 82)
+			particle.TextSize = size
+			particle.TextTransparency = 0
+			particle.TextStrokeColor3 = Color3.fromRGB(80, 43, 0)
+			particle.TextStrokeTransparency = 0.28
+			particle.Font = Enum.Font.GothamBlack
+			particle.Rotation = math.random(-18, 18)
+			particle.ZIndex = 84
+			particle.Parent = screenGui
+			table.insert(offlineIncomeState.coinParticles, particle)
+
+			task.delay(delayTime, function()
+				if sequence ~= offlineIncomeState.sequence or not particle.Parent then
+					return
+				end
+
+				local target = endCenter + endOffset
+				local currentCenter = particle.AbsolutePosition + Vector2.new(particle.AbsoluteSize.X * 0.5, particle.AbsoluteSize.Y * 0.5)
+				local drift = Vector2.new(
+					(target.X - currentCenter.X) * 0.2,
+					-math.abs(midLift)
+				)
+
+				tweenOfflineIncome(particle, 0.24, {
+					Position = UDim2.fromOffset(currentCenter.X + drift.X, currentCenter.Y + drift.Y),
+					Rotation = particle.Rotation + math.random(28, 64),
+				}, Enum.EasingStyle.Quad, Enum.EasingDirection.Out).Completed:Connect(function()
+					if sequence ~= offlineIncomeState.sequence or not particle.Parent then
+						return
+					end
+
+					tweenOfflineIncome(particle, 0.42 + math.random() * 0.12, {
+						Position = UDim2.fromOffset(target.X, target.Y),
+						TextTransparency = 1,
+						TextStrokeTransparency = 1,
+						Rotation = particle.Rotation + math.random(74, 132),
+					}, Enum.EasingStyle.Quad, Enum.EasingDirection.In).Completed:Connect(function()
+						if sequence ~= offlineIncomeState.sequence then
+							return
+						end
+						if particle.Parent then
+							particle:Destroy()
+						end
+					end)
+				end)
 			end)
 		end
 	end
@@ -7014,6 +7092,7 @@ do
 			})
 		end
 
+		pulseCoinLabel("gain")
 		playOfflineIncomeSparkleBurst(reward, sequence)
 
 		if LocalPlaySound and LocalPlaySound:IsA("BindableEvent") then
@@ -8675,9 +8754,11 @@ Remotes.ItemFound.OnClientEvent:Connect(function(item)
 	local function playItemFoundFlow()
 		local playedSeasonalReveal = false
 
-		if item and LEGENDARY_FIND_FLASH_RARITIES[item.rarity] then
+		if item and DeepDigShouldPlayRareRevealForRarity(item.rarity) then
 			playLegendaryFindFlash(item.rarity, item)
-			LEGENDARY_FIND_FLASH_RARITIES._cameraBump.play(item.rarity)
+			if LEGENDARY_FIND_FLASH_RARITIES[item.rarity] then
+				LEGENDARY_FIND_FLASH_RARITIES._cameraBump.play(item.rarity)
+			end
 		end
 
 		if item and LIGHTING_PULSE_PROFILES[item.rarity] then
