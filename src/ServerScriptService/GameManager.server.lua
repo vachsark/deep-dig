@@ -1944,7 +1944,7 @@ GetPlayerDataFunc.OnServerInvoke = function(player)
 		streakReviveBaseStreak = data.streakReviveBaseStreak,
 		streakReviveOfferDate = data.streakReviveOfferDate,
 		streakRevivePrice = 50,
-		streakReviveProductAvailable = Config.isStreakReviveProductIdValid(Config.STREAK_REVIVE_PRODUCT_ID),
+		streakReviveProductAvailable = Config.isStreakReviveProductAvailable(),
 		ownedGamepasses = data.ownedGamepasses,
 		ftueHintsSeen = data.ftueHintsSeen == true,
 		nextToolCost = Config.TOOLS[data.toolTier + 1] and Config.TOOLS[data.toolTier + 1].cost or nil,
