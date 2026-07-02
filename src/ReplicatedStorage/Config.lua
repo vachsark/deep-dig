@@ -149,6 +149,7 @@ Config.UNAVAILABLE_GAMEPASS_LABEL = "Coming Soon"
 Config.STREAK_REVIVE_PRODUCT_ID = 1234567890 -- Placeholder; not launch-ready. Replace with a real Developer Product ID.
 Config.STREAK_REVIVE_PLACEHOLDER_PRODUCT_ID = 1234567890
 Config.STREAK_REVIVE_PRICE = 50
+Config.STREAK_REVIVE_PRODUCT_ENABLED = true
 Config.OFFLINE_INCOME_COINS_PER_DAMAGE_PER_MINUTE = 6
 Config.OFFLINE_INCOME_MIN_SECONDS = 5 * 60
 Config.OFFLINE_INCOME_DEFAULT_CAP_SECONDS = 8 * 60 * 60
@@ -156,8 +157,13 @@ Config.OFFLINE_INCOME_FOREMAN_CAP_SECONDS = 24 * 60 * 60
 
 function Config.isStreakReviveProductIdValid(productId)
 	return type(productId) == "number"
-		and productId ~= 0
+		and productId > 0
 		and productId ~= Config.STREAK_REVIVE_PLACEHOLDER_PRODUCT_ID
+end
+
+function Config.isStreakReviveProductAvailable()
+	return Config.STREAK_REVIVE_PRODUCT_ENABLED == true
+		and Config.isStreakReviveProductIdValid(Config.STREAK_REVIVE_PRODUCT_ID)
 end
 
 function Config.isGamepassIdAvailable(passId)

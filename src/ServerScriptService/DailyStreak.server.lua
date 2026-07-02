@@ -43,6 +43,10 @@ end
 local STREAK_REVIVE_PRICE = Config.STREAK_REVIVE_PRICE
 
 local function isStreakReviveProductAvailable()
+	if type(Config.isStreakReviveProductAvailable) == "function" then
+		return Config.isStreakReviveProductAvailable()
+	end
+
 	return Config.isStreakReviveProductIdValid(Config.STREAK_REVIVE_PRODUCT_ID)
 end
 
@@ -234,17 +238,18 @@ end
 
 local function getStreakHudPayload(data)
 	local getInventoryCapacityLabel = _G.DeepDig_getInventoryCapacityLabel
+	local reviveProductAvailable = isStreakReviveProductAvailable()
 	return {
 		coins = data.coins,
 		fragments = data.fragments or 0,
 		inventoryCount = #data.inventory,
 		inventoryCapacity = getInventoryCapacityLabel and getInventoryCapacityLabel(data) or nil,
 		loginStreak = data.loginStreak,
-		streakReviveEligible = data.streakReviveEligible == true,
-		streakRevivePending = data.streakRevivePending == true,
+		streakReviveEligible = reviveProductAvailable and data.streakReviveEligible == true,
+		streakRevivePending = reviveProductAvailable and data.streakRevivePending == true,
 		streakReviveBaseStreak = data.streakReviveBaseStreak or 0,
 		streakRevivePrice = STREAK_REVIVE_PRICE,
-		streakReviveProductAvailable = isStreakReviveProductAvailable(),
+		streakReviveProductAvailable = reviveProductAvailable,
 	}
 end
 

@@ -4510,8 +4510,8 @@ local function refreshStreakLabel()
 		local day = (currentLoginStreak - 1) % 7 + 1
 		local emoji = day == 7 and "🏆" or "🔥"
 		local reviveSuffix = ""
-		if currentStreakReviveEligible and currentStreakRevivePending then
-			reviveSuffix = currentStreakReviveProductAvailable and " • Revive ready" or " • Revive unavailable"
+		if currentStreakReviveEligible and currentStreakRevivePending and currentStreakReviveProductAvailable then
+			reviveSuffix = " • Revive ready"
 		end
 		streakLabel.Text = emoji .. " Streak: Day " .. day .. " (×" .. currentLoginStreak .. ")" .. reviveSuffix
 	else
@@ -7148,7 +7148,9 @@ local function refreshStreakRevivePrompt(data)
 
 	refreshStreakLabel()
 
-	local shouldShow = currentStreakReviveEligible and currentStreakRevivePending
+	local shouldShow = currentStreakReviveEligible
+		and currentStreakRevivePending
+		and currentStreakReviveProductAvailable
 	streakRevivePanel.Visible = shouldShow
 
 	if not shouldShow then
@@ -7160,33 +7162,17 @@ local function refreshStreakRevivePrompt(data)
 	local cycle = streak > 0 and math.floor((streak - 1) / 7) + 1 or 1
 
 	streakReviveTitle.Text = "🔥 Streak Revive"
-	if currentStreakReviveProductAvailable then
-		streakReviveBody.Text = "You missed one day. Revive your streak for " .. currentStreakRevivePrice .. " Robux to keep your momentum and today's reward."
-	else
-		streakReviveBody.Text = "You missed one day. Streak revive purchases are unavailable right now. Start over to claim today's reward."
-	end
+	streakReviveBody.Text = "You missed one day. Revive your streak for " .. currentStreakRevivePrice .. " Robux to keep your momentum and today's reward."
 	streakReviveDetail.Text = "Current streak: Day " .. day .. " (×" .. streak .. ", Cycle " .. cycle .. ")"
-	if currentStreakReviveProductAvailable then
-		streakReviveBuyButton.Visible = true
-		streakReviveBuyButton.Active = true
-		streakReviveBuyButton.AutoButtonColor = true
-		streakReviveBuyButton.Selectable = true
-		streakReviveBuyButton.Text = "Revive for " .. currentStreakRevivePrice .. " Robux"
-		streakReviveBuyButton.BackgroundColor3 = Color3.fromRGB(255, 200, 50)
-		streakReviveBuyButton.TextColor3 = Color3.fromRGB(40, 20, 0)
-		streakReviveDeclineButton.Size = UDim2.new(0, 140, 0, 40)
-		streakReviveDeclineButton.Position = UDim2.new(1, -155, 1, -54)
-	else
-		streakReviveBuyButton.Visible = false
-		streakReviveBuyButton.Active = false
-		streakReviveBuyButton.AutoButtonColor = false
-		streakReviveBuyButton.Selectable = false
-		streakReviveBuyButton.Text = "Revive unavailable"
-		streakReviveBuyButton.BackgroundColor3 = Color3.fromRGB(90, 85, 78)
-		streakReviveBuyButton.TextColor3 = Color3.fromRGB(210, 205, 195)
-		streakReviveDeclineButton.Size = UDim2.new(0, 190, 0, 40)
-		streakReviveDeclineButton.Position = UDim2.new(0.5, -95, 1, -54)
-	end
+	streakReviveBuyButton.Visible = true
+	streakReviveBuyButton.Active = true
+	streakReviveBuyButton.AutoButtonColor = true
+	streakReviveBuyButton.Selectable = true
+	streakReviveBuyButton.Text = "Revive for " .. currentStreakRevivePrice .. " Robux"
+	streakReviveBuyButton.BackgroundColor3 = Color3.fromRGB(255, 200, 50)
+	streakReviveBuyButton.TextColor3 = Color3.fromRGB(40, 20, 0)
+	streakReviveDeclineButton.Size = UDim2.new(0, 140, 0, 40)
+	streakReviveDeclineButton.Position = UDim2.new(1, -155, 1, -54)
 end
 
 streakReviveBuyButton.MouseButton1Click:Connect(function()
