@@ -467,9 +467,33 @@ hatcheryStatus.Parent = hatcherySection
 
 -- Three egg tier buttons (Stone / Gem / Void)
 local EGG_ORDER = { "Stone", "Gem", "Void" }
+local RARITY_ODDS_ORDER = { "Common", "Uncommon", "Rare", "Epic", "Legendary", "Mythic" }
+local RARITY_ODDS_LABELS = {
+	Common = "Com",
+	Uncommon = "Unc",
+	Rare = "Rare",
+	Epic = "Epic",
+	Legendary = "Leg",
+	Mythic = "Myth",
+}
 local eggButtons = {}
 local refreshInventory
 local renderInventory
+
+local function formatDropRateOdds(dropRates)
+	local oddsParts = {}
+	for _, rarity in ipairs(RARITY_ODDS_ORDER) do
+		local rate = dropRates[rarity]
+		if rate then
+			table.insert(oddsParts, string.format("%s %d%%", RARITY_ODDS_LABELS[rarity], rate))
+		end
+	end
+
+	if #oddsParts <= 2 then
+		return table.concat(oddsParts, "  ")
+	end
+	return table.concat(oddsParts, "  ", 1, 2) .. "\n" .. table.concat(oddsParts, "  ", 3)
+end
 
 for index, eggType in ipairs(EGG_ORDER) do
 	local egg = PetDatabase.EGGS[eggType]
@@ -497,34 +521,49 @@ for index, eggType in ipairs(EGG_ORDER) do
 		buttonStroke.Parent = button
 
 		local nameLabel = Instance.new("TextLabel")
-		nameLabel.Size = UDim2.new(1, -10, 0, 26)
-		nameLabel.Position = UDim2.new(0, 5, 0, 8)
+		nameLabel.Size = UDim2.new(1, -10, 0, 20)
+		nameLabel.Position = UDim2.new(0, 5, 0, 5)
 		nameLabel.BackgroundTransparency = 1
 		nameLabel.Text = egg.name
 		nameLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-		nameLabel.TextSize = 15
+		nameLabel.TextSize = 14
 		nameLabel.Font = Enum.Font.GothamBold
 		nameLabel.TextStrokeTransparency = 0.5
+		nameLabel.TextTruncate = Enum.TextTruncate.AtEnd
 		nameLabel.Parent = button
 
 		local costLabel = Instance.new("TextLabel")
-		costLabel.Size = UDim2.new(1, -10, 0, 22)
-		costLabel.Position = UDim2.new(0, 5, 0, 36)
+		costLabel.Size = UDim2.new(1, -10, 0, 17)
+		costLabel.Position = UDim2.new(0, 5, 0, 25)
 		costLabel.BackgroundTransparency = 1
 		costLabel.Text = "🪙 " .. egg.cost
 		costLabel.TextColor3 = Color3.fromRGB(255, 230, 110)
-		costLabel.TextSize = 14
+		costLabel.TextSize = 13
 		costLabel.Font = Enum.Font.GothamBold
 		costLabel.TextStrokeTransparency = 0.5
+		costLabel.TextTruncate = Enum.TextTruncate.AtEnd
 		costLabel.Parent = button
 
+		local oddsLabel = Instance.new("TextLabel")
+		oddsLabel.Size = UDim2.new(1, -10, 0, 30)
+		oddsLabel.Position = UDim2.new(0, 5, 0, 42)
+		oddsLabel.BackgroundTransparency = 1
+		oddsLabel.Text = formatDropRateOdds(egg.dropRates)
+		oddsLabel.TextColor3 = Color3.fromRGB(245, 245, 245)
+		oddsLabel.TextSize = 10
+		oddsLabel.Font = Enum.Font.GothamMedium
+		oddsLabel.TextStrokeTransparency = 0.65
+		oddsLabel.TextWrapped = true
+		oddsLabel.TextYAlignment = Enum.TextYAlignment.Center
+		oddsLabel.Parent = button
+
 		local hatchLabel = Instance.new("TextLabel")
-		hatchLabel.Size = UDim2.new(1, -10, 0, 18)
-		hatchLabel.Position = UDim2.new(0, 5, 0, 64)
+		hatchLabel.Size = UDim2.new(1, -10, 0, 14)
+		hatchLabel.Position = UDim2.new(0, 5, 0, 74)
 		hatchLabel.BackgroundTransparency = 1
 		hatchLabel.Text = "Tap to hatch"
 		hatchLabel.TextColor3 = Color3.fromRGB(240, 240, 240)
-		hatchLabel.TextSize = 11
+		hatchLabel.TextSize = 10
 		hatchLabel.Font = Enum.Font.Gotham
 		hatchLabel.TextStrokeTransparency = 0.6
 		hatchLabel.Parent = button
