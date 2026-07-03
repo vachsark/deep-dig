@@ -8671,16 +8671,16 @@ Remotes.UpdateHUD.OnClientEvent:Connect(function(data)
 	if data.badgeUnlock then
 		DeepDigShowBadgeUnlockBurst(data.badgeUnlock)
 	end
-	if data.soldItem == true then
-		if math.floor(tonumber(data.soldCoinsEarned) or 0) > 0 and LocalPlaySound and LocalPlaySound:IsA("BindableEvent") then
-			LocalPlaySound:Fire("sell_coins")
-		end
+	local shouldPlaySellCoins = data.soldItem == true
+		and math.floor(tonumber(data.soldCoinsEarned) or 0) > 0
+	if type(data.sellAllSummary) == "table" then
+		shouldPlaySellCoins = shouldPlaySellCoins
+			or math.floor(tonumber(data.sellAllSummary.coinsEarned) or 0) > 0
+	end
+	if shouldPlaySellCoins and LocalPlaySound and LocalPlaySound:IsA("BindableEvent") then
+		LocalPlaySound:Fire("sell_coins")
 	end
 	if data.sellAllSummary then
-		if type(data.sellAllSummary) == "table" and math.floor(tonumber(data.sellAllSummary.coinsEarned) or 0) > 0
-			and LocalPlaySound and LocalPlaySound:IsA("BindableEvent") then
-			LocalPlaySound:Fire("sell_coins")
-		end
 		showSellAllSummaryBurst(data.sellAllSummary)
 	end
 	if data.backpackFull then
