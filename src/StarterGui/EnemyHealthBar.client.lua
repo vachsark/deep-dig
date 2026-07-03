@@ -4140,7 +4140,7 @@ function CombatStreak.showFirstEnemyCombatHint()
 	end)
 end
 
-local function showEnemySpawnCue(model)
+local function showEnemySpawnCue(model, enemyName)
 	if not model or not model:IsA("Model") or not model:IsDescendantOf(workspace) then
 		return
 	end
@@ -4166,17 +4166,28 @@ local function showEnemySpawnCue(model)
 	billboard.Parent = root
 
 	local isEmerging = model:GetAttribute("IsEmerging") == true
+	local surfacedText = "Enemy surfaced!"
+	if typeof(enemyName) == "string" and enemyName ~= "" then
+		surfacedText = enemyName .. " surfaced!"
+	end
 
 	local label = Instance.new("TextLabel")
 	label.Name = "Cue"
 	label.Size = UDim2.fromScale(1, 1)
 	label.BackgroundTransparency = 1
-	label.Text = isEmerging and "emerging!" or "surfaced"
+	label.Text = isEmerging and "Enemy surfacing!" or surfacedText
 	label.TextColor3 = ENEMY_SPAWN_COLOR
 	label.TextStrokeTransparency = 0.28
-	label.TextSize = isEmerging and 16 or 14
+	label.TextSize = isEmerging and 15 or 14
 	label.Font = isEmerging and Enum.Font.GothamBlack or Enum.Font.GothamBold
+	label.TextScaled = true
+	label.TextWrapped = true
 	label.Parent = billboard
+
+	local textSizeConstraint = Instance.new("UITextSizeConstraint")
+	textSizeConstraint.MinTextSize = 10
+	textSizeConstraint.MaxTextSize = isEmerging and 15 or 14
+	textSizeConstraint.Parent = label
 
 	local stroke = Instance.new("UIStroke")
 	stroke.Color = Color3.fromRGB(60, 36, 18)
@@ -4197,7 +4208,7 @@ local function showEnemySpawnCue(model)
 		end
 		activeFeedback.enemySpawnRing.fade(model)
 
-		label.Text = "surfaced"
+		label.Text = surfacedText
 		label.TextSize = 14
 		label.Font = Enum.Font.GothamBold
 
@@ -5200,6 +5211,9 @@ EnemyCombatFeedback.OnClientEvent:Connect(function(payload)
 	end
 	if feedbackType == "enemy_spawn_warning" then
 		activeFeedback.showEnemySpawnWarning(payload)
+		if payload.isMiniboss ~= true and LocalPlaySound and LocalPlaySound:IsA("BindableEvent") then
+			LocalPlaySound:Fire("enemy_spawn_warning")
+		end
 		playHapticBump(0.05, 0.06, 0.08)
 		return
 	end
@@ -5257,7 +5271,10 @@ EnemyCombatFeedback.OnClientEvent:Connect(function(payload)
 	elseif feedbackType == "enemy_attack_warning" then
 		showAttackWarning(payload.model)
 	elseif feedbackType == "enemy_spawn" then
-		showEnemySpawnCue(payload.model)
+		if payload.isMiniboss == true then
+			return
+		end
+		showEnemySpawnCue(payload.model, payload.enemyName)
 		CombatStreak.showFirstEnemyCombatHint()
 	elseif feedbackType == "miniboss_spawn" then
 		showEnemySpawnCue(payload.model)

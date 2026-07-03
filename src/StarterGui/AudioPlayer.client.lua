@@ -134,6 +134,12 @@ local SOUNDS = {
 		playbackSpeed = 1.95,
 		pitchRange = { 1.04, 1.1 },
 	},
+	enemy_spawn_warning = {
+		id = "rbxassetid://9114013169", -- muted dirt shift before a normal enemy surfaces
+		volume = 0.22,
+		playbackSpeed = 0.68,
+		pitchRange = { 0.96, 1.02 },
+	},
 	low_health_warning = {
 		id = "rbxassetid://5982968246", -- subtle repeated danger pulse while critically hurt
 		volume = 0.16,
