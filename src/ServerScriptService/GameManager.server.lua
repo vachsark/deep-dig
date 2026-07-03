@@ -1497,9 +1497,6 @@ BlockBrokenEvent.Event:Connect(function(player, blockPosition)
 					ItemFoundEvent:FireClient(player, buildDigItemFoundPayload())
 					fireItemFindSounds(player, item.rarity)
 				end
-				if PlaySound then
-					PlaySound:FireClient(player, "sell_coins")
-				end
 			else
 				local inventoryItem = {
 					name = item.name,
@@ -1626,10 +1623,7 @@ SellItemEvent.OnServerEvent:Connect(function(player, inventoryIndex)
 	local item = data.inventory[inventoryIndex]
 	if not item then return end
 
-	awardSellPayout(player, data, item.sellValue, false)
-	if PlaySound then
-		PlaySound:FireClient(player, "sell_coins")
-	end
+	local earned = awardSellPayout(player, data, item.sellValue, false)
 
 	table.remove(data.inventory, inventoryIndex)
 
@@ -1642,6 +1636,7 @@ SellItemEvent.OnServerEvent:Connect(function(player, inventoryIndex)
 		-- Marker so the FTUE objective tracker can detect any sale
 		-- (SellAll has sellAllSummary; this covers single-item sells).
 		soldItem = true,
+		soldCoinsEarned = earned,
 	}, data, player))
 end)
 
@@ -1661,11 +1656,6 @@ SellAllEvent.OnServerEvent:Connect(function(player)
 	data.inventory = {}
 
 	applyFirstSellAffordabilityGrant(player, data)
-
-	-- SOUND HOOK: coin clink/jingle on sell
-	if itemsSold > 0 and PlaySound then
-		PlaySound:FireClient(player, "sell_coins")
-	end
 
 	NotifyEvent:FireClient(player, "Sold all items for " .. earned .. " coins!", "Common")
 	UpdateHUDEvent:FireClient(player, addStandardHudFields({
