@@ -3207,10 +3207,6 @@ function DeepDigPlaySeasonalExclusiveReveal(item)
 		}):Play()
 	end)
 
-	if DeepDigShouldPlayRareRevealForRarity(rarity) then
-		DeepDigPlayRareRevealSound()
-	end
-
 	task.delay(1.35, function()
 		if token ~= DeepDigSeasonalRevealState.token or not layer.Parent then
 			return
@@ -8811,13 +8807,13 @@ Remotes.ItemFound.OnClientEvent:Connect(function(item)
 	end
 
 	local function playItemFoundFlow()
-		local playedSeasonalReveal = false
 		local shouldPlayRareReveal = DeepDigShouldPlayRareRevealForRarity(item.rarity)
 
 		DeepDigPlayItemFoundSound(item)
 
 		if shouldPlayRareReveal then
 			playLegendaryFindFlash(item.rarity, item)
+			DeepDigPlayRareRevealSound()
 			if LEGENDARY_FIND_FLASH_RARITIES[item.rarity] then
 				LEGENDARY_FIND_FLASH_RARITIES._cameraBump.play(item.rarity)
 			end
@@ -8828,12 +8824,7 @@ Remotes.ItemFound.OnClientEvent:Connect(function(item)
 		end
 
 		if item.seasonalExclusive == true or item.seasonId ~= nil then
-			playedSeasonalReveal = true
 			DeepDigPlaySeasonalExclusiveReveal(item)
-		end
-
-		if not playedSeasonalReveal and shouldPlayRareReveal then
-			DeepDigPlayRareRevealSound()
 		end
 
 		showNotification("Found: " .. item.name .. " (+" .. tostring(item.sellValue or 0) .. " coins)", item.rarity)
