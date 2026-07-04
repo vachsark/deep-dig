@@ -2770,6 +2770,12 @@ DeepDigRareRevealSound = {
 	lastPlayedAt = -math.huge,
 }
 
+DeepDigItemFoundSound = {
+	cooldown = 0.35,
+	lastSignature = nil,
+	lastPlayedAt = -math.huge,
+}
+
 function DeepDigShouldPlayRareRevealForRarity(rarity)
 	if typeof(rarity) ~= "string" then
 		return false
@@ -2793,6 +2799,37 @@ function DeepDigPlayRareRevealSound()
 	if LocalPlaySound and LocalPlaySound:IsA("BindableEvent") then
 		LocalPlaySound:Fire("rare_reveal")
 	end
+end
+
+function DeepDigIsValidItemFoundPayload(item)
+	return type(item) == "table"
+		and typeof(item.name) == "string"
+		and item.name ~= ""
+		and typeof(item.rarity) == "string"
+		and item.rarity ~= ""
+end
+
+function DeepDigPlayItemFoundSound(item)
+	local now = os.clock()
+	local signature = table.concat({
+		tostring(item.name),
+		tostring(item.rarity),
+		tostring(item.sellValue),
+		tostring(item.worldPosition),
+	}, "|")
+
+	if signature == DeepDigItemFoundSound.lastSignature
+		and now - DeepDigItemFoundSound.lastPlayedAt < DeepDigItemFoundSound.cooldown then
+		return false
+	end
+
+	DeepDigItemFoundSound.lastSignature = signature
+	DeepDigItemFoundSound.lastPlayedAt = now
+	if LocalPlaySound and LocalPlaySound:IsA("BindableEvent") then
+		LocalPlaySound:Fire("item_found")
+	end
+
+	return true
 end
 
 local LEGENDARY_FIND_FLASH_RARITIES = {
@@ -8750,35 +8787,40 @@ do
 end
 
 Remotes.ItemFound.OnClientEvent:Connect(function(item)
+	if not DeepDigIsValidItemFoundPayload(item) then
+		return
+	end
+
 	local function playItemFoundFlow()
 		local playedSeasonalReveal = false
+		local shouldPlayRareReveal = DeepDigShouldPlayRareRevealForRarity(item.rarity)
 
-		if item and DeepDigShouldPlayRareRevealForRarity(item.rarity) then
+		DeepDigPlayItemFoundSound(item)
+
+		if shouldPlayRareReveal then
 			playLegendaryFindFlash(item.rarity, item)
 			if LEGENDARY_FIND_FLASH_RARITIES[item.rarity] then
 				LEGENDARY_FIND_FLASH_RARITIES._cameraBump.play(item.rarity)
 			end
 		end
 
-		if item and LIGHTING_PULSE_PROFILES[item.rarity] then
+		if LIGHTING_PULSE_PROFILES[item.rarity] then
 			playLightingPulse(item.rarity)
 		end
 
-		if item and (item.seasonalExclusive == true or item.seasonId ~= nil) then
+		if item.seasonalExclusive == true or item.seasonId ~= nil then
 			playedSeasonalReveal = true
 			DeepDigPlaySeasonalExclusiveReveal(item)
 		end
 
-		if item and not playedSeasonalReveal and DeepDigShouldPlayRareRevealForRarity(item.rarity) then
+		if not playedSeasonalReveal and shouldPlayRareReveal then
 			DeepDigPlayRareRevealSound()
 		end
 
-		if item then
-			showNotification("Found: " .. item.name .. " (+" .. item.sellValue .. " coins)", item.rarity)
-		end
+		showNotification("Found: " .. item.name .. " (+" .. tostring(item.sellValue or 0) .. " coins)", item.rarity)
 	end
 
-	if item and LEGENDARY_FIND_FLASH_RARITIES.PlayAnchoredGlint(item) then
+	if LEGENDARY_FIND_FLASH_RARITIES.PlayAnchoredGlint(item) then
 		task.delay(0.12, playItemFoundFlow)
 	else
 		playItemFoundFlow()

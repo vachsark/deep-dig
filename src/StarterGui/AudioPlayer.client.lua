@@ -47,6 +47,7 @@ local SOUNDS = {
 	item_found = {
 		id = "rbxassetid://4612375287", -- soft sparkle chime
 		volume = 0.7,
+		dedupeWindow = 0.35,
 	},
 	rare_reveal = {
 		id = "rbxassetid://5852285683", -- rising boom + shimmer
@@ -319,10 +320,17 @@ local SOUNDS = {
 }
 
 local activeSounds = {}
+local lastPlayedAt = {}
 
 local function play(key)
 	local def = SOUNDS[key]
 	if not def then return end
+
+	local now = os.clock()
+	if def.dedupeWindow and lastPlayedAt[key] and now - lastPlayedAt[key] < def.dedupeWindow then
+		return
+	end
+	lastPlayedAt[key] = now
 
 	if def.replaceExisting and activeSounds[key] then
 		activeSounds[key]:Destroy()
