@@ -1872,10 +1872,6 @@ BuyToolEvent.OnServerEvent:Connect(function(player, toolTier)
 		refreshExcavatorVisual:Fire(player)
 	end
 
-	-- SOUND HOOK: power-up whoosh on tool upgrade
-	if PlaySound then
-		PlaySound:FireClient(player, "upgrade_whoosh")
-	end
 	NotifyEvent:FireClient(player, "Upgraded to " .. tool.name .. "!", "Rare")
 	UpdateHUDEvent:FireClient(player, addFriendBoostHudFields({
 		coins = data.coins,

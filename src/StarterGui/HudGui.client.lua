@@ -7452,6 +7452,10 @@ function DeepDigToolHud.playUpgradeBurst(toolName, previousTier, nextTier)
 	DeepDigToolUpgradeBurstUi.damage.Text = damageText
 	DeepDigPositionToolUpgradeBurst()
 
+	if LocalPlaySound and LocalPlaySound:IsA("BindableEvent") then
+		LocalPlaySound:Fire("upgrade_whoosh")
+	end
+
 	DeepDigToolUpgradeBurstUi.frame.Visible = true
 	DeepDigToolUpgradeBurstUi.frame.BackgroundTransparency = 1
 	DeepDigToolUpgradeBurstUi.stroke.Transparency = 1
