@@ -50,20 +50,13 @@ local function isStreakReviveProductAvailable()
 	return Config.isStreakReviveProductIdValid(Config.STREAK_REVIVE_PRODUCT_ID)
 end
 
-local function isRareRevealRarity(rarity)
-	return rarity == "Rare" or rarity == "Epic" or rarity == "Legendary" or rarity == "Mythic"
-end
-
-local function fireItemFindSounds(player, rarity)
+local function fireItemFindSounds(player)
 	local PlaySound = Remotes:FindFirstChild("PlaySound")
 	if not PlaySound then
 		return
 	end
 
 	PlaySound:FireClient(player, "item_found")
-	if isRareRevealRarity(rarity) then
-		PlaySound:FireClient(player, "rare_reveal")
-	end
 end
 
 local function fireItemFoundPipeline(player, item)
@@ -293,7 +286,7 @@ local function applyReward(player, reward)
 		end
 		data.collections[reward.item.name] = true
 		fireItemFoundPipeline(player, reward.item)
-		fireItemFindSounds(player, reward.item.rarity)
+		fireItemFindSounds(player)
 	end
 
 	return true

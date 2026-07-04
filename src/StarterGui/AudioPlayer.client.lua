@@ -52,6 +52,7 @@ local SOUNDS = {
 	rare_reveal = {
 		id = "rbxassetid://5852285683", -- rising boom + shimmer
 		volume = 0.85,
+		dedupeWindow = 0.45,
 	},
 	sell_coins = {
 		id = "rbxassetid://6837730320", -- coin clink jingle

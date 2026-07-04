@@ -334,9 +334,6 @@ local function payEnemyReward(record)
 		itemReward
 	)
 	firePlaySound(player, "enemy_defeat")
-	if itemReward then
-		firePlaySound(player, "rare_reveal")
-	end
 
 	local rewardSummary = {
 		coins = coinReward,

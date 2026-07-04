@@ -153,15 +153,12 @@ local function buildDepthMilestonePayload(previousDepth, newDepth)
 	}
 end
 
-local function fireItemFindSounds(player, rarity)
+local function fireItemFindSounds(player)
 	if not PlaySound then
 		return
 	end
 
 	PlaySound:FireClient(player, "item_found")
-	if isRareRevealRarity(rarity) then
-		PlaySound:FireClient(player, "rare_reveal")
-	end
 end
 
 -- ═══════════════════════════════════════════════════════════════════
@@ -1495,7 +1492,7 @@ BlockBrokenEvent.Event:Connect(function(player, blockPosition)
 				NotifyEvent:FireClient(player, "Auto Collector sold duplicate " .. item.name .. " for " .. earned .. " coins.", item.rarity)
 				if isRareRevealRarity(item.rarity) then
 					ItemFoundEvent:FireClient(player, buildDigItemFoundPayload())
-					fireItemFindSounds(player, item.rarity)
+					fireItemFindSounds(player)
 				end
 			else
 				local inventoryItem = {
@@ -1527,13 +1524,8 @@ BlockBrokenEvent.Event:Connect(function(player, blockPosition)
 					if PlaySound then
 						PlaySound:FireClient(player, "item_found")
 					end
-					-- SOUND HOOK: dramatic reveal for Rare+
-					if item.rarity == "Rare" or item.rarity == "Epic"
-						or item.rarity == "Legendary" or item.rarity == "Mythic" then
-						if PlaySound then
-							PlaySound:FireClient(player, "rare_reveal")
-						end
-					end
+					-- Legendary+ reveal audio is client-local in HudGui so it stays
+					-- aligned with the flash/reveal path and does not double-play.
 
 					-- Notify all players for rare+ finds
 					if item.rarity == "Epic" or item.rarity == "Legendary" or item.rarity == "Mythic" then
@@ -1839,7 +1831,7 @@ CraftFromFragsEvent.OnServerEvent:Connect(function(player, targetRarity, tierNam
 	-- Race-free server-side signal for BadgeSystem (mirrors normal drop path).
 	-- Crafted items count as a "find" for first_rare_find / first_legendary.
 	ItemFoundBindable:Fire(player, newItem)
-	fireItemFindSounds(player, newItem.rarity)
+	fireItemFindSounds(player)
 
 	UpdateHUDEvent:FireClient(player, addStandardHudFields({
 		coins = data.coins,
