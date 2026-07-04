@@ -32,6 +32,13 @@ local EARTHQUAKE_SHAKE = {
 	noiseFrequency = 18,
 }
 
+local VOLCANO_SHAKE = {
+	duration = 0.38,
+	positionStrength = 0.19,
+	rotationStrength = 0.48,
+	noiseFrequency = 26,
+}
+
 local LIGHT_EVENT_KEYS = {
 	fossillayer = true,
 	["2xrare"] = true,
@@ -39,11 +46,17 @@ local LIGHT_EVENT_KEYS = {
 	goldrush = true,
 	cavesystem = true,
 	bonusloot = true,
+	luckyhour = true,
+	echoblocks = true,
 }
 
 local EARTHQUAKE_EVENT_KEYS = {
 	earthquake = true,
 	instantdig = true,
+}
+
+local VOLCANO_EVENT_KEYS = {
+	volcanovent = true,
 }
 
 local sequence = 0
@@ -64,6 +77,10 @@ local function getShakeProfile(eventName, effectId)
 
 	if EARTHQUAKE_EVENT_KEYS[nameKey] or EARTHQUAKE_EVENT_KEYS[effectKey] then
 		return EARTHQUAKE_SHAKE
+	end
+
+	if VOLCANO_EVENT_KEYS[nameKey] or VOLCANO_EVENT_KEYS[effectKey] then
+		return VOLCANO_SHAKE
 	end
 
 	if LIGHT_EVENT_KEYS[nameKey] or LIGHT_EVENT_KEYS[effectKey] then

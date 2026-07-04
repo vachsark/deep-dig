@@ -4230,7 +4230,6 @@ end
 
 local eventShakeBindingName = "DeepDigEventCameraShake"
 local eventShakeSequence = 0
-local eventShakeBaseCFrame = nil
 local eventShakeBound = false
 local eventShakeState = nil
 
@@ -4269,11 +4268,11 @@ local function clearEventCameraShake(sequence)
 	end
 
 	local camera = workspace.CurrentCamera
-	if camera and eventShakeBaseCFrame then
-		camera.CFrame = eventShakeBaseCFrame
+	local state = eventShakeState
+	if camera and state and state.appliedOffset then
+		camera.CFrame = camera.CFrame * state.appliedOffset:Inverse()
 	end
 
-	eventShakeBaseCFrame = nil
 	eventShakeState = nil
 
 	if eventShakeBound then
@@ -4289,6 +4288,8 @@ local EVENT_SHAKE_PROFILES = {
 	goldrush = { duration = 0.28, positionStrength = 0.06, rotationStrength = 0.16, noiseFrequency = 24 },
 	cavesystem = { duration = 0.38, positionStrength = 0.13, rotationStrength = 0.34, noiseFrequency = 16 },
 	bonusloot = { duration = 0.38, positionStrength = 0.13, rotationStrength = 0.34, noiseFrequency = 16 },
+	earthquake = { duration = 0.56, positionStrength = 0.24, rotationStrength = 0.78, noiseFrequency = 17 },
+	instantdig = { duration = 0.50, positionStrength = 0.22, rotationStrength = 0.68, noiseFrequency = 20 },
 	luckyhour = { duration = 0.24, positionStrength = 0.05, rotationStrength = 0.12, noiseFrequency = 30 },
 	echoesfrombelow = { duration = 0.46, positionStrength = 0.10, rotationStrength = 0.46, noiseFrequency = 12 },
 	echoblocks = { duration = 0.46, positionStrength = 0.10, rotationStrength = 0.46, noiseFrequency = 12 },
@@ -4374,7 +4375,21 @@ local function getEventShakeProfile(eventName, effectId)
 		or DEFAULT_EVENT_SHAKE_PROFILE
 end
 
+local function hasEventCameraShakeTarget()
+	local camera = workspace.CurrentCamera
+	local character = player.Character
+	return camera ~= nil
+		and character ~= nil
+		and character.Parent ~= nil
+		and character:FindFirstChildOfClass("Humanoid") ~= nil
+end
+
 local function playEventCameraShake(eventName, effectId)
+	if not hasEventCameraShakeTarget() then
+		return
+	end
+
+	clearEventCameraShake()
 	eventShakeSequence = eventShakeSequence + 1
 	local sequence = eventShakeSequence
 	local profile = getEventShakeProfile(eventName, effectId)
@@ -4387,20 +4402,22 @@ local function playEventCameraShake(eventName, effectId)
 		rotationStrength = profile.rotationStrength,
 		noiseFrequency = profile.noiseFrequency,
 		seed = sequence * 37,
+		appliedOffset = nil,
 	}
-
-	if eventShakeBound then
-		return
-	end
 
 	eventShakeBound = true
 	RunService:BindToRenderStep(eventShakeBindingName, Enum.RenderPriority.Camera.Value + 1, function()
 		local camera = workspace.CurrentCamera
 		local state = eventShakeState
 
-		if not camera or not state then
+		if not camera or not state or not hasEventCameraShakeTarget() then
 			clearEventCameraShake()
 			return
+		end
+
+		if state.appliedOffset then
+			camera.CFrame = camera.CFrame * state.appliedOffset:Inverse()
+			state.appliedOffset = nil
 		end
 
 		local elapsed = os.clock() - state.startTime
@@ -4425,8 +4442,10 @@ local function playEventCameraShake(eventName, effectId)
 		local positionOffset = Vector3.new(xNoise, yNoise, zNoise) * state.positionStrength * falloff
 		local rotationScale = math.rad(state.rotationStrength) * falloff
 		local rotationOffset = CFrame.Angles(rxNoise * rotationScale, ryNoise * rotationScale, rzNoise * rotationScale)
+		local offset = CFrame.new(positionOffset) * rotationOffset
 
-		camera.CFrame = eventShakeBaseCFrame * CFrame.new(positionOffset) * rotationOffset
+		state.appliedOffset = offset
+		camera.CFrame = camera.CFrame * offset
 	end)
 end
 
@@ -8834,6 +8853,9 @@ Remotes.EventTriggered.OnClientEvent:Connect(function(eventName, message, durati
 	end
 	DeepDigActiveEventHud.show(eventName, message, duration, effectId)
 	DeepDigEventStartFlash.play(eventName, message, duration, effectId)
+	if shouldPlayEventCameraShake(duration) then
+		playEventCameraShake(eventName, effectId)
+	end
 
 	showNotification("⚡ " .. tostring(message or ""), "Legendary")
 end)
