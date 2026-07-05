@@ -2838,6 +2838,17 @@ local LEGENDARY_FIND_FLASH_RARITIES = {
 		peakTransparency = 0.18,
 		flashInDuration = 0.08,
 		flashOutDuration = 0.34,
+		edgeGlowColors = {
+			top = Color3.fromRGB(255, 230, 130),
+			bottom = Color3.fromRGB(255, 166, 46),
+			left = Color3.fromRGB(255, 198, 74),
+			right = Color3.fromRGB(255, 198, 74),
+		},
+		edgeGlowPeakTransparency = 0.36,
+		edgeGlowInDuration = 0.10,
+		edgeGlowHoldDuration = 0.10,
+		edgeGlowOutDuration = 0.68,
+		edgeGlowThickness = 136,
 		pulseColor = Color3.fromRGB(255, 238, 146),
 		glintColor = Color3.fromRGB(255, 248, 210),
 		pulseSize = 155,
@@ -2855,6 +2866,17 @@ local LEGENDARY_FIND_FLASH_RARITIES = {
 		peakTransparency = 0.07,
 		flashInDuration = 0.06,
 		flashOutDuration = 0.44,
+		edgeGlowColors = {
+			top = Color3.fromRGB(190, 68, 255),
+			bottom = Color3.fromRGB(255, 218, 82),
+			left = Color3.fromRGB(255, 70, 186),
+			right = Color3.fromRGB(255, 196, 64),
+		},
+		edgeGlowPeakTransparency = 0.18,
+		edgeGlowInDuration = 0.08,
+		edgeGlowHoldDuration = 0.14,
+		edgeGlowOutDuration = 0.76,
+		edgeGlowThickness = 174,
 		pulseColor = Color3.fromRGB(255, 246, 246),
 		glintColor = Color3.fromRGB(255, 255, 255),
 		pulseSize = 220,
@@ -3692,9 +3714,139 @@ findFlashOverlay.BorderSizePixel = 0
 findFlashOverlay.ZIndex = 90
 findFlashOverlay.Parent = findFlashLayer
 
+LEGENDARY_FIND_FLASH_RARITIES._edgeGlow = {
+	frame = Instance.new("Frame"),
+	edges = {},
+	tweens = {},
+}
+LEGENDARY_FIND_FLASH_RARITIES._edgeGlow.frame.Name = "EdgeGlowVignette"
+LEGENDARY_FIND_FLASH_RARITIES._edgeGlow.frame.Size = UDim2.new(1, 0, 1, 0)
+LEGENDARY_FIND_FLASH_RARITIES._edgeGlow.frame.Position = UDim2.new(0, 0, 0, 0)
+LEGENDARY_FIND_FLASH_RARITIES._edgeGlow.frame.BackgroundTransparency = 1
+LEGENDARY_FIND_FLASH_RARITIES._edgeGlow.frame.BorderSizePixel = 0
+LEGENDARY_FIND_FLASH_RARITIES._edgeGlow.frame.Visible = false
+LEGENDARY_FIND_FLASH_RARITIES._edgeGlow.frame.ZIndex = 91
+LEGENDARY_FIND_FLASH_RARITIES._edgeGlow.frame.Parent = findFlashLayer
+
+function LEGENDARY_FIND_FLASH_RARITIES.CreateEdgeGlowFrame(name, size, position, rotation)
+	local edge = Instance.new("Frame")
+	edge.Name = name
+	edge.Size = size
+	edge.Position = position
+	edge.BackgroundColor3 = Color3.fromRGB(255, 210, 80)
+	edge.BackgroundTransparency = 1
+	edge.BorderSizePixel = 0
+	edge.ZIndex = 91
+	edge.Parent = LEGENDARY_FIND_FLASH_RARITIES._edgeGlow.frame
+
+	local gradient = Instance.new("UIGradient")
+	gradient.Rotation = rotation
+	gradient.Transparency = NumberSequence.new({
+		NumberSequenceKeypoint.new(0, 0),
+		NumberSequenceKeypoint.new(1, 1),
+	})
+	gradient.Parent = edge
+
+	LEGENDARY_FIND_FLASH_RARITIES._edgeGlow.edges[name] = edge
+	return edge
+end
+
+LEGENDARY_FIND_FLASH_RARITIES.CreateEdgeGlowFrame("top", UDim2.new(1, 0, 0, 136), UDim2.new(0, 0, 0, 0), 90)
+LEGENDARY_FIND_FLASH_RARITIES.CreateEdgeGlowFrame("bottom", UDim2.new(1, 0, 0, 136), UDim2.new(0, 0, 1, -136), 270)
+LEGENDARY_FIND_FLASH_RARITIES.CreateEdgeGlowFrame("left", UDim2.new(0, 136, 1, 0), UDim2.new(0, 0, 0, 0), 0)
+LEGENDARY_FIND_FLASH_RARITIES.CreateEdgeGlowFrame("right", UDim2.new(0, 136, 1, 0), UDim2.new(1, -136, 0, 0), 180)
+
 local findFlashSequence = 0
 local findFlashInTween = nil
 local findFlashOutTween = nil
+
+function LEGENDARY_FIND_FLASH_RARITIES.ClearEdgeGlowTweens()
+	for _, tween in ipairs(LEGENDARY_FIND_FLASH_RARITIES._edgeGlow.tweens) do
+		tween:Cancel()
+	end
+	LEGENDARY_FIND_FLASH_RARITIES._edgeGlow.tweens = {}
+end
+
+function LEGENDARY_FIND_FLASH_RARITIES.SetEdgeGlowTransparency(transparency)
+	for _, edge in pairs(LEGENDARY_FIND_FLASH_RARITIES._edgeGlow.edges) do
+		edge.BackgroundTransparency = transparency
+	end
+end
+
+function LEGENDARY_FIND_FLASH_RARITIES.TweenEdgeGlow(transparency, duration, easingStyle, easingDirection)
+	LEGENDARY_FIND_FLASH_RARITIES.ClearEdgeGlowTweens()
+
+	local lastTween = nil
+	for _, edge in pairs(LEGENDARY_FIND_FLASH_RARITIES._edgeGlow.edges) do
+		local tween = TweenService:Create(
+			edge,
+			TweenInfo.new(duration, easingStyle or Enum.EasingStyle.Quad, easingDirection or Enum.EasingDirection.Out),
+			{ BackgroundTransparency = transparency }
+		)
+		table.insert(LEGENDARY_FIND_FLASH_RARITIES._edgeGlow.tweens, tween)
+		lastTween = tween
+		tween:Play()
+	end
+
+	return lastTween
+end
+
+function LEGENDARY_FIND_FLASH_RARITIES.PlayEdgeGlow(flashProfile, sequence)
+	local edgeColors = flashProfile.edgeGlowColors
+	if not edgeColors then
+		return
+	end
+
+	LEGENDARY_FIND_FLASH_RARITIES.ClearEdgeGlowTweens()
+	LEGENDARY_FIND_FLASH_RARITIES._edgeGlow.frame.Visible = true
+	LEGENDARY_FIND_FLASH_RARITIES.SetEdgeGlowTransparency(1)
+
+	local thickness = flashProfile.edgeGlowThickness or 136
+	LEGENDARY_FIND_FLASH_RARITIES._edgeGlow.edges.top.Size = UDim2.new(1, 0, 0, thickness)
+	LEGENDARY_FIND_FLASH_RARITIES._edgeGlow.edges.top.Position = UDim2.new(0, 0, 0, 0)
+	LEGENDARY_FIND_FLASH_RARITIES._edgeGlow.edges.bottom.Size = UDim2.new(1, 0, 0, thickness)
+	LEGENDARY_FIND_FLASH_RARITIES._edgeGlow.edges.bottom.Position = UDim2.new(0, 0, 1, -thickness)
+	LEGENDARY_FIND_FLASH_RARITIES._edgeGlow.edges.left.Size = UDim2.new(0, thickness, 1, 0)
+	LEGENDARY_FIND_FLASH_RARITIES._edgeGlow.edges.left.Position = UDim2.new(0, 0, 0, 0)
+	LEGENDARY_FIND_FLASH_RARITIES._edgeGlow.edges.right.Size = UDim2.new(0, thickness, 1, 0)
+	LEGENDARY_FIND_FLASH_RARITIES._edgeGlow.edges.right.Position = UDim2.new(1, -thickness, 0, 0)
+
+	for edgeName, edge in pairs(LEGENDARY_FIND_FLASH_RARITIES._edgeGlow.edges) do
+		edge.BackgroundColor3 = edgeColors[edgeName] or flashProfile.overlayColor
+	end
+
+	LEGENDARY_FIND_FLASH_RARITIES.TweenEdgeGlow(
+		flashProfile.edgeGlowPeakTransparency or 0.36,
+		flashProfile.edgeGlowInDuration or 0.10,
+		Enum.EasingStyle.Quad,
+		Enum.EasingDirection.Out
+	)
+
+	task.delay((flashProfile.edgeGlowInDuration or 0.10) + (flashProfile.edgeGlowHoldDuration or 0.10), function()
+		if sequence ~= findFlashSequence then
+			return
+		end
+
+		local fadeOutTween = LEGENDARY_FIND_FLASH_RARITIES.TweenEdgeGlow(
+			1,
+			flashProfile.edgeGlowOutDuration or 0.68,
+			Enum.EasingStyle.Quad,
+			Enum.EasingDirection.In
+		)
+
+		if fadeOutTween then
+			fadeOutTween.Completed:Connect(function(playbackState)
+				if sequence ~= findFlashSequence or playbackState ~= Enum.PlaybackState.Completed then
+					return
+				end
+
+				LEGENDARY_FIND_FLASH_RARITIES._edgeGlow.frame.Visible = false
+				LEGENDARY_FIND_FLASH_RARITIES.SetEdgeGlowTransparency(1)
+				LEGENDARY_FIND_FLASH_RARITIES._edgeGlow.tweens = {}
+			end)
+		end
+	end)
+end
 
 function LEGENDARY_FIND_FLASH_RARITIES.FadeRareFindRevealDescendants(root, transparency, duration)
 	for _, descendant in ipairs(root:GetDescendants()) do
@@ -3898,9 +4050,13 @@ local function playLegendaryFindFlash(rarity, item)
 		findFlashOutTween:Cancel()
 		findFlashOutTween = nil
 	end
+	LEGENDARY_FIND_FLASH_RARITIES.ClearEdgeGlowTweens()
+	LEGENDARY_FIND_FLASH_RARITIES._edgeGlow.frame.Visible = false
+	LEGENDARY_FIND_FLASH_RARITIES.SetEdgeGlowTransparency(1)
 
 	findFlashOverlay.BackgroundColor3 = flashProfile.overlayColor
 	findFlashOverlay.BackgroundTransparency = 1
+	LEGENDARY_FIND_FLASH_RARITIES.PlayEdgeGlow(flashProfile, sequence)
 	LEGENDARY_FIND_FLASH_RARITIES.ShowRareFindRevealBanner(item, rarity, flashProfile, sequence)
 
 	findFlashInTween = TweenService:Create(
