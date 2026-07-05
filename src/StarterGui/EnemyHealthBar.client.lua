@@ -293,6 +293,22 @@ activeFeedback.enemySpawnWarning = {
 	tweens = {},
 	sequence = 0,
 }
+activeFeedback.enemySpawnMarker = {
+	name = "DeepDigEnemySpawnMarker",
+	regularStartDiameter = 3.8,
+	regularEndDiameter = 6.8,
+	minibossStartDiameter = 6.6,
+	minibossEndDiameter = 11.2,
+	thickness = 0.08,
+	regularSegmentWidth = 0.2,
+	minibossSegmentWidth = 0.32,
+	segments = 24,
+	pulseDuration = 0.48,
+	fadeDuration = 0.18,
+	regularBaseTransparency = 0.24,
+	minibossBaseTransparency = 0.12,
+	record = nil,
+}
 local hapticSupportChecked = false
 local hapticSupported = false
 local hapticMotorSupport = {}
@@ -2576,6 +2592,176 @@ function activeFeedback.hideEnemySpawnWarning()
 	end
 end
 
+function activeFeedback.clearEnemySpawnMarker(recordToClear)
+	local config = activeFeedback.enemySpawnMarker
+	local record = config.record
+	if not record or (recordToClear and record ~= recordToClear) then
+		return
+	end
+
+	config.record = nil
+	if record.connection then
+		record.connection:Disconnect()
+		record.connection = nil
+	end
+	for _, tween in ipairs(record.tweens) do
+		tween:Cancel()
+	end
+	record.tweens = {}
+
+	if record.folder and record.folder.Parent then
+		record.folder:Destroy()
+	end
+end
+
+function activeFeedback.fadeEnemySpawnMarker(recordToFade)
+	local config = activeFeedback.enemySpawnMarker
+	local record = config.record
+	if not record or (recordToFade and record ~= recordToFade) then
+		return
+	end
+
+	config.record = nil
+	if record.connection then
+		record.connection:Disconnect()
+		record.connection = nil
+	end
+	for _, tween in ipairs(record.tweens) do
+		tween:Cancel()
+	end
+	record.tweens = {}
+
+	for _, part in ipairs(record.parts) do
+		if part and part.Parent then
+			local tween = TweenService:Create(part, TweenInfo.new(
+				config.fadeDuration,
+				Enum.EasingStyle.Quad,
+				Enum.EasingDirection.Out
+			), {
+				Transparency = 1,
+			})
+			table.insert(record.tweens, tween)
+			tween:Play()
+		end
+	end
+
+	task.delay(config.fadeDuration + 0.04, function()
+		for _, tween in ipairs(record.tweens) do
+			tween:Cancel()
+		end
+		record.tweens = {}
+		if record.folder and record.folder.Parent then
+			record.folder:Destroy()
+		end
+	end)
+end
+
+function activeFeedback.updateEnemySpawnMarker(record)
+	local config = activeFeedback.enemySpawnMarker
+	local elapsed = os.clock() - record.startTime
+	local pulse = (elapsed % config.pulseDuration) / config.pulseDuration
+	local easedPulse = math.sin(pulse * math.pi)
+	local diameter = record.startDiameter
+		+ (record.endDiameter - record.startDiameter) * easedPulse
+	local radius = diameter * 0.5
+	local segmentLength = (math.pi * diameter / config.segments) * 0.72
+	local transparency = record.baseTransparency + (1 - easedPulse) * 0.24
+	local y = record.position.Y + config.thickness * 0.5 + easedPulse * 0.04
+	local centerPosition = Vector3.new(record.position.X, y, record.position.Z)
+
+	for index, part in ipairs(record.parts) do
+		local angle = ((index - 1) / config.segments) * math.pi * 2
+		local radial = Vector3.new(math.cos(angle), 0, math.sin(angle))
+		local tangent = Vector3.new(-math.sin(angle), 0, math.cos(angle))
+		local center = centerPosition + radial * radius
+
+		part.Size = Vector3.new(segmentLength, config.thickness, record.segmentWidth)
+		part.Transparency = transparency
+		part.Color = record.color:Lerp(record.hotColor, easedPulse)
+		part.CFrame = CFrame.fromMatrix(center, tangent, Vector3.new(0, 1, 0), radial)
+	end
+end
+
+function activeFeedback.showEnemySpawnMarker(position, duration, isMiniboss)
+	if typeof(position) ~= "Vector3" then
+		activeFeedback.clearEnemySpawnMarker()
+		return
+	end
+
+	local config = activeFeedback.enemySpawnMarker
+	activeFeedback.clearEnemySpawnMarker()
+
+	local parent = workspace.CurrentCamera or workspace
+	local folder = Instance.new("Folder")
+	folder.Name = config.name
+	folder.Parent = parent
+
+	local color = Color3.fromRGB(255, 92, 42)
+	local hotColor = Color3.fromRGB(255, 178, 56)
+	local startDiameter = config.regularStartDiameter
+	local endDiameter = config.regularEndDiameter
+	local baseTransparency = config.regularBaseTransparency
+	local segmentWidth = config.regularSegmentWidth
+	if isMiniboss then
+		color = Color3.fromRGB(168, 42, 255)
+		hotColor = Color3.fromRGB(255, 54, 68)
+		startDiameter = config.minibossStartDiameter
+		endDiameter = config.minibossEndDiameter
+		baseTransparency = config.minibossBaseTransparency
+		segmentWidth = config.minibossSegmentWidth
+	end
+
+	local parts = {}
+	for index = 1, config.segments do
+		local segment = Instance.new("Part")
+		segment.Name = "Segment" .. index
+		segment.Anchored = true
+		segment.CanCollide = false
+		segment.CanQuery = false
+		segment.CanTouch = false
+		segment.CastShadow = false
+		segment.Material = Enum.Material.Neon
+		segment.Color = color
+		segment.Transparency = 1
+		segment.Parent = folder
+		table.insert(parts, segment)
+	end
+
+	local record = {
+		folder = folder,
+		parts = parts,
+		tweens = {},
+		connection = nil,
+		startTime = os.clock(),
+		expiresAt = os.clock() + duration,
+		position = position,
+		color = color,
+		hotColor = hotColor,
+		startDiameter = startDiameter,
+		endDiameter = endDiameter,
+		baseTransparency = baseTransparency,
+		segmentWidth = segmentWidth,
+	}
+	config.record = record
+
+	activeFeedback.updateEnemySpawnMarker(record)
+	record.connection = RunService.Heartbeat:Connect(function()
+		if config.record ~= record then
+			return
+		end
+		if not folder.Parent then
+			activeFeedback.clearEnemySpawnMarker(record)
+			return
+		end
+		if os.clock() >= record.expiresAt then
+			activeFeedback.fadeEnemySpawnMarker(record)
+			return
+		end
+
+		activeFeedback.updateEnemySpawnMarker(record)
+	end)
+end
+
 function activeFeedback.showEnemySpawnWarning(payload)
 	local config = activeFeedback.ensureEnemySpawnWarning()
 	config.sequence = config.sequence + 1
@@ -2594,6 +2780,11 @@ function activeFeedback.showEnemySpawnWarning(payload)
 	else
 		config.titleLabel.Text = "BURROWING UP"
 		config.detailLabel.Text = "Something is about to surface nearby"
+	end
+	if typeof(payload) == "table" and typeof(payload.position) == "Vector3" then
+		activeFeedback.showEnemySpawnMarker(payload.position, duration, payload.isMiniboss == true)
+	else
+		activeFeedback.clearEnemySpawnMarker()
 	end
 
 	for key, edge in pairs(config.edges) do
