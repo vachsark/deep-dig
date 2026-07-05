@@ -6,12 +6,24 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
 local Debris = game:GetService("Debris")
+local HapticService = nil
+
+do
+	local ok, service = pcall(function()
+		return game:GetService("HapticService")
+	end)
+
+	if ok then
+		HapticService = service
+	end
+end
 
 local player = Players.LocalPlayer
 local mouse = player:GetMouse()
 local Remotes = ReplicatedStorage:WaitForChild("Remotes")
 local DigRequest = Remotes:WaitForChild("DigRequest", 10)
 local EnemyHitEvent = Remotes:WaitForChild("EnemyHitEvent", 10)
+local BlockBreakFeedback = Remotes:WaitForChild("BlockBreakFeedback", 10)
 
 local TARGET_DIG_BLOCK = "DigBlock"
 local TARGET_ENEMY = "Enemy"
@@ -19,6 +31,13 @@ local CLIENT_ATTACK_RANGE = 8
 local DEBUG_DIG_CLIENT = false
 local IMPACT_LIFETIME = 0.2
 local ENEMY_SPARK_LIFETIME = 0.28
+local BLOCK_BREAK_KICK_BIND_NAME = "DeepDigBlockBreakCameraKick"
+local BLOCK_BREAK_KICK_DURATION = 0.08
+local BLOCK_BREAK_KICK_POSITION = 0.08
+local BLOCK_BREAK_KICK_ROTATION = 0.28
+local HAPTIC_INPUT_TYPE = Enum.UserInputType.Gamepad1
+local HAPTIC_SMALL_MOTOR = Enum.VibrationMotor.Small
+local HAPTIC_LARGE_MOTOR = Enum.VibrationMotor.Large
 
 local character = player.Character or player.CharacterAdded:Wait()
 local equippedExcavator = nil
@@ -29,6 +48,15 @@ local combatState = {
 	nextAttackAt = 0,
 	recoveryCueUntil = 0,
 }
+local hapticSupportChecked = false
+local hapticSupported = false
+local hapticMotorSupport = {}
+local hapticSequence = 0
+local blockBreakKickSequence = 0
+local blockBreakKickState = nil
+local blockBreakKickBound = false
+local lastBlockBreakKickCFrame = CFrame.new()
+local lastBlockBreakKickActive = false
 
 local targetHighlight = Instance.new("Highlight")
 targetHighlight.Name = "DeepDigTargetHighlight"
@@ -79,6 +107,145 @@ local function clearTargetHighlight()
 	targetHighlight.Enabled = false
 	targetHighlight.Adornee = nil
 	clearMoveCloserCue()
+end
+
+local function canUseHaptics()
+	if hapticSupportChecked then
+		return hapticSupported
+	end
+
+	hapticSupportChecked = true
+	if not HapticService then
+		return false
+	end
+
+	local ok, supported = pcall(function()
+		return HapticService:IsVibrationSupported(HAPTIC_INPUT_TYPE)
+	end)
+	hapticSupported = ok and supported == true
+	return hapticSupported
+end
+
+local function canUseHapticMotor(motor)
+	if not canUseHaptics() then
+		return false
+	end
+
+	if hapticMotorSupport[motor] ~= nil then
+		return hapticMotorSupport[motor]
+	end
+
+	local ok, supported = pcall(function()
+		return HapticService:IsMotorSupported(HAPTIC_INPUT_TYPE, motor)
+	end)
+	hapticMotorSupport[motor] = ok and supported == true
+	return hapticMotorSupport[motor]
+end
+
+local function setHapticMotor(motor, strength)
+	if not canUseHapticMotor(motor) then
+		return
+	end
+
+	pcall(function()
+		HapticService:SetMotor(HAPTIC_INPUT_TYPE, motor, strength)
+	end)
+end
+
+local function clearHapticBump(sequence)
+	if sequence and sequence ~= hapticSequence then
+		return
+	end
+
+	setHapticMotor(HAPTIC_SMALL_MOTOR, 0)
+	setHapticMotor(HAPTIC_LARGE_MOTOR, 0)
+end
+
+local function playHapticBump(smallStrength, largeStrength, duration)
+	hapticSequence = hapticSequence + 1
+	local sequence = hapticSequence
+
+	setHapticMotor(HAPTIC_SMALL_MOTOR, smallStrength)
+	setHapticMotor(HAPTIC_LARGE_MOTOR, largeStrength)
+
+	task.delay(duration, function()
+		clearHapticBump(sequence)
+	end)
+end
+
+local function removeLastBlockBreakKick(camera)
+	if camera and lastBlockBreakKickActive then
+		camera.CFrame = camera.CFrame * lastBlockBreakKickCFrame:Inverse()
+	end
+
+	lastBlockBreakKickCFrame = CFrame.new()
+	lastBlockBreakKickActive = false
+end
+
+local function clearBlockBreakKick(sequence)
+	if sequence and sequence ~= blockBreakKickSequence then
+		return
+	end
+
+	removeLastBlockBreakKick(workspace.CurrentCamera)
+	blockBreakKickState = nil
+
+	if blockBreakKickBound then
+		RunService:UnbindFromRenderStep(BLOCK_BREAK_KICK_BIND_NAME)
+		blockBreakKickBound = false
+	end
+end
+
+local function ensureBlockBreakKickBinding()
+	if blockBreakKickBound then
+		return
+	end
+
+	blockBreakKickBound = true
+	RunService:BindToRenderStep(BLOCK_BREAK_KICK_BIND_NAME, Enum.RenderPriority.Camera.Value + 2, function()
+		local camera = workspace.CurrentCamera
+		local state = blockBreakKickState
+		if not camera or not state then
+			clearBlockBreakKick()
+			return
+		end
+
+		removeLastBlockBreakKick(camera)
+
+		local progress = (os.clock() - state.startTime) / BLOCK_BREAK_KICK_DURATION
+		if progress >= 1 then
+			clearBlockBreakKick(state.sequence)
+			return
+		end
+
+		local falloff = 1 - math.clamp(progress, 0, 1)
+		local snap = math.sin(progress * math.pi)
+		lastBlockBreakKickCFrame = CFrame.new(
+			state.direction * BLOCK_BREAK_KICK_POSITION * falloff,
+			BLOCK_BREAK_KICK_POSITION * 0.24 * snap * falloff,
+			0
+		) * CFrame.Angles(0, 0, math.rad(state.direction * BLOCK_BREAK_KICK_ROTATION * falloff))
+		lastBlockBreakKickActive = true
+		camera.CFrame = camera.CFrame * lastBlockBreakKickCFrame
+	end)
+end
+
+local function playBlockBreakFeedback()
+	blockBreakKickSequence = blockBreakKickSequence + 1
+	local direction = 1
+	if math.random() < 0.5 then
+		direction = -1
+	end
+
+	removeLastBlockBreakKick(workspace.CurrentCamera)
+	blockBreakKickState = {
+		sequence = blockBreakKickSequence,
+		startTime = os.clock(),
+		direction = direction,
+	}
+
+	ensureBlockBreakKickBinding()
+	playHapticBump(0.04, 0.055, 0.06)
 end
 
 local function getModelRoot(model)
@@ -549,6 +716,12 @@ player.CharacterAdded:Connect(function(newChar)
 end)
 
 RunService.RenderStepped:Connect(updateTargetHighlight)
+
+if BlockBreakFeedback then
+	BlockBreakFeedback.OnClientEvent:Connect(playBlockBreakFeedback)
+else
+	warn("[DeepDig dig] block break feedback disabled: BlockBreakFeedback remote missing")
+end
 
 if not DigRequest or not EnemyHitEvent then
 	warn("[DeepDig dig] targeting disabled: DigRequest or EnemyHitEvent remote missing")

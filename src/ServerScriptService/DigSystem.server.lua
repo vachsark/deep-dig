@@ -10,6 +10,7 @@ local PetDatabase = require(ReplicatedStorage:WaitForChild("PetDatabase"))
 local EXCAVATOR_TOOL_NAME = "Excavator"
 local REFRESH_EXCAVATOR_VISUAL_EVENT_NAME = "RefreshExcavatorVisual"
 local ENEMY_DIG_BLOCKED_EVENT_NAME = "EnemyDigBlocked"
+local BLOCK_BREAK_FEEDBACK_EVENT_NAME = "BlockBreakFeedback"
 
 local function getData(player)
 	return _G.DeepDig_playerData and _G.DeepDig_playerData[player.UserId]
@@ -650,6 +651,7 @@ end
 local function setupDigRemote()
 	local Remotes = ReplicatedStorage:WaitForChild("Remotes")
 	getOrCreateRemoteEvent(Remotes, ENEMY_DIG_BLOCKED_EVENT_NAME)
+	local BlockBreakFeedback = getOrCreateRemoteEvent(Remotes, BLOCK_BREAK_FEEDBACK_EVENT_NAME)
 
 	-- Create the DigRequest remote for client→server block targeting
 	local digRequest = Instance.new("RemoteEvent")
@@ -677,6 +679,7 @@ local function setupDigRemote()
 
 		if breakBlock(player, block) then
 			digCooldownByUserId[userId] = now + getDigInterval(player)
+			BlockBreakFeedback:FireClient(player)
 		end
 	end)
 end
