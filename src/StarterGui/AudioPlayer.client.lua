@@ -107,6 +107,7 @@ local SOUNDS = {
 		id = "rbxassetid://9114013169", -- short impact thud
 		volume = 0.55,
 		pitchRange = { 1.05, 1.16 },
+		dedupeWindow = 0.08,
 	},
 	enemy_aggro = {
 		id = "rbxassetid://5982968246", -- short warning horn

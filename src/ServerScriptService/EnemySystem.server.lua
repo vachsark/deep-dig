@@ -1286,9 +1286,13 @@ EnemyHitEvent.OnServerEvent:Connect(function(player, enemyModel)
 	record.lastAttacker = player
 	local previousHealth = record.humanoid.Health
 	record.humanoid:TakeDamage(damage)
+	syncEnemyHealthAttributes(record)
 	checkMinibossEnrage(record, player, previousHealth)
 	staggerEnemy(record, playerRoot, enemyRoot)
-	fireEnemyCombatFeedback(player, "hit", record.model, damage)
+	fireEnemyCombatFeedback(player, "hit", record.model, damage, nil, {
+		remainingHealth = math.max(0, record.humanoid.Health),
+		maxHealth = getEnemyMaxHealth(record),
+	})
 end)
 
 Players.PlayerAdded:Connect(onPlayerAdded)

@@ -234,6 +234,10 @@ activeFeedback.enemyHitImpact = {
 	lastJoltCFrame = CFrame.new(),
 	lastJoltActive = false,
 }
+activeFeedback.enemyHitBarPulse = {
+	scale = 1.12,
+	duration = 0.12,
+}
 activeFeedback.digBlockedDirection = {
 	thickness = 86,
 	pulseTransparency = 0.34,
@@ -1431,6 +1435,65 @@ local function createHealthBar(model, root)
 	return billboard, fill, hpLabel
 end
 
+function activeFeedback.updateHealthBarRecord(model, record, healthOverride, maxHealthOverride)
+	local humanoid = record.humanoid
+	local health, maxHealth = activeFeedback.getEnemyHealth(model, humanoid)
+	if typeof(healthOverride) == "number" then
+		health = math.max(0, healthOverride)
+	end
+	if typeof(maxHealthOverride) == "number" and maxHealthOverride > 0 then
+		maxHealth = maxHealthOverride
+	end
+
+	if not model.Parent or health <= 0 then
+		cleanupEnemy(model)
+		return
+	end
+
+	local ratio = math.clamp(health / maxHealth, 0, 1)
+	record.fill.Size = UDim2.fromScale(ratio, 1)
+	record.fill.BackgroundColor3 = getHealthColor(ratio)
+	record.hpLabel.Text = string.format("%d/%d", math.ceil(health), math.ceil(maxHealth))
+	updateBossBar()
+end
+
+function activeFeedback.pulseHealthBar(model)
+	local record = trackedEnemies[model]
+	if not record or not record.gui or not record.gui.Parent then
+		return
+	end
+	local pulseConfig = activeFeedback.enemyHitBarPulse
+
+	record.hitPulseToken = (record.hitPulseToken or 0) + 1
+	local token = record.hitPulseToken
+	if record.hitPulseTween then
+		record.hitPulseTween:Cancel()
+		record.hitPulseTween = nil
+	end
+
+	record.gui.Size = record.baseGuiSize
+	local pulseSize = UDim2.fromOffset(
+		math.floor(BAR_WIDTH * pulseConfig.scale + 0.5),
+		math.floor(BAR_HEIGHT * pulseConfig.scale + 0.5)
+	)
+	record.gui.Size = pulseSize
+
+	record.hitPulseTween = TweenService:Create(record.gui, TweenInfo.new(
+		pulseConfig.duration,
+		Enum.EasingStyle.Quad,
+		Enum.EasingDirection.Out
+	), {
+		Size = record.baseGuiSize,
+	})
+	record.hitPulseTween:Play()
+	record.hitPulseTween.Completed:Once(function()
+		if record.hitPulseToken == token and record.gui and record.gui.Parent then
+			record.gui.Size = record.baseGuiSize
+			record.hitPulseTween = nil
+		end
+	end)
+end
+
 local function trackEnemy(model)
 	if trackedEnemies[model] or not model:IsA("Model") then
 		return
@@ -1450,6 +1513,11 @@ local function trackEnemy(model)
 		local gui, fill, hpLabel = createHealthBar(model, root)
 		local record = {
 			gui = gui,
+			fill = fill,
+			hpLabel = hpLabel,
+			baseGuiSize = UDim2.fromOffset(BAR_WIDTH, BAR_HEIGHT),
+			hitPulseToken = 0,
+			hitPulseTween = nil,
 			connections = {},
 			humanoid = humanoid,
 			isMiniboss = model:GetAttribute("IsMiniboss") == true,
@@ -1458,17 +1526,7 @@ local function trackEnemy(model)
 		table.insert(trackedEnemyOrder, model)
 
 		local function update()
-			local health, maxHealth = activeFeedback.getEnemyHealth(model, humanoid)
-			if not model.Parent or health <= 0 then
-				cleanupEnemy(model)
-				return
-			end
-
-			local ratio = math.clamp(health / maxHealth, 0, 1)
-			fill.Size = UDim2.fromScale(ratio, 1)
-			fill.BackgroundColor3 = getHealthColor(ratio)
-			hpLabel.Text = string.format("%d/%d", math.ceil(health), math.ceil(maxHealth))
-			updateBossBar()
+			activeFeedback.updateHealthBarRecord(model, record)
 		end
 
 		table.insert(record.connections, humanoid.HealthChanged:Connect(update))
@@ -3417,6 +3475,16 @@ local function showDamageNumber(model, damage)
 	end)
 end
 
+function activeFeedback.applyConfirmedEnemyHit(model, damage, remainingHealth, maxHealth)
+	local record = trackedEnemies[model]
+	if record then
+		activeFeedback.updateHealthBarRecord(model, record, remainingHealth, maxHealth)
+		activeFeedback.pulseHealthBar(model)
+	end
+
+	showDamageNumber(model, damage)
+end
+
 local function addRewardLabel(parent, text, color, textSize, strokeColor)
 	local label = Instance.new("TextLabel")
 	label.Name = "RewardLine"
@@ -5254,7 +5322,7 @@ EnemyCombatFeedback.OnClientEvent:Connect(function(payload)
 
 	if feedbackType == "hit" then
 		activeFeedback.playEnemyHitImpact()
-		showDamageNumber(payload.model, payload.damage)
+		activeFeedback.applyConfirmedEnemyHit(payload.model, payload.damage, payload.remainingHealth, payload.maxHealth)
 	elseif feedbackType == "defeated" then
 		showRewardBurst(payload.model, payload.reward)
 		CombatStreak.show(payload.reward)
