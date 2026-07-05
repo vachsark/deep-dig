@@ -3479,6 +3479,13 @@ function activeFeedback.applyConfirmedEnemyHit(model, damage, remainingHealth, m
 	local record = trackedEnemies[model]
 	if record then
 		activeFeedback.updateHealthBarRecord(model, record, remainingHealth, maxHealth)
+	end
+
+	if typeof(damage) ~= "number" or damage <= 0 then
+		return
+	end
+
+	if record then
 		activeFeedback.pulseHealthBar(model)
 	end
 
@@ -5287,6 +5294,10 @@ EnemyCombatFeedback.OnClientEvent:Connect(function(payload)
 	end
 
 	if feedbackType ~= "hit" and feedbackType ~= "defeated" and feedbackType ~= "aggro" and feedbackType ~= "enemy_attack_warning" and feedbackType ~= "enemy_spawn" and feedbackType ~= "miniboss_spawn" and feedbackType ~= "miniboss_enrage" and feedbackType ~= "miniboss_defeated" then
+		return
+	end
+
+	if feedbackType == "hit" and (typeof(payload.damage) ~= "number" or payload.damage <= 0) then
 		return
 	end
 
