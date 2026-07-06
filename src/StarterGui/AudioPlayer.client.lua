@@ -71,6 +71,13 @@ local SOUNDS = {
 		pitchRange = { 1.02, 1.08 },
 		dedupeWindow = 0.12,
 	},
+	infinite_backpack_unlock = {
+		id = "rbxassetid://4612375287", -- compact uncapped-backpack sparkle
+		volume = 0.68,
+		playbackSpeed = 0.96,
+		pitchRange = { 0.98, 1.04 },
+		dedupeWindow = 0.5,
+	},
 	sell_all_bonus = {
 		id = "rbxassetid://5852285683", -- centered sell-all payout shimmer
 		volume = 0.82,

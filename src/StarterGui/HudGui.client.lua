@@ -148,6 +148,7 @@ invLabel.TextXAlignment = Enum.TextXAlignment.Left
 invLabel.Parent = screenGui
 
 local pulseSellAllButton = function() end
+function DeepDigClearFullBackpackPressure() end
 local setInventoryDisplay
 do
 	local currentInventoryCount = 0
@@ -179,6 +180,7 @@ do
 			inventoryWasFull = false
 			invLabel.TextColor3 = normalColor
 			invLabel.Font = Enum.Font.Gotham
+			DeepDigClearFullBackpackPressure()
 			return
 		end
 
@@ -6118,11 +6120,23 @@ local function tweenBackpackFull(instance, duration, goal, easingStyle, easingDi
 	return tween
 end
 
+function DeepDigClearBackpackFullBurst()
+	backpackFullFx.sequence = backpackFullFx.sequence + 1
+	clearBackpackFullTweens()
+	backpackFullUi.panel.Visible = false
+	backpackFullUi.panel.BackgroundTransparency = 1
+	backpackFullUi.stroke.Transparency = 1
+	backpackFullUi.title.TextTransparency = 1
+	backpackFullUi.item.TextTransparency = 1
+	backpackFullUi.action.TextTransparency = 1
+end
+
 return function(payload)
 	if type(payload) ~= "table" then
 		return
 	end
 	if payload.inventoryCapacity == "unlimited" then
+		DeepDigClearBackpackFullBurst()
 		return
 	end
 
@@ -6184,6 +6198,157 @@ return function(payload)
 				return
 			end
 			backpackFullUi.panel.Visible = false
+		end)
+	end)
+end
+end)()
+
+DeepDigShowInfiniteBackpackUnlockBurst = (function()
+local uncappedUi = {}
+uncappedUi.panel = Instance.new("Frame")
+uncappedUi.panel.Name = "InfiniteBackpackUnlockBurst"
+uncappedUi.panel.AnchorPoint = Vector2.new(0.5, 0.5)
+uncappedUi.panel.Size = UDim2.fromOffset(304, 86)
+uncappedUi.panel.Position = UDim2.fromScale(0.5, 0.44)
+uncappedUi.panel.BackgroundColor3 = Color3.fromRGB(30, 24, 44)
+uncappedUi.panel.BackgroundTransparency = 1
+uncappedUi.panel.BorderSizePixel = 0
+uncappedUi.panel.Visible = false
+uncappedUi.panel.ZIndex = 82
+uncappedUi.panel.Parent = screenGui
+
+uncappedUi.corner = Instance.new("UICorner")
+uncappedUi.corner.CornerRadius = UDim.new(0, 10)
+uncappedUi.corner.Parent = uncappedUi.panel
+
+uncappedUi.stroke = Instance.new("UIStroke")
+uncappedUi.stroke.Color = Color3.fromRGB(202, 145, 255)
+uncappedUi.stroke.Thickness = 2
+uncappedUi.stroke.Transparency = 1
+uncappedUi.stroke.Parent = uncappedUi.panel
+
+uncappedUi.title = Instance.new("TextLabel")
+uncappedUi.title.Name = "Title"
+uncappedUi.title.Size = UDim2.new(1, -28, 0, 28)
+uncappedUi.title.Position = UDim2.fromOffset(14, 10)
+uncappedUi.title.BackgroundTransparency = 1
+uncappedUi.title.Text = "Backpack Uncapped"
+uncappedUi.title.TextColor3 = Color3.fromRGB(235, 218, 255)
+uncappedUi.title.TextTransparency = 1
+uncappedUi.title.Font = Enum.Font.GothamBlack
+uncappedUi.title.TextScaled = true
+uncappedUi.title.TextWrapped = true
+uncappedUi.title.TextXAlignment = Enum.TextXAlignment.Center
+uncappedUi.title.ZIndex = 83
+uncappedUi.title.Parent = uncappedUi.panel
+
+local titleConstraint = Instance.new("UITextSizeConstraint")
+titleConstraint.MaxTextSize = 23
+titleConstraint.MinTextSize = 12
+titleConstraint.Parent = uncappedUi.title
+
+uncappedUi.detail = Instance.new("TextLabel")
+uncappedUi.detail.Name = "Detail"
+uncappedUi.detail.Size = UDim2.new(1, -32, 0, 24)
+uncappedUi.detail.Position = UDim2.fromOffset(16, 48)
+uncappedUi.detail.BackgroundTransparency = 1
+uncappedUi.detail.Text = "Inventory: unlimited"
+uncappedUi.detail.TextColor3 = Color3.fromRGB(150, 236, 210)
+uncappedUi.detail.TextTransparency = 1
+uncappedUi.detail.Font = Enum.Font.GothamBold
+uncappedUi.detail.TextScaled = true
+uncappedUi.detail.TextWrapped = true
+uncappedUi.detail.TextXAlignment = Enum.TextXAlignment.Center
+uncappedUi.detail.ZIndex = 83
+uncappedUi.detail.Parent = uncappedUi.panel
+
+local detailConstraint = Instance.new("UITextSizeConstraint")
+detailConstraint.MaxTextSize = 16
+detailConstraint.MinTextSize = 10
+detailConstraint.Parent = uncappedUi.detail
+
+local uncappedFx = {
+	sequence = 0,
+	tweens = {},
+	playedMarkers = {},
+}
+
+local function clearUncappedTweens()
+	for _, tween in ipairs(uncappedFx.tweens) do
+		tween:Cancel()
+	end
+	uncappedFx.tweens = {}
+end
+
+local function tweenUncapped(instance, duration, goal, easingStyle, easingDirection)
+	local tween = TweenService:Create(
+		instance,
+		TweenInfo.new(duration, easingStyle or Enum.EasingStyle.Quad, easingDirection or Enum.EasingDirection.Out),
+		goal
+	)
+	table.insert(uncappedFx.tweens, tween)
+	tween:Play()
+	return tween
+end
+
+return function(payload)
+	if type(payload) ~= "table" then
+		return
+	end
+
+	local marker = tostring(payload.marker or payload.reason or "sync")
+	if uncappedFx.playedMarkers[marker] then
+		return
+	end
+	uncappedFx.playedMarkers[marker] = true
+
+	uncappedFx.sequence = uncappedFx.sequence + 1
+	local sequence = uncappedFx.sequence
+	clearUncappedTweens()
+	DeepDigClearFullBackpackPressure()
+
+	uncappedUi.panel.Visible = true
+	uncappedUi.panel.Size = UDim2.fromOffset(286, 78)
+	uncappedUi.panel.Position = UDim2.fromScale(0.5, 0.47)
+	uncappedUi.panel.BackgroundTransparency = 1
+	uncappedUi.stroke.Transparency = 1
+	uncappedUi.stroke.Thickness = 2
+	uncappedUi.title.TextTransparency = 1
+	uncappedUi.detail.TextTransparency = 1
+
+	if LocalPlaySound and LocalPlaySound:IsA("BindableEvent") then
+		LocalPlaySound:Fire("infinite_backpack_unlock")
+	end
+
+	tweenUncapped(uncappedUi.panel, 0.16, {
+		Size = UDim2.fromOffset(320, 92),
+		Position = UDim2.fromScale(0.5, 0.42),
+		BackgroundTransparency = 0.06,
+	}, Enum.EasingStyle.Back)
+	tweenUncapped(uncappedUi.stroke, 0.16, {
+		Transparency = 0,
+		Thickness = 3,
+	})
+	tweenUncapped(uncappedUi.title, 0.12, { TextTransparency = 0 })
+	tweenUncapped(uncappedUi.detail, 0.18, { TextTransparency = 0 })
+
+	task.delay(1.65, function()
+		if sequence ~= uncappedFx.sequence then
+			return
+		end
+
+		tweenUncapped(uncappedUi.panel, 0.22, {
+			Position = UDim2.fromScale(0.5, 0.38),
+			BackgroundTransparency = 1,
+		}, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+		tweenUncapped(uncappedUi.stroke, 0.2, { Transparency = 1 }, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+		tweenUncapped(uncappedUi.title, 0.16, { TextTransparency = 1 }, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+		local detailFade = tweenUncapped(uncappedUi.detail, 0.16, { TextTransparency = 1 }, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+		detailFade.Completed:Connect(function()
+			if sequence ~= uncappedFx.sequence then
+				return
+			end
+			uncappedUi.panel.Visible = false
 		end)
 	end)
 end
@@ -7574,6 +7739,26 @@ do
 			sellGlow.Transparency = 1
 		end)
 	end
+
+	DeepDigClearFullBackpackPressure = function()
+		sellPulseSequence = sellPulseSequence + 1
+		if activeSellButtonTween then
+			activeSellButtonTween:Cancel()
+			activeSellButtonTween = nil
+		end
+		if activeSellGlowTween then
+			activeSellGlowTween:Cancel()
+			activeSellGlowTween = nil
+		end
+
+		sellButton.BackgroundColor3 = restColor
+		sellButton.TextColor3 = restTextColor
+		sellGlow.Transparency = 1
+
+		if DeepDigClearBackpackFullBurst then
+			DeepDigClearBackpackFullBurst()
+		end
+	end
 end
 
 sellButton.MouseButton1Click:Connect(function()
@@ -8935,6 +9120,9 @@ Remotes.UpdateHUD.OnClientEvent:Connect(function(data)
 	end
 	if data.inventoryCount ~= nil or data.inventoryCapacity ~= nil then
 		setInventoryDisplay(data.inventoryCount, data.inventoryCapacity)
+	end
+	if data.infiniteBackpackUnlocked then
+		DeepDigShowInfiniteBackpackUnlockBurst(data.infiniteBackpackUnlocked)
 	end
 	if data.fragments ~= nil then
 		local newFragments = math.floor(data.fragments)

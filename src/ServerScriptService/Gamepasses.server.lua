@@ -146,6 +146,12 @@ local function isPassOwned(ownedGamepasses, pass)
 	return ownedGamepasses[pass.id] == true or (pass.key and ownedGamepasses[pass.key] == true)
 end
 
+local function isInfiniteBackpackPass(pass)
+	return pass
+		and (pass.id == Config.GAMEPASS_INFINITE_BACKPACK_ID
+			or pass.key == Config.GAMEPASS_INFINITE_BACKPACK)
+end
+
 local function syncPassOwnership(data, pass, owned)
 	if not data.ownedGamepasses then
 		data.ownedGamepasses = {}
@@ -332,10 +338,14 @@ local function checkPassesForPlayer(player)
 	end
 
 	local owned = {}
+	local infiniteBackpackSynced = false
 	for _, pass in ipairs(GAMEPASSES) do
 		if not isPassAvailable(pass) then
 			if isPassOwned(data.ownedGamepasses, pass) then
 				table.insert(owned, pass.name)
+				if isInfiniteBackpackPass(pass) then
+					infiniteBackpackSynced = true
+				end
 
 				if pass.tag == "VIP" then
 					task.spawn(applyVIPTag, player)
@@ -346,6 +356,9 @@ local function checkPassesForPlayer(player)
 		elseif isValidPassId(pass.id) and ownsPass(player, pass.id) then
 			syncPassOwnership(data, pass, true)
 			table.insert(owned, pass.name)
+			if isInfiniteBackpackPass(pass) then
+				infiniteBackpackSynced = true
+			end
 
 			-- Apply VIP tag immediately (on first spawn)
 			if pass.tag == "VIP" then
@@ -363,6 +376,10 @@ local function checkPassesForPlayer(player)
 		ownedGamepasses = data.ownedGamepasses,
 		inventoryCount = data.inventory and #data.inventory or 0,
 		inventoryCapacity = getInventoryCapacity(data),
+		infiniteBackpackUnlocked = infiniteBackpackSynced and {
+			reason = "ownership_sync",
+			marker = "ownership_sync",
+		} or nil,
 	})
 
 	if #owned > 0 then
@@ -441,10 +458,12 @@ MarketplaceService.PromptGamePassPurchaseFinished:Connect(function(player, passI
 
 	-- Find pass name for notification
 	local passName = "Gamepass"
+	local purchasedInfiniteBackpack = false
 	for _, pass in ipairs(GAMEPASSES) do
 		if pass.id == passId then
 			syncPassOwnership(data, pass, true)
 			passName = pass.name
+			purchasedInfiniteBackpack = isInfiniteBackpackPass(pass)
 
 			if pass.tag == "VIP" then
 				task.spawn(applyVIPTag, player)
@@ -460,6 +479,10 @@ MarketplaceService.PromptGamePassPurchaseFinished:Connect(function(player, passI
 		ownedGamepasses = data.ownedGamepasses,
 		inventoryCount = data.inventory and #data.inventory or 0,
 		inventoryCapacity = getInventoryCapacity(data),
+		infiniteBackpackUnlocked = purchasedInfiniteBackpack and {
+			reason = "purchase",
+			marker = "purchase",
+		} or nil,
 	})
 
 	print("[Gamepasses] " .. player.Name .. " purchased passId " .. passId .. " (" .. passName .. ")")
