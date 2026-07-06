@@ -4402,7 +4402,7 @@ local function isEarthquakeEvent(eventName, message, effectId)
 	end
 
 	local nameKey = normalizeEventKey(eventName)
-	if nameKey == "earthquake" then
+	if nameKey == "earthquake" or nameKey == "instantdig" then
 		return true
 	end
 
@@ -9285,6 +9285,9 @@ Remotes.EventTriggered.OnClientEvent:Connect(function(eventName, message, durati
 	updateSeasonBadge(effectId)
 	if LocalPlaySound and LocalPlaySound:IsA("BindableEvent") then
 		LocalPlaySound:Fire("event_alarm")
+		if isEarthquakeEvent(eventName, message, effectId) then
+			LocalPlaySound:Fire("earthquake_rumble")
+		end
 	end
 	DeepDigActiveEventHud.show(eventName, message, duration, effectId)
 	DeepDigEventStartFlash.play(eventName, message, duration, effectId)
