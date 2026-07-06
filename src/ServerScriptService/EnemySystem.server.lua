@@ -62,6 +62,7 @@ local SPAWN_WINDUP_DURATION = 1.2
 local KILL_STREAK_WINDOW = 20
 local KILL_STREAK_BONUS_PER_KILL = 0.1
 local KILL_STREAK_MAX_BONUS = 0.5
+local ENEMY_DAMAGE_DEATH_WINDOW = 6
 local COMBAT_GRACE_ATTRIBUTE = "DeepDig_CombatGraceUntil"
 local COMBAT_DEFEAT_ATTRIBUTE = "DeepDig_LastCombatDefeatAt"
 local COMBAT_DEFEAT_SOURCE_ATTRIBUTE = "DeepDig_LastCombatDefeatSource"
@@ -250,6 +251,16 @@ end
 
 local function clearEnemyKillStreak(player)
 	killStreaksByUserId[player.UserId] = nil
+end
+
+local function wasEnemyCombatDeath(player)
+	local combatDefeatAt = player:GetAttribute(COMBAT_DEFEAT_ATTRIBUTE)
+	if type(combatDefeatAt) == "number" and os.clock() - combatDefeatAt <= ENEMY_DAMAGE_DEATH_WINDOW then
+		return true
+	end
+
+	local lastEnemyDamageAt = player:GetAttribute("DeepDig_LastEnemyDamageAt")
+	return type(lastEnemyDamageAt) == "number" and os.clock() - lastEnemyDamageAt <= ENEMY_DAMAGE_DEATH_WINDOW
 end
 
 local function notifyEnemyReward(player, enemyName, enemy, coinReward, streakCount, streakBonusCoins, itemReward)
@@ -1181,7 +1192,9 @@ local function watchPlayerDeath(player)
 		local humanoid = character:WaitForChild("Humanoid", 10)
 		if humanoid then
 			deathConnectionsByUserId[player.UserId] = humanoid.Died:Connect(function()
-				clearEnemyKillStreak(player)
+				if not wasEnemyCombatDeath(player) then
+					clearEnemyKillStreak(player)
+				end
 			end)
 		else
 			deathConnectionsByUserId[player.UserId] = nil
