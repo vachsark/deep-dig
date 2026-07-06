@@ -64,6 +64,13 @@ local SOUNDS = {
 		playbackSpeed = 1.12,
 		pitchRange = { 1.0, 1.08 },
 	},
+	auto_collector_cashout = {
+		id = "rbxassetid://6837730320", -- compact auto-collector payout chime
+		volume = 0.56,
+		playbackSpeed = 1.3,
+		pitchRange = { 1.02, 1.08 },
+		dedupeWindow = 0.12,
+	},
 	sell_all_bonus = {
 		id = "rbxassetid://5852285683", -- centered sell-all payout shimmer
 		volume = 0.82,

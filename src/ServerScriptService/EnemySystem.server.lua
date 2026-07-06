@@ -111,6 +111,61 @@ local function getSharedData(player)
 	return nil
 end
 
+local function ensureEnemyKillCounts(data)
+	if type(data.enemyKillCounts) ~= "table" then
+		data.enemyKillCounts = {}
+	end
+	return data.enemyKillCounts
+end
+
+local function ensureEnemyMasteryNotified(data)
+	if type(data.enemyMasteryNotified) ~= "table" then
+		data.enemyMasteryNotified = {}
+	end
+	return data.enemyMasteryNotified
+end
+
+local function getEnemyKillCountKey(enemy)
+	if type(enemy) ~= "table" then
+		return nil
+	end
+
+	local enemyId = enemy.id
+	if type(enemyId) ~= "string" or enemyId == "" then
+		enemyId = enemy.name
+	end
+	if type(enemyId) ~= "string" or enemyId == "" then
+		return nil
+	end
+
+	return enemyId
+end
+
+local function getEnemyDisplayName(enemy, fallback)
+	if type(enemy) == "table" and type(enemy.name) == "string" and enemy.name ~= "" then
+		return enemy.name
+	end
+	return fallback or "Buried Enemy"
+end
+
+local function applyEnemyKillProgress(player, data, enemy)
+	data.enemyKills = math.max(0, math.floor(tonumber(data.enemyKills) or 0)) + 1
+
+	local enemyKillCounts = ensureEnemyKillCounts(data)
+	local enemyMasteryNotified = ensureEnemyMasteryNotified(data)
+	local enemyKillCountKey = getEnemyKillCountKey(enemy)
+	if enemyKillCountKey then
+		local previousCount = tonumber(enemyKillCounts[enemyKillCountKey]) or 0
+		local newCount = previousCount + 1
+		enemyKillCounts[enemyKillCountKey] = newCount
+
+		if previousCount < 10 and newCount >= 10 and not enemyMasteryNotified[enemyKillCountKey] then
+			enemyMasteryNotified[enemyKillCountKey] = true
+			NotifyEvent:FireClient(player, "Mastered " .. getEnemyDisplayName(enemy, enemyKillCountKey) .. ": 10 defeats!", "Legendary")
+		end
+	end
+end
+
 local function awaitPlayerData(player, timeoutSeconds)
 	local cache = sharedGlobals.DeepDig_playerData
 	if cache and cache[player.UserId] then
@@ -326,6 +381,7 @@ local function payEnemyReward(record)
 	data.coins = (data.coins or 0) + coinReward
 	data.fragments = (data.fragments or 0) + enemy.fragmentDrop
 	data.totalEarned = (data.totalEarned or 0) + coinReward
+	applyEnemyKillProgress(player, data, enemy)
 
 	EnemyKilledBindable:Fire(player, enemy)
 

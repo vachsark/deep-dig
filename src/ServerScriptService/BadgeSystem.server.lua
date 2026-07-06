@@ -153,45 +153,6 @@ local function ensureBadgeField(data)
 	end
 end
 
-local function ensureEnemyKillCounts(data)
-	if not data then return nil end
-	if type(data.enemyKillCounts) ~= "table" then
-		data.enemyKillCounts = {}
-	end
-	return data.enemyKillCounts
-end
-
-local function ensureEnemyMasteryNotified(data)
-	if not data then return nil end
-	if type(data.enemyMasteryNotified) ~= "table" then
-		data.enemyMasteryNotified = {}
-	end
-	return data.enemyMasteryNotified
-end
-
-local function getEnemyKillCountKey(enemy)
-	if type(enemy) ~= "table" then
-		return nil
-	end
-
-	local enemyId = enemy.id
-	if type(enemyId) ~= "string" or enemyId == "" then
-		enemyId = enemy.name
-	end
-	if type(enemyId) ~= "string" or enemyId == "" then
-		return nil
-	end
-
-	return enemyId
-end
-
-local function getEnemyDisplayName(enemy, fallback)
-	if type(enemy) == "table" and type(enemy.name) == "string" and enemy.name ~= "" then
-		return enemy.name
-	end
-	return fallback or "Buried Enemy"
-end
-
 -- ═══════════════════════════════════════════════════════════════════
 -- Award helper (idempotent, race-safe)
 -- ═══════════════════════════════════════════════════════════════════
@@ -329,40 +290,25 @@ MuseumItemDisplayedBindable.Event:Connect(function(player, _item, totalDisplayed
 	end
 end)
 
--- Enemy kill progress is driven by EnemySystem only after it resolves the
--- rewarded player and pays the enemy coin/fragment reward.
-EnemyKilledBindable.Event:Connect(function(player, enemy)
+-- EnemySystem increments persisted kill progress on the confirmed reward path;
+-- this listener only awards milestone badges from that saved count.
+EnemyKilledBindable.Event:Connect(function(player, _enemy)
 	if not player then return end
 	local data = getData(player)
 	if not data then return end
 	ensureBadgeField(data)
 
-	data.enemyKills = (data.enemyKills or 0) + 1
-	local enemyKillCounts = ensureEnemyKillCounts(data)
-	local enemyMasteryNotified = ensureEnemyMasteryNotified(data)
-	local enemyKillCountKey = getEnemyKillCountKey(enemy)
-	if enemyKillCounts and enemyKillCountKey then
-		local previousCount = tonumber(enemyKillCounts[enemyKillCountKey]) or 0
-		local newCount = previousCount + 1
-		enemyKillCounts[enemyKillCountKey] = newCount
+	local enemyKills = math.max(0, math.floor(tonumber(data.enemyKills) or 0))
 
-		if enemyMasteryNotified and previousCount < 10 and newCount >= 10 and not enemyMasteryNotified[enemyKillCountKey] then
-			enemyMasteryNotified[enemyKillCountKey] = true
-			if NotifyEvent then
-				NotifyEvent:FireClient(player, "Mastered " .. getEnemyDisplayName(enemy, enemyKillCountKey) .. ": 10 defeats!", "Legendary")
-			end
-		end
-	end
-
-	if data.enemyKills >= 1 then
+	if enemyKills >= 1 then
 		awardBadge(player, "first_enemy_kill")
 	end
-	if data.enemyKills >= 100 then
+	if enemyKills >= 100 then
 		awardBadge(player, "enemy_count_100")
 	end
 
 	UpdateHUDEvent:FireClient(player, {
-		enemyKills = data.enemyKills,
+		enemyKills = enemyKills,
 		enemyKillCounts = data.enemyKillCounts,
 	})
 end)

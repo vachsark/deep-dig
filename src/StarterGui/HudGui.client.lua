@@ -6606,12 +6606,21 @@ DeepDigAutoCollectedUi.amount.Parent = DeepDigAutoCollectedUi.panel
 
 DeepDigAutoCollectedSequence = 0
 DeepDigAutoCollectedTweens = {}
+DeepDigAutoCollectedUi.particles = {}
+DeepDigAutoCollectedUi.maxCoinParticles = 7
 
 function DeepDigClearAutoCollectedTweens()
 	for _, tween in ipairs(DeepDigAutoCollectedTweens) do
 		tween:Cancel()
 	end
 	DeepDigAutoCollectedTweens = {}
+
+	for _, particle in ipairs(DeepDigAutoCollectedUi.particles) do
+		if particle and particle.Parent then
+			particle:Destroy()
+		end
+	end
+	DeepDigAutoCollectedUi.particles = {}
 end
 
 function DeepDigTweenAutoCollected(instance, duration, goal, easingStyle, easingDirection)
@@ -6623,6 +6632,87 @@ function DeepDigTweenAutoCollected(instance, duration, goal, easingStyle, easing
 	table.insert(DeepDigAutoCollectedTweens, tween)
 	tween:Play()
 	return tween
+end
+
+function DeepDigPlayAutoCollectedCoinFlyout(earned, sequence)
+	if earned <= 0 then
+		return
+	end
+
+	for _, particle in ipairs(DeepDigAutoCollectedUi.particles) do
+		if particle and particle.Parent then
+			particle:Destroy()
+		end
+	end
+	DeepDigAutoCollectedUi.particles = {}
+
+	local panelPosition = DeepDigAutoCollectedUi.panel.AbsolutePosition
+	local panelSize = DeepDigAutoCollectedUi.panel.AbsoluteSize
+	local coinPosition = coinsLabel.AbsolutePosition
+	local coinSize = coinsLabel.AbsoluteSize
+	local startCenter = panelPosition + Vector2.new(panelSize.X * 0.5, panelSize.Y * 0.7)
+	local endCenter = coinPosition + Vector2.new(math.min(34, coinSize.X * 0.22), coinSize.Y * 0.5)
+	local particleCount = 4
+
+	if earned >= 250 then
+		particleCount = particleCount + 1
+	end
+	if earned >= 1000 then
+		particleCount = particleCount + 1
+	end
+	if earned >= 5000 then
+		particleCount = particleCount + 1
+	end
+	particleCount = math.min(DeepDigAutoCollectedUi.maxCoinParticles, particleCount)
+
+	for index = 1, particleCount do
+		local particle = Instance.new("Frame")
+		local size = math.random(5, 9)
+		local startOffset = Vector2.new(math.random(-56, 56), math.random(-4, 36))
+		local endOffset = Vector2.new(math.random(-6, 14), math.random(-7, 7))
+		local target = endCenter + endOffset
+		local delayTime = (index - 1) * 0.028
+
+		particle.Name = "AutoCollectorCoinFlyout"
+		particle.AnchorPoint = Vector2.new(0.5, 0.5)
+		particle.Size = UDim2.fromOffset(size, size)
+		particle.Position = UDim2.fromOffset(startCenter.X + startOffset.X, startCenter.Y + startOffset.Y)
+		particle.BackgroundColor3 = index % 3 == 0 and Color3.fromRGB(255, 244, 152) or Color3.fromRGB(255, 207, 58)
+		particle.BackgroundTransparency = 0.08
+		particle.BorderSizePixel = 0
+		particle.Active = false
+		particle.Rotation = math.random(-16, 16)
+		particle.ZIndex = 84
+		particle.Parent = screenGui
+		table.insert(DeepDigAutoCollectedUi.particles, particle)
+
+		(function(corner)
+			corner.CornerRadius = UDim.new(1, 0)
+			corner.Parent = particle
+		end)(Instance.new("UICorner"))
+
+		task.delay(delayTime, function()
+			if sequence ~= DeepDigAutoCollectedSequence or not particle.Parent then
+				return
+			end
+
+			local tween = DeepDigTweenAutoCollected(particle, 0.42 + math.random() * 0.12, {
+				Position = UDim2.fromOffset(target.X, target.Y),
+				Size = UDim2.fromOffset(math.max(3, size - 2), math.max(3, size - 2)),
+				BackgroundTransparency = 1,
+				Rotation = particle.Rotation + math.random(58, 116),
+			}, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+
+			tween.Completed:Connect(function()
+				if sequence ~= DeepDigAutoCollectedSequence then
+					return
+				end
+				if particle.Parent then
+					particle:Destroy()
+				end
+			end)
+		end)
+	end
 end
 
 function DeepDigShowAutoCollectedBurst(payload)
@@ -6654,6 +6744,10 @@ function DeepDigShowAutoCollectedBurst(payload)
 	DeepDigAutoCollectedUi.item.Text = itemName .. " - " .. rarity
 	DeepDigAutoCollectedUi.amount.Text = "+" .. tostring(earned) .. " coins"
 
+	if LocalPlaySound and LocalPlaySound:IsA("BindableEvent") then
+		LocalPlaySound:Fire("auto_collector_cashout")
+	end
+
 	DeepDigTweenAutoCollected(DeepDigAutoCollectedUi.panel, 0.14, {
 		Size = UDim2.fromOffset(318, 98),
 		Position = UDim2.fromScale(0.5, 0.34),
@@ -6662,6 +6756,12 @@ function DeepDigShowAutoCollectedBurst(payload)
 	DeepDigTweenAutoCollected(DeepDigAutoCollectedUi.stroke, 0.18, {
 		Color = Color3.fromRGB(255, 220, 88),
 	})
+	task.delay(0.08, function()
+		if sequence ~= DeepDigAutoCollectedSequence then
+			return
+		end
+		DeepDigPlayAutoCollectedCoinFlyout(earned, sequence)
+	end)
 
 	task.delay(1.35, function()
 		if sequence ~= DeepDigAutoCollectedSequence then
