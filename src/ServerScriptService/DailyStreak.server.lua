@@ -292,7 +292,7 @@ local function applyReward(player, reward)
 	return true
 end
 
-local function grantDailyStreakReward(player, data, rewardSource)
+local function grantDailyStreakReward(player, data, rewardSource, rewardContext)
 	local streak = data.loginStreak or 0
 	local day = cycleDay(streak)
 	local reward = buildReward(streak, data.deepestBlock)
@@ -303,7 +303,12 @@ local function grantDailyStreakReward(player, data, rewardSource)
 	local streakEmoji = day == 7 and "🏆" or "🔥"
 	local cycleNum = math.floor((streak - 1) / 7) + 1
 	local cycleLabel = cycleNum > 1 and (" (Cycle " .. cycleNum .. ", ×" .. string.format("%.1f", cycleMultiplier(streak)) .. ")") or ""
-	local rewardPrefix = rewardSource == "revive" and "Streak revived! " or ""
+	local rewardPrefix = ""
+	if rewardSource == "revive" then
+		rewardPrefix = "Streak revived! "
+	elseif rewardSource == "reset" then
+		rewardPrefix = "Streak reset. "
+	end
 
 	NotifyEvent:FireClient(
 		player,
@@ -312,14 +317,17 @@ local function grantDailyStreakReward(player, data, rewardSource)
 	)
 
 	if rewardGranted then
-		StreakRewardResultEvent:FireClient(player, {
+		local payload = {
 			streak = streak,
 			day = day,
 			cycle = cycleNum,
 			rewardLabel = reward.label,
 			revived = rewardSource == "revive",
+			reset = rewardSource == "reset",
+			previousStreak = rewardContext and rewardContext.previousStreak or nil,
 			milestone = day == 7 or cycleNum > 1,
-		})
+		}
+		StreakRewardResultEvent:FireClient(player, payload)
 	end
 
 	if day == 7 then
@@ -381,10 +389,13 @@ local function processLoginStreak(player)
 				"Epic"
 			)
 		else
+			local previousStreak = data.loginStreak or 0
 			data.loginStreak = 1
 			data.lastLoginDate = today
 			clearStreakReviveState(data)
-			grantDailyStreakReward(player, data)
+			grantDailyStreakReward(player, data, "reset", {
+				previousStreak = previousStreak,
+			})
 		end
 		return
 	else

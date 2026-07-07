@@ -5340,7 +5340,9 @@ function showStreakRewardBurst(payload)
 	local cycle = tonumber(payload.cycle) or 1
 	local streak = tonumber(payload.streak) or day
 	local rewardLabel = tostring(payload.rewardLabel or "Daily reward")
-	local milestone = payload.milestone == true or day == 7 or cycle > 1
+	local reset = payload.reset == true
+	local previousStreak = tonumber(payload.previousStreak) or 0
+	local milestone = not reset and (payload.milestone == true or day == 7 or cycle > 1)
 
 	streakRewardSequence = streakRewardSequence + 1
 	local sequence = streakRewardSequence
@@ -5357,7 +5359,13 @@ function showStreakRewardBurst(payload)
 	streakRewardUi.amount.TextTransparency = 0
 	streakRewardUi.detail.TextTransparency = 0
 
-	if milestone then
+	if reset then
+		streakRewardUi.panel.BackgroundColor3 = Color3.fromRGB(38, 25, 22)
+		streakRewardUi.stroke.Color = Color3.fromRGB(255, 120, 80)
+		streakRewardUi.title.Text = "🔥 Streak Reset"
+		streakRewardUi.title.TextColor3 = Color3.fromRGB(255, 145, 95)
+		streakRewardUi.amount.TextColor3 = Color3.fromRGB(255, 230, 150)
+	elseif milestone then
 		streakRewardUi.panel.BackgroundColor3 = Color3.fromRGB(42, 31, 16)
 		streakRewardUi.title.Text = (payload.revived and "🏆 Streak Revived" or "🏆 Milestone Streak")
 		streakRewardUi.title.TextColor3 = Color3.fromRGB(255, 230, 110)
@@ -5370,7 +5378,11 @@ function showStreakRewardBurst(payload)
 	end
 
 	streakRewardUi.amount.Text = rewardLabel
-	streakRewardUi.detail.Text = "Day " .. day .. " • Cycle " .. cycle .. " • Streak ×" .. streak
+	if reset then
+		streakRewardUi.detail.Text = "Previous streak: " .. previousStreak .. " days • Day " .. day .. " reward claimed"
+	else
+		streakRewardUi.detail.Text = "Day " .. day .. " • Cycle " .. cycle .. " • Streak ×" .. streak
+	end
 
 	pulseStreakLabel(milestone)
 	playStreakRewardSound(milestone)
