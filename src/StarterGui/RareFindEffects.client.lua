@@ -31,12 +31,18 @@ local FLASH_COLOR = Color3.fromRGB(255, 218, 82)
 local FLASH_PEAK_TRANSPARENCY = 0.18
 local FLASH_IN_DURATION = 0.07
 local FLASH_OUT_DURATION = 0.42
+local LEGACY_GOLD_FLASH_ENABLED = false
+
+if not LEGACY_GOLD_FLASH_ENABLED then
+	return
+end
 
 local screenGui = Instance.new("ScreenGui")
 screenGui.Name = "RareFindEffects"
 screenGui.ResetOnSpawn = false
 screenGui.IgnoreGuiInset = true
 screenGui.DisplayOrder = 98
+screenGui.Enabled = LEGACY_GOLD_FLASH_ENABLED
 screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 screenGui.Parent = playerGui
 
@@ -131,6 +137,10 @@ local function playGoldFlash()
 end
 
 ItemFoundEvent.OnClientEvent:Connect(function(item)
+	if not LEGACY_GOLD_FLASH_ENABLED then
+		return
+	end
+
 	if type(item) ~= "table" or not shouldFlashForRarity(item.rarity) then
 		return
 	end
