@@ -3074,6 +3074,10 @@ function DeepDigPlaySeasonalExclusiveReveal(item)
 	DeepDigSeasonalRevealState.token = DeepDigSeasonalRevealState.token + 1
 	local token = DeepDigSeasonalRevealState.token
 
+	if LocalPlaySound and LocalPlaySound:IsA("BindableEvent") then
+		LocalPlaySound:Fire("seasonal_exclusive_reveal")
+	end
+
 	if DeepDigSeasonalRevealState.frame then
 		DeepDigSeasonalRevealState.frame:Destroy()
 		DeepDigSeasonalRevealState.frame = nil

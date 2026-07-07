@@ -54,6 +54,13 @@ local SOUNDS = {
 		volume = 0.85,
 		dedupeWindow = 0.45,
 	},
+	seasonal_exclusive_reveal = {
+		id = "rbxassetid://5852285683", -- limited-time reveal shimmer
+		volume = 0.72,
+		playbackSpeed = 1.18,
+		pitchRange = { 1.0, 1.04 },
+		dedupeWindow = 0.65,
+	},
 	sell_coins = {
 		id = "rbxassetid://6837730320", -- coin clink jingle
 		volume = 0.8,
