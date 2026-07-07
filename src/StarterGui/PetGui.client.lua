@@ -632,6 +632,253 @@ local function playLocalPetSound(key)
 	end
 end
 
+local function createHatchReveal()
+	local state = {
+		sequence = 0,
+		tweens = {},
+		sparkles = {},
+	}
+
+	local overlay = Instance.new("Frame")
+	overlay.Name = "HatchReveal"
+	overlay.Size = UDim2.new(0, 300, 0, 86)
+	overlay.AnchorPoint = Vector2.new(0, 1)
+	overlay.Position = UDim2.new(0, 20, 1, -76)
+	overlay.BackgroundColor3 = Color3.fromRGB(18, 20, 24)
+	overlay.BackgroundTransparency = 1
+	overlay.BorderSizePixel = 0
+	overlay.Visible = false
+	overlay.ZIndex = 80
+	overlay.Parent = screenGui
+
+	local overlayCorner = Instance.new("UICorner")
+	overlayCorner.CornerRadius = UDim.new(0, 10)
+	overlayCorner.Parent = overlay
+
+	local overlayStroke = Instance.new("UIStroke")
+	overlayStroke.Color = ACCENT_GOLD
+	overlayStroke.Thickness = 2
+	overlayStroke.Transparency = 1
+	overlayStroke.Parent = overlay
+
+	local scale = Instance.new("UIScale")
+	scale.Scale = 0.9
+	scale.Parent = overlay
+
+	local glow = Instance.new("Frame")
+	glow.Name = "Glow"
+	glow.Size = UDim2.new(1, 0, 1, 0)
+	glow.BackgroundColor3 = ACCENT_GOLD
+	glow.BackgroundTransparency = 1
+	glow.BorderSizePixel = 0
+	glow.ZIndex = 81
+	glow.Parent = overlay
+
+	local glowCorner = Instance.new("UICorner")
+	glowCorner.CornerRadius = UDim.new(0, 10)
+	glowCorner.Parent = glow
+
+	local revealTitleLabel = Instance.new("TextLabel")
+	revealTitleLabel.Name = "Title"
+	revealTitleLabel.Size = UDim2.new(1, -24, 0, 18)
+	revealTitleLabel.Position = UDim2.new(0, 12, 0, 9)
+	revealTitleLabel.BackgroundTransparency = 1
+	revealTitleLabel.Text = "Hatched!"
+	revealTitleLabel.TextColor3 = TEXT_MUTED
+	revealTitleLabel.TextSize = 12
+	revealTitleLabel.Font = Enum.Font.GothamBold
+	revealTitleLabel.TextXAlignment = Enum.TextXAlignment.Left
+	revealTitleLabel.ZIndex = 82
+	revealTitleLabel.Parent = overlay
+
+	local nameLabel = Instance.new("TextLabel")
+	nameLabel.Name = "PetName"
+	nameLabel.Size = UDim2.new(1, -24, 0, 28)
+	nameLabel.Position = UDim2.new(0, 12, 0, 26)
+	nameLabel.BackgroundTransparency = 1
+	nameLabel.Text = ""
+	nameLabel.TextColor3 = TEXT_PRIMARY
+	nameLabel.TextSize = 21
+	nameLabel.Font = Enum.Font.GothamBlack
+	nameLabel.TextXAlignment = Enum.TextXAlignment.Left
+	nameLabel.TextTruncate = Enum.TextTruncate.AtEnd
+	nameLabel.ZIndex = 82
+	nameLabel.Parent = overlay
+
+	local rarityLabel = Instance.new("TextLabel")
+	rarityLabel.Name = "Rarity"
+	rarityLabel.Size = UDim2.new(1, -24, 0, 18)
+	rarityLabel.Position = UDim2.new(0, 12, 0, 56)
+	rarityLabel.BackgroundTransparency = 1
+	rarityLabel.Text = ""
+	rarityLabel.TextColor3 = ACCENT_GOLD
+	rarityLabel.TextSize = 13
+	rarityLabel.Font = Enum.Font.GothamBold
+	rarityLabel.TextXAlignment = Enum.TextXAlignment.Left
+	rarityLabel.ZIndex = 82
+	rarityLabel.Parent = overlay
+
+	local sparkleLayer = Instance.new("Frame")
+	sparkleLayer.Name = "Sparkles"
+	sparkleLayer.Size = UDim2.new(1, 0, 1, 0)
+	sparkleLayer.BackgroundTransparency = 1
+	sparkleLayer.ZIndex = 83
+	sparkleLayer.Parent = overlay
+
+	for index = 1, 10 do
+		local sparkle = Instance.new("Frame")
+		sparkle.Name = "Sparkle" .. tostring(index)
+		sparkle.Size = UDim2.new(0, 8, 0, 8)
+		sparkle.AnchorPoint = Vector2.new(0.5, 0.5)
+		sparkle.Position = UDim2.new(0.5, 0, 0.5, 0)
+		sparkle.BackgroundColor3 = ACCENT_GOLD
+		sparkle.BackgroundTransparency = 1
+		sparkle.BorderSizePixel = 0
+		sparkle.ZIndex = 83
+		sparkle.Parent = sparkleLayer
+
+		local sparkleCorner = Instance.new("UICorner")
+		sparkleCorner.CornerRadius = UDim.new(1, 0)
+		sparkleCorner.Parent = sparkle
+
+		table.insert(state.sparkles, sparkle)
+	end
+
+	local function track(tween)
+		table.insert(state.tweens, tween)
+		tween:Play()
+		return tween
+	end
+
+	local function cancelTweens()
+		for _, tween in ipairs(state.tweens) do
+			tween:Cancel()
+		end
+		state.tweens = {}
+	end
+
+	local function setOverlayPosition()
+		if panel.Visible then
+			overlay.AnchorPoint = Vector2.new(0, 1)
+			overlay.Position = UDim2.new(0, 98, 1, -126)
+		else
+			overlay.AnchorPoint = Vector2.new(0, 1)
+			overlay.Position = UDim2.new(0, 20, 1, -76)
+		end
+	end
+
+	function state.Play(payload)
+		if type(payload) ~= "table" then
+			return
+		end
+
+		local name = tostring(payload.name or "Mystery Pet")
+		local rarity = tostring(payload.rarity or "Common")
+		local rarityColor = RarityColors[rarity] or RarityColors.Common
+		local soundKey = (rarity == "Legendary" or rarity == "Mythic")
+			and "pet_hatch_reveal_strong"
+			or "pet_hatch_reveal"
+
+		state.sequence = state.sequence + 1
+		local sequence = state.sequence
+		cancelTweens()
+		setOverlayPosition()
+
+		nameLabel.Text = name
+		rarityLabel.Text = rarity
+		rarityLabel.TextColor3 = rarityColor
+		overlayStroke.Color = rarityColor
+		glow.BackgroundColor3 = rarityColor
+
+		overlay.Visible = true
+		overlay.BackgroundTransparency = 0.08
+		overlayStroke.Transparency = 0.05
+		glow.BackgroundTransparency = 0.82
+		nameLabel.TextTransparency = 0
+		rarityLabel.TextTransparency = 0
+		revealTitleLabel.TextTransparency = 0
+		scale.Scale = 0.86
+
+		for index, sparkle in ipairs(state.sparkles) do
+			local angle = (index / #state.sparkles) * math.pi * 2
+			local distance = 48 + (index % 3) * 12
+			sparkle.Position = UDim2.new(0.5, 0, 0.5, 0)
+			sparkle.BackgroundColor3 = rarityColor
+			sparkle.BackgroundTransparency = 0.08
+
+			track(TweenService:Create(
+				sparkle,
+				TweenInfo.new(0.48, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+				{
+					Position = UDim2.new(
+						0.5,
+						math.cos(angle) * distance,
+						0.5,
+						math.sin(angle) * distance * 0.42
+					),
+					BackgroundTransparency = 1,
+				}
+			))
+		end
+
+		track(TweenService:Create(
+			scale,
+			TweenInfo.new(0.18, Enum.EasingStyle.Back, Enum.EasingDirection.Out),
+			{ Scale = 1 }
+		))
+		track(TweenService:Create(
+			glow,
+			TweenInfo.new(0.4, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+			{ BackgroundTransparency = 0.95 }
+		))
+
+		hatcheryStatus.Text = string.format("Hatched %s %s!", rarity, name)
+		hatcheryStatus.TextColor3 = rarityColor
+		playLocalPetSound(soundKey)
+
+		task.delay(1.35, function()
+			if sequence ~= state.sequence then
+				return
+			end
+
+			track(TweenService:Create(
+				overlay,
+				TweenInfo.new(0.22, Enum.EasingStyle.Quad, Enum.EasingDirection.In),
+				{ BackgroundTransparency = 1 }
+			))
+			track(TweenService:Create(
+				overlayStroke,
+				TweenInfo.new(0.22, Enum.EasingStyle.Quad, Enum.EasingDirection.In),
+				{ Transparency = 1 }
+			))
+			track(TweenService:Create(
+				revealTitleLabel,
+				TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.In),
+				{ TextTransparency = 1 }
+			))
+			track(TweenService:Create(
+				nameLabel,
+				TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.In),
+				{ TextTransparency = 1 }
+			))
+			local fadeRarity = track(TweenService:Create(
+				rarityLabel,
+				TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.In),
+				{ TextTransparency = 1 }
+			))
+			fadeRarity.Completed:Connect(function()
+				if sequence == state.sequence then
+					overlay.Visible = false
+				end
+			end)
+		end)
+	end
+
+	return state
+end
+
+local hatchReveal = createHatchReveal()
+
 local function showFeedResultOverlay(result)
 	if type(result) ~= "table" then
 		return
@@ -1499,6 +1746,10 @@ UpdateHUDEvent.OnClientEvent:Connect(function(payload)
 	if type(payload) ~= "table" then return end
 
 	local changed = false
+
+	if type(payload.hatchedPet) == "table" then
+		hatchReveal.Play(payload.hatchedPet)
+	end
 
 	if payload.equippedPet ~= nil then
 		if payload.equippedPet == false or payload.equippedPet == 0 then

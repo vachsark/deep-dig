@@ -822,6 +822,14 @@ function awardHatch(player, eggType, options)
 		coins = data.coins,
 		petCount = #data.pets,
 		equippedPet = data.equippedPet == false and nil or data.equippedPet,
+		hatchedPet = {
+			id = petRecord.id,
+			name = petRecord.name,
+			rarity = petRecord.rarity,
+			egg = petRecord.egg,
+			level = tonumber(petRecord.level) or 1,
+			autoEquipped = autoEquipped,
+		},
 	}
 
 	if autoEquipped then
