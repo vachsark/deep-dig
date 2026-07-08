@@ -62,6 +62,13 @@ if not petDatabaseModule then
 end
 local PetDatabase = require(petDatabaseModule)
 
+local configModule = ReplicatedStorage:WaitForChild("Config", 5)
+if not configModule then
+	warn("[PetGui] Config module missing — exiting cleanly.")
+	return
+end
+local Config = require(configModule)
+
 -- ═══════════════════════════════════════════════════════════════════
 -- Style constants — match HudGui.client.lua visual language
 -- ═══════════════════════════════════════════════════════════════════
@@ -477,8 +484,36 @@ local RARITY_ODDS_LABELS = {
 	Mythic = "Myth",
 }
 local eggButtons = {}
+local luckyEggOwned = false
 local refreshInventory
 local renderInventory
+
+local function ownsLuckyEgg(ownedGamepasses)
+	if type(ownedGamepasses) ~= "table" then
+		return false
+	end
+
+	return ownedGamepasses[Config.GAMEPASS_LUCKY_EGG_ID] == true
+		or ownedGamepasses[tostring(Config.GAMEPASS_LUCKY_EGG_ID)] == true
+		or ownedGamepasses[Config.GAMEPASS_LUCKY_EGG] == true
+		or ownedGamepasses["Lucky Egg"] == true
+end
+
+local function getDisplayDropRates(dropRates)
+	local displayRates = {}
+	local boosted = false
+
+	for rarity, weight in pairs(dropRates) do
+		if luckyEggOwned and (rarity == "Legendary" or rarity == "Mythic") then
+			displayRates[rarity] = weight * 2
+			boosted = true
+		else
+			displayRates[rarity] = weight
+		end
+	end
+
+	return displayRates, boosted
+end
 
 local function formatDropRateOdds(dropRates)
 	local oddsParts = {}
@@ -493,6 +528,18 @@ local function formatDropRateOdds(dropRates)
 		return table.concat(oddsParts, "  ")
 	end
 	return table.concat(oddsParts, "  ", 1, 2) .. "\n" .. table.concat(oddsParts, "  ", 3)
+end
+
+local function refreshEggOddsLabels()
+	for _, eggType in ipairs(EGG_ORDER) do
+		local eggButton = eggButtons[eggType]
+		local egg = PetDatabase.EGGS[eggType]
+		if eggButton and eggButton.oddsLabel and egg then
+			local displayRates, boosted = getDisplayDropRates(egg.dropRates)
+			eggButton.oddsLabel.Text = formatDropRateOdds(displayRates)
+			eggButton.oddsLabel.TextColor3 = boosted and ACCENT_GOLD or Color3.fromRGB(245, 245, 245)
+		end
+	end
 end
 
 for index, eggType in ipairs(EGG_ORDER) do
@@ -548,7 +595,7 @@ for index, eggType in ipairs(EGG_ORDER) do
 		oddsLabel.Size = UDim2.new(1, -10, 0, 30)
 		oddsLabel.Position = UDim2.new(0, 5, 0, 42)
 		oddsLabel.BackgroundTransparency = 1
-		oddsLabel.Text = formatDropRateOdds(egg.dropRates)
+		oddsLabel.Text = ""
 		oddsLabel.TextColor3 = Color3.fromRGB(245, 245, 245)
 		oddsLabel.TextSize = 10
 		oddsLabel.Font = Enum.Font.GothamMedium
@@ -568,7 +615,10 @@ for index, eggType in ipairs(EGG_ORDER) do
 		hatchLabel.TextStrokeTransparency = 0.6
 		hatchLabel.Parent = button
 
-		eggButtons[eggType] = button
+		eggButtons[eggType] = {
+			button = button,
+			oddsLabel = oddsLabel,
+		}
 
 		button.Activated:Connect(function()
 			HatchEggEvent:FireServer(eggType)
@@ -598,6 +648,7 @@ for index, eggType in ipairs(EGG_ORDER) do
 		end)
 	end
 end
+refreshEggOddsLabels()
 
 local function petMultipliersFromName(name)
 	if type(name) ~= "string" or name == "" then
@@ -1746,6 +1797,11 @@ UpdateHUDEvent.OnClientEvent:Connect(function(payload)
 	if type(payload) ~= "table" then return end
 
 	local changed = false
+
+	if payload.ownedGamepasses ~= nil then
+		luckyEggOwned = ownsLuckyEgg(payload.ownedGamepasses)
+		refreshEggOddsLabels()
+	end
 
 	if type(payload.hatchedPet) == "table" then
 		hatchReveal.Play(payload.hatchedPet)
