@@ -101,10 +101,10 @@ local module = {
 	},
 	{
 		id = "defeat_6_enemies",
-		description = "Defeat 5 buried enemies",
-		shortName = "Defeat 5 Enemies",
+		description = "Defeat 6 buried enemies",
+		shortName = "Defeat 6 Enemies",
 		type = "kill_enemies",
-		target = 5,
+		target = 6,
 		rarityFilter = nil,
 		reward = { coins = 1100, fragments = 8 },
 		rewardText = "+1,100 coins, +8 fragments",
