@@ -20,6 +20,7 @@ local LOCAL_PLAY_SOUND_NAME = "DeepDigLocalPlaySound"
 
 local SHOW_THRESHOLD = 5 -- match ChainCombo.server.lua's first tier
 local URGENCY_WINDOW = 0.75
+local MILESTONE_THRESHOLDS = { 10, 20 }
 
 local screenGui = Instance.new("ScreenGui")
 screenGui.Name = "DeepDigChainCombo"
@@ -100,6 +101,55 @@ local barFillCorner = Instance.new("UICorner")
 barFillCorner.CornerRadius = UDim.new(1, 0)
 barFillCorner.Parent = barFill
 
+local milestoneFrame = Instance.new("Frame")
+milestoneFrame.Name = "MilestoneBurst"
+milestoneFrame.AnchorPoint = Vector2.new(0.5, 0)
+milestoneFrame.Position = UDim2.new(0.5, 0, 0, 18)
+milestoneFrame.Size = UDim2.new(0, 186, 0, 46)
+milestoneFrame.BackgroundColor3 = Color3.fromRGB(32, 22, 44)
+milestoneFrame.BackgroundTransparency = 1
+milestoneFrame.BorderSizePixel = 0
+milestoneFrame.Visible = false
+milestoneFrame.Parent = screenGui
+local MILESTONE_BASE_POSITION = milestoneFrame.Position
+local MILESTONE_BASE_SIZE = milestoneFrame.Size
+
+local milestoneCorner = Instance.new("UICorner")
+milestoneCorner.CornerRadius = UDim.new(0, 10)
+milestoneCorner.Parent = milestoneFrame
+
+local milestoneStroke = Instance.new("UIStroke")
+milestoneStroke.Thickness = 2
+milestoneStroke.Color = Color3.fromRGB(255, 214, 82)
+milestoneStroke.Transparency = 1
+milestoneStroke.Parent = milestoneFrame
+
+local milestoneTitle = Instance.new("TextLabel")
+milestoneTitle.Name = "Title"
+milestoneTitle.Size = UDim2.new(1, -16, 0, 25)
+milestoneTitle.Position = UDim2.new(0, 8, 0, 4)
+milestoneTitle.BackgroundTransparency = 1
+milestoneTitle.Text = "x10 Chain"
+milestoneTitle.TextColor3 = Color3.fromRGB(255, 232, 112)
+milestoneTitle.TextTransparency = 1
+milestoneTitle.TextSize = 22
+milestoneTitle.Font = Enum.Font.GothamBlack
+milestoneTitle.TextXAlignment = Enum.TextXAlignment.Center
+milestoneTitle.Parent = milestoneFrame
+
+local milestoneMult = Instance.new("TextLabel")
+milestoneMult.Name = "Multiplier"
+milestoneMult.Size = UDim2.new(1, -16, 0, 16)
+milestoneMult.Position = UDim2.new(0, 8, 0, 28)
+milestoneMult.BackgroundTransparency = 1
+milestoneMult.Text = "1.50× sell value"
+milestoneMult.TextColor3 = Color3.fromRGB(255, 196, 74)
+milestoneMult.TextTransparency = 1
+milestoneMult.TextSize = 14
+milestoneMult.Font = Enum.Font.GothamBold
+milestoneMult.TextXAlignment = Enum.TextXAlignment.Center
+milestoneMult.Parent = milestoneFrame
+
 local state = {
 	streak = 0,
 	mult = 1.0,
@@ -109,6 +159,9 @@ local state = {
 
 local urgencyActive = false
 local chainExpiringSoundArmed = true
+local lastCelebratedThreshold = 0
+local milestoneSequence = 0
+local milestoneTweens = {}
 
 local LocalPlaySound = SoundService:FindFirstChild(LOCAL_PLAY_SOUND_NAME)
 if not LocalPlaySound then
@@ -121,6 +174,117 @@ local function playChainExpiringSound()
 	if LocalPlaySound and LocalPlaySound:IsA("BindableEvent") then
 		LocalPlaySound:Fire("chain_expiring")
 	end
+end
+
+local function cancelMilestoneTweens()
+	for _, tween in ipairs(milestoneTweens) do
+		tween:Cancel()
+	end
+	milestoneTweens = {}
+end
+
+local function resetMilestoneBurst()
+	milestoneSequence = milestoneSequence + 1
+	cancelMilestoneTweens()
+	milestoneFrame.Visible = false
+	milestoneFrame.Position = MILESTONE_BASE_POSITION
+	milestoneFrame.Size = MILESTONE_BASE_SIZE
+	milestoneFrame.BackgroundTransparency = 1
+	milestoneStroke.Transparency = 1
+	milestoneTitle.TextTransparency = 1
+	milestoneMult.TextTransparency = 1
+end
+
+local function resetCelebratedThreshold()
+	lastCelebratedThreshold = 0
+	resetMilestoneBurst()
+end
+
+local function findCrossedMilestone(prevStreak, nextStreak)
+	local crossedThreshold = nil
+	for _, threshold in ipairs(MILESTONE_THRESHOLDS) do
+		if prevStreak < threshold and nextStreak >= threshold and threshold > lastCelebratedThreshold then
+			crossedThreshold = threshold
+		end
+	end
+	return crossedThreshold
+end
+
+local function playMilestoneBurst(threshold)
+	milestoneSequence = milestoneSequence + 1
+	local sequence = milestoneSequence
+	cancelMilestoneTweens()
+
+	local strong = threshold >= 20
+	local baseWidth = strong and 218 or 186
+	local baseHeight = strong and 54 or 46
+	local popWidth = strong and 250 or 214
+	local popHeight = strong and 64 or 54
+
+	milestoneTitle.Text = "x" .. threshold .. " Chain"
+	milestoneMult.Text = string.format("%.2f× sell value", state.mult)
+	milestoneFrame.Size = UDim2.new(0, popWidth, 0, popHeight)
+	milestoneFrame.Position = MILESTONE_BASE_POSITION + UDim2.new(0, 0, 0, strong and -4 or 0)
+	milestoneFrame.BackgroundColor3 = strong and Color3.fromRGB(32, 24, 54) or Color3.fromRGB(32, 22, 44)
+	milestoneFrame.BackgroundTransparency = 0.08
+	milestoneStroke.Color = strong and Color3.fromRGB(255, 124, 84) or Color3.fromRGB(255, 214, 82)
+	milestoneStroke.Transparency = 0
+	milestoneTitle.TextColor3 = strong and Color3.fromRGB(255, 176, 104) or Color3.fromRGB(255, 232, 112)
+	milestoneTitle.TextTransparency = 0
+	milestoneTitle.TextSize = strong and 25 or 22
+	milestoneMult.TextColor3 = strong and Color3.fromRGB(255, 222, 132) or Color3.fromRGB(255, 196, 74)
+	milestoneMult.TextTransparency = 0
+	milestoneFrame.Visible = true
+
+	local settleTween = TweenService:Create(
+		milestoneFrame,
+		TweenInfo.new(0.2, Enum.EasingStyle.Back, Enum.EasingDirection.Out),
+		{
+			Size = UDim2.new(0, baseWidth, 0, baseHeight),
+			Position = MILESTONE_BASE_POSITION,
+		}
+	)
+	table.insert(milestoneTweens, settleTween)
+	settleTween:Play()
+
+	task.delay(strong and 0.68 or 0.58, function()
+		if sequence ~= milestoneSequence then return end
+
+		local fadeTweens = {
+			TweenService:Create(
+				milestoneFrame,
+				TweenInfo.new(0.22, Enum.EasingStyle.Quad, Enum.EasingDirection.In),
+				{
+					Position = MILESTONE_BASE_POSITION + UDim2.new(0, 0, 0, -12),
+					BackgroundTransparency = 1,
+				}
+			),
+			TweenService:Create(
+				milestoneStroke,
+				TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.In),
+				{ Transparency = 1 }
+			),
+			TweenService:Create(
+				milestoneTitle,
+				TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.In),
+				{ TextTransparency = 1 }
+			),
+			TweenService:Create(
+				milestoneMult,
+				TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.In),
+				{ TextTransparency = 1 }
+			),
+		}
+		for _, tween in ipairs(fadeTweens) do
+			table.insert(milestoneTweens, tween)
+			tween:Play()
+		end
+
+		task.delay(0.24, function()
+			if sequence ~= milestoneSequence then return end
+			resetMilestoneBurst()
+		end)
+	end)
 end
 
 local function setUrgency(active)
@@ -167,6 +331,7 @@ local STREAK_BASE_SIZE = streakLabel.TextSize -- 26
 
 ChainComboUpdate.OnClientEvent:Connect(function(streak, mult, secondsLeft, window)
 	local prevMult = state.mult
+	local prevStreak = state.streak
 	state.streak = streak or 0
 	state.mult = mult or 1.0
 	state.window = window or state.window
@@ -199,9 +364,16 @@ ChainComboUpdate.OnClientEvent:Connect(function(streak, mult, secondsLeft, windo
 				):Play()
 			end
 		end
+
+		local crossedThreshold = findCrossedMilestone(prevStreak, state.streak)
+		if crossedThreshold then
+			lastCelebratedThreshold = crossedThreshold
+			playMilestoneBurst(crossedThreshold)
+		end
 	else
 		-- Below threshold (or 0): hide
 		setUrgency(false)
+		resetCelebratedThreshold()
 		frame.Visible = false
 	end
 end)
@@ -225,6 +397,7 @@ RunService.RenderStepped:Connect(function()
 
 	if timeLeft <= 0 then
 		setUrgency(false)
+		resetCelebratedThreshold()
 		frame.Visible = false
 	end
 end)
