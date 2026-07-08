@@ -9269,14 +9269,14 @@ Remotes.ItemFound.OnClientEvent:Connect(function(item)
 	local function playItemFoundFlow()
 		local shouldPlayRareReveal = DeepDigShouldPlayRareRevealForRarity(item.rarity)
 
-		DeepDigPlayItemFoundSound(item)
-
 		if shouldPlayRareReveal then
 			playLegendaryFindFlash(item.rarity, item)
 			DeepDigPlayRareRevealSound()
 			if LEGENDARY_FIND_FLASH_RARITIES[item.rarity] then
 				LEGENDARY_FIND_FLASH_RARITIES._cameraBump.play(item.rarity)
 			end
+		else
+			DeepDigPlayItemFoundSound(item)
 		end
 
 		if LIGHTING_PULSE_PROFILES[item.rarity] then
