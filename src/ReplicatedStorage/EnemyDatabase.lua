@@ -7,12 +7,12 @@ local ENEMIES = {
 	{
 		id = "bone_crawler",
 		name = "Bone Crawler",
-		tier = "Stone",
-		hp = 12,
-		damage = 4,
-		coinDrop = 35,
+		tier = "Modern",
+		hp = 14,
+		damage = 3,
+		coinDrop = 25,
 		fragmentDrop = 1,
-		itemDropChance = 0.05,
+		itemDropChance = 0.04,
 		color = Color3.fromRGB(210, 205, 180),
 		model = "BasicNPC",
 		walkSpeed = 8,
@@ -34,12 +34,12 @@ local ENEMIES = {
 	{
 		id = "bronze_sentinel",
 		name = "Bronze Sentinel",
-		tier = "Bronze",
+		tier = "Industrial",
 		hp = 24,
-		damage = 6,
-		coinDrop = 90,
+		damage = 5,
+		coinDrop = 70,
 		fragmentDrop = 2,
-		itemDropChance = 0.08,
+		itemDropChance = 0.06,
 		color = Color3.fromRGB(170, 105, 45),
 		model = "BasicNPC",
 		walkSpeed = 9,
@@ -61,12 +61,12 @@ local ENEMIES = {
 	{
 		id = "rusted_construct",
 		name = "Rusted Construct",
-		tier = "Iron",
-		hp = 42,
-		damage = 8,
-		coinDrop = 180,
-		fragmentDrop = 4,
-		itemDropChance = 0.1,
+		tier = "Medieval",
+		hp = 36,
+		damage = 7,
+		coinDrop = 130,
+		fragmentDrop = 3,
+		itemDropChance = 0.08,
 		color = Color3.fromRGB(120, 85, 65),
 		model = "BasicNPC",
 		walkSpeed = 7,
@@ -88,12 +88,12 @@ local ENEMIES = {
 	{
 		id = "iron_wraith",
 		name = "Iron Wraith",
-		tier = "Iron",
-		hp = 36,
-		damage = 10,
-		coinDrop = 220,
+		tier = "Ancient",
+		hp = 48,
+		damage = 9,
+		coinDrop = 210,
 		fragmentDrop = 5,
-		itemDropChance = 0.12,
+		itemDropChance = 0.1,
 		color = Color3.fromRGB(85, 95, 110),
 		model = "BasicNPC",
 		walkSpeed = 12,
@@ -118,10 +118,10 @@ local ENEMIES = {
 		name = "Voidling",
 		tier = "Unknown",
 		hp = 70,
-		damage = 14,
-		coinDrop = 650,
-		fragmentDrop = 10,
-		itemDropChance = 0.18,
+		damage = 12,
+		coinDrop = 450,
+		fragmentDrop = 8,
+		itemDropChance = 0.14,
 		color = Color3.fromRGB(75, 35, 115),
 		model = "BasicNPC",
 		walkSpeed = 13,
@@ -145,11 +145,11 @@ local ENEMIES = {
 		id = "hollow_king",
 		name = "Hollow King",
 		tier = "Unknown",
-		hp = 180,
-		damage = 22,
-		coinDrop = 2500,
-		fragmentDrop = 35,
-		itemDropChance = 0.35,
+		hp = 140,
+		damage = 16,
+		coinDrop = 1200,
+		fragmentDrop = 20,
+		itemDropChance = 0.25,
 		color = Color3.fromRGB(30, 10, 45),
 		model = "BasicNPC",
 		walkSpeed = 6,
@@ -175,18 +175,19 @@ local ENEMIES = {
 EnemyDatabase.ENEMIES = ENEMIES
 
 local TIER_ALIASES = {
-	Modern = "Stone",
-	Industrial = "Bronze",
-	Medieval = "Iron",
-	Ancient = "Iron",
-	Prehistoric = "Iron",
+	Stone = "Modern",
+	Bronze = "Industrial",
+	Iron = "Medieval",
+	["Iron+"] = "Ancient",
 }
 
 local TIER_ORDER = {
-	Stone = 1,
-	Bronze = 2,
-	Iron = 3,
-	Unknown = 4,
+	Modern = 1,
+	Industrial = 2,
+	Medieval = 3,
+	Ancient = 4,
+	Prehistoric = 5,
+	Unknown = 6,
 }
 
 local function enemyTierFor(tierName)
@@ -228,7 +229,7 @@ function EnemyDatabase.getAllEnemies()
 	return enemies
 end
 
-function EnemyDatabase.getEnemiesForTier(tierName, options)
+function EnemyDatabase.getEnemiesInTier(tierName, options)
 	local enemyTier = enemyTierFor(tierName)
 	local candidates = {}
 	local blockedEnemyIds = options and options.blockedEnemyIds
@@ -249,7 +250,7 @@ function EnemyDatabase.getEnemiesAllowedForTier(tierName, options)
 	local blockedEnemyIds = options and options.blockedEnemyIds
 
 	if not tierRank then
-		return EnemyDatabase.getEnemiesForTier(tierName, options)
+		return EnemyDatabase.getEnemiesInTier(tierName, options)
 	end
 
 	for _, enemy in ipairs(ENEMIES) do
@@ -260,6 +261,10 @@ function EnemyDatabase.getEnemiesAllowedForTier(tierName, options)
 	end
 
 	return candidates
+end
+
+function EnemyDatabase.getEnemiesForTier(tierName, options)
+	return EnemyDatabase.getEnemiesAllowedForTier(tierName, options)
 end
 
 function EnemyDatabase.getEnemyForTier(tierName, options)
