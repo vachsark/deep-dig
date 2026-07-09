@@ -124,6 +124,14 @@ local SOUNDS = {
 		replaceExisting = true,
 		cleanupDelay = 5,
 	},
+	volcano_vent_rumble = {
+		id = "rbxassetid://9114013169", -- low-impact lava vent rumble
+		volume = 0.38,
+		playbackSpeed = 0.58,
+		replaceExisting = true,
+		dedupeWindow = 0.4,
+		cleanupDelay = 3,
+	},
 	enemy_hit = {
 		id = "rbxassetid://9114013169", -- short impact thud
 		volume = 0.55,

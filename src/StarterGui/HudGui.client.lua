@@ -1672,6 +1672,110 @@ function DeepDigEventStartFlash.reset()
 	DeepDigEventStartFlash.glint.Position = UDim2.new(-0.28, 0, -0.1, 0)
 end
 
+DeepDigVolcanoVentPulse = {
+	tweens = {},
+	sequence = 0,
+}
+
+DeepDigVolcanoVentPulse.overlay = Instance.new("Frame")
+DeepDigVolcanoVentPulse.overlay.Name = "VolcanoVentPulse"
+DeepDigVolcanoVentPulse.overlay.Size = UDim2.new(1, 0, 1, 0)
+DeepDigVolcanoVentPulse.overlay.Position = UDim2.new(0, 0, 0, 0)
+DeepDigVolcanoVentPulse.overlay.BackgroundColor3 = Color3.fromRGB(255, 74, 26)
+DeepDigVolcanoVentPulse.overlay.BackgroundTransparency = 1
+DeepDigVolcanoVentPulse.overlay.BorderSizePixel = 0
+DeepDigVolcanoVentPulse.overlay.Active = false
+DeepDigVolcanoVentPulse.overlay.Visible = false
+DeepDigVolcanoVentPulse.overlay.ZIndex = 82
+DeepDigVolcanoVentPulse.overlay.Parent = screenGui
+
+DeepDigVolcanoVentPulse.overlayGradient = Instance.new("UIGradient")
+DeepDigVolcanoVentPulse.overlayGradient.Color = ColorSequence.new({
+	ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 184, 74)),
+	ColorSequenceKeypoint.new(0.42, Color3.fromRGB(255, 72, 26)),
+	ColorSequenceKeypoint.new(1, Color3.fromRGB(126, 24, 18)),
+})
+DeepDigVolcanoVentPulse.overlayGradient.Rotation = 90
+DeepDigVolcanoVentPulse.overlayGradient.Parent = DeepDigVolcanoVentPulse.overlay
+
+DeepDigVolcanoVentPulse.surge = Instance.new("Frame")
+DeepDigVolcanoVentPulse.surge.Name = "LavaSurge"
+DeepDigVolcanoVentPulse.surge.AnchorPoint = Vector2.new(0.5, 0.5)
+DeepDigVolcanoVentPulse.surge.Size = UDim2.new(1, 0, 0.12, 0)
+DeepDigVolcanoVentPulse.surge.Position = UDim2.new(0.5, 0, 0.58, 0)
+DeepDigVolcanoVentPulse.surge.BackgroundColor3 = Color3.fromRGB(255, 202, 86)
+DeepDigVolcanoVentPulse.surge.BackgroundTransparency = 1
+DeepDigVolcanoVentPulse.surge.BorderSizePixel = 0
+DeepDigVolcanoVentPulse.surge.Active = false
+DeepDigVolcanoVentPulse.surge.ZIndex = 83
+DeepDigVolcanoVentPulse.surge.Parent = DeepDigVolcanoVentPulse.overlay
+
+DeepDigVolcanoVentPulse.surgeGradient = Instance.new("UIGradient")
+DeepDigVolcanoVentPulse.surgeGradient.Color = ColorSequence.new({
+	ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 112, 32)),
+	ColorSequenceKeypoint.new(0.5, Color3.fromRGB(255, 235, 118)),
+	ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 70, 24)),
+})
+DeepDigVolcanoVentPulse.surgeGradient.Transparency = NumberSequence.new({
+	NumberSequenceKeypoint.new(0, 1),
+	NumberSequenceKeypoint.new(0.5, 0),
+	NumberSequenceKeypoint.new(1, 1),
+})
+DeepDigVolcanoVentPulse.surgeGradient.Parent = DeepDigVolcanoVentPulse.surge
+
+function DeepDigVolcanoVentPulse.cancelTweens()
+	for _, tween in ipairs(DeepDigVolcanoVentPulse.tweens) do
+		tween:Cancel()
+	end
+	DeepDigVolcanoVentPulse.tweens = {}
+end
+
+function DeepDigVolcanoVentPulse.reset()
+	DeepDigVolcanoVentPulse.overlay.Visible = false
+	DeepDigVolcanoVentPulse.overlay.BackgroundTransparency = 1
+	DeepDigVolcanoVentPulse.surge.BackgroundTransparency = 1
+	DeepDigVolcanoVentPulse.surge.Size = UDim2.new(1, 0, 0.12, 0)
+	DeepDigVolcanoVentPulse.surge.Position = UDim2.new(0.5, 0, 0.58, 0)
+end
+
+function DeepDigVolcanoVentPulse.play()
+	DeepDigVolcanoVentPulse.sequence = DeepDigVolcanoVentPulse.sequence + 1
+	local sequence = DeepDigVolcanoVentPulse.sequence
+
+	DeepDigVolcanoVentPulse.cancelTweens()
+	DeepDigVolcanoVentPulse.overlay.Visible = true
+	DeepDigVolcanoVentPulse.overlay.BackgroundTransparency = 0.58
+	DeepDigVolcanoVentPulse.surge.BackgroundTransparency = 0.28
+	DeepDigVolcanoVentPulse.surge.Size = UDim2.new(1, 0, 0.12, 0)
+	DeepDigVolcanoVentPulse.surge.Position = UDim2.new(0.5, 0, 0.58, 0)
+
+	local overlayFade = TweenService:Create(
+		DeepDigVolcanoVentPulse.overlay,
+		TweenInfo.new(0.62, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+		{ BackgroundTransparency = 1 }
+	)
+	local surgeRise = TweenService:Create(
+		DeepDigVolcanoVentPulse.surge,
+		TweenInfo.new(0.46, Enum.EasingStyle.Sine, Enum.EasingDirection.Out),
+		{
+			BackgroundTransparency = 1,
+			Position = UDim2.new(0.5, 0, 0.46, 0),
+			Size = UDim2.new(1, 0, 0.48, 0),
+		}
+	)
+
+	DeepDigVolcanoVentPulse.tweens = { overlayFade, surgeRise }
+	overlayFade:Play()
+	surgeRise:Play()
+	overlayFade.Completed:Connect(function()
+		if sequence ~= DeepDigVolcanoVentPulse.sequence then
+			return
+		end
+		DeepDigVolcanoVentPulse.tweens = {}
+		DeepDigVolcanoVentPulse.reset()
+	end)
+end
+
 local halloweenAmbienceLayer = Instance.new("Frame")
 halloweenAmbienceLayer.Name = "HalloweenAmbience"
 halloweenAmbienceLayer.Size = UDim2.new(1, 0, 1, 0)
@@ -4420,6 +4524,15 @@ local function isEarthquakeEvent(eventName, message, effectId)
 	return string.find(lowered, "earthquake", 1, true) ~= nil
 		or string.find(lowered, "quake", 1, true) ~= nil
 		or string.find(lowered, "tremble", 1, true) ~= nil
+end
+
+function DeepDigIsVolcanoVentEvent(eventName, effectId)
+	local effectKey = normalizeEventKey(effectId)
+	if effectKey ~= "" then
+		return effectKey == "volcanovent"
+	end
+
+	return normalizeEventKey(eventName) == "volcanovent"
 end
 
 local function clearEventCameraShake(sequence)
@@ -9308,14 +9421,21 @@ end
 Remotes.EventTriggered.OnClientEvent:Connect(function(eventName, message, duration, effectId)
 	updateSeasonBadge(effectId)
 	local isEarthquake = isEarthquakeEvent(eventName, message, effectId)
+	local isVolcanoVent = DeepDigIsVolcanoVentEvent(eventName, effectId)
 	if LocalPlaySound and LocalPlaySound:IsA("BindableEvent") then
 		LocalPlaySound:Fire("event_alarm")
 		if isEarthquake then
 			LocalPlaySound:Fire("earthquake_rumble")
 		end
+		if isVolcanoVent then
+			LocalPlaySound:Fire("volcano_vent_rumble")
+		end
 	end
 	DeepDigActiveEventHud.show(eventName, message, duration, effectId)
 	DeepDigEventStartFlash.play(eventName, message, duration, effectId)
+	if isVolcanoVent then
+		DeepDigVolcanoVentPulse.play()
+	end
 	if not isEarthquake and shouldPlayEventCameraShake(duration) then
 		playEventCameraShake(eventName, effectId)
 	end
