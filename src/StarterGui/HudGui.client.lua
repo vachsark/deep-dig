@@ -9299,15 +9299,16 @@ end)
 
 Remotes.EventTriggered.OnClientEvent:Connect(function(eventName, message, duration, effectId)
 	updateSeasonBadge(effectId)
+	local isEarthquake = isEarthquakeEvent(eventName, message, effectId)
 	if LocalPlaySound and LocalPlaySound:IsA("BindableEvent") then
 		LocalPlaySound:Fire("event_alarm")
-		if isEarthquakeEvent(eventName, message, effectId) then
+		if isEarthquake then
 			LocalPlaySound:Fire("earthquake_rumble")
 		end
 	end
 	DeepDigActiveEventHud.show(eventName, message, duration, effectId)
 	DeepDigEventStartFlash.play(eventName, message, duration, effectId)
-	if shouldPlayEventCameraShake(duration) then
+	if not isEarthquake and shouldPlayEventCameraShake(duration) then
 		playEventCameraShake(eventName, effectId)
 	end
 
