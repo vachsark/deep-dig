@@ -880,10 +880,8 @@ end
 
 local function startEventPulseLoop(session)
 	task.spawn(function()
+		-- Normal event camera shake is owned by HudGui; this pulse keeps only UI and haptic feedback.
 		while eventPulseActive and session == eventPulseSession and os.clock() < eventPulseEndTime do
-			local remaining = eventPulseEndTime - os.clock()
-			local fade = math.clamp(remaining / EVENT_PULSE_DURATION, 0, 1)
-			eventPulseOffset = randomEventPulseOffset() * fade
 			task.wait(EVENT_PULSE_STEP)
 		end
 
@@ -911,7 +909,6 @@ local function beginEventPulse(effectId)
 
 	playEventAlarmSound()
 	ensureEventPulseUi()
-	ensureEventPulseRenderBinding()
 
 	if eventPulseFrame then
 		eventPulseFrame.BackgroundColor3 = settings.color
