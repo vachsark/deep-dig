@@ -4587,6 +4587,10 @@ function DeepDigEventStartFlash.shouldPlay(eventName, message, duration, effectI
 		return false
 	end
 
+	if DeepDigIsVolcanoVentEvent(eventName, effectId) then
+		return false
+	end
+
 	if DeepDigActiveEventHud.seasonalEffects[effectId] == true then
 		return false
 	end

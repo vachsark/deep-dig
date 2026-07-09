@@ -14,6 +14,7 @@ local ENEMIES = {
 		fragmentDrop = 1,
 		itemDropChance = 0.05,
 		color = Color3.fromRGB(210, 205, 180),
+		model = "BasicNPC",
 		walkSpeed = 8,
 		aggroRange = 16,
 		spawnWeight = 100,
@@ -40,6 +41,7 @@ local ENEMIES = {
 		fragmentDrop = 2,
 		itemDropChance = 0.08,
 		color = Color3.fromRGB(170, 105, 45),
+		model = "BasicNPC",
 		walkSpeed = 9,
 		aggroRange = 18,
 		spawnWeight = 100,
@@ -66,6 +68,7 @@ local ENEMIES = {
 		fragmentDrop = 4,
 		itemDropChance = 0.1,
 		color = Color3.fromRGB(120, 85, 65),
+		model = "BasicNPC",
 		walkSpeed = 7,
 		aggroRange = 18,
 		spawnWeight = 100,
@@ -92,6 +95,7 @@ local ENEMIES = {
 		fragmentDrop = 5,
 		itemDropChance = 0.12,
 		color = Color3.fromRGB(85, 95, 110),
+		model = "BasicNPC",
 		walkSpeed = 12,
 		aggroRange = 22,
 		spawnWeight = 100,
@@ -119,6 +123,7 @@ local ENEMIES = {
 		fragmentDrop = 10,
 		itemDropChance = 0.18,
 		color = Color3.fromRGB(75, 35, 115),
+		model = "BasicNPC",
 		walkSpeed = 13,
 		aggroRange = 24,
 		spawnWeight = 100,
@@ -146,6 +151,7 @@ local ENEMIES = {
 		fragmentDrop = 35,
 		itemDropChance = 0.35,
 		color = Color3.fromRGB(30, 10, 45),
+		model = "BasicNPC",
 		walkSpeed = 6,
 		aggroRange = 28,
 		spawnWeight = 8,
@@ -176,6 +182,13 @@ local TIER_ALIASES = {
 	Prehistoric = "Iron",
 }
 
+local TIER_ORDER = {
+	Stone = 1,
+	Bronze = 2,
+	Iron = 3,
+	Unknown = 4,
+}
+
 local function enemyTierFor(tierName)
 	return TIER_ALIASES[tierName] or tierName
 end
@@ -184,21 +197,14 @@ local function isBlocked(enemy, blockedEnemyIds)
 	return blockedEnemyIds and blockedEnemyIds[enemy.id] == true
 end
 
-function EnemyDatabase.getEnemyForTier(tierName, options)
-	local enemyTier = enemyTierFor(tierName)
-	local candidates = {}
+local function weightedPick(candidates)
 	local totalWeight = 0
-	local blockedEnemyIds = options and options.blockedEnemyIds
-
-	for _, enemy in ipairs(ENEMIES) do
-		if enemy.tier == enemyTier and not isBlocked(enemy, blockedEnemyIds) then
-			table.insert(candidates, enemy)
-			totalWeight = totalWeight + (enemy.spawnWeight or 100)
-		end
+	for _, enemy in ipairs(candidates) do
+		totalWeight = totalWeight + (enemy.spawnWeight or 100)
 	end
 
-	if #candidates == 0 then
-		return nil
+	if totalWeight <= 0 then
+		return candidates[math.random(1, #candidates)]
 	end
 
 	local roll = math.random() * totalWeight
@@ -211,6 +217,69 @@ function EnemyDatabase.getEnemyForTier(tierName, options)
 	end
 
 	return candidates[#candidates]
+end
+
+function EnemyDatabase.getAllEnemies()
+	local enemies = {}
+	for index, enemy in ipairs(ENEMIES) do
+		enemies[index] = enemy
+	end
+
+	return enemies
+end
+
+function EnemyDatabase.getEnemiesForTier(tierName, options)
+	local enemyTier = enemyTierFor(tierName)
+	local candidates = {}
+	local blockedEnemyIds = options and options.blockedEnemyIds
+
+	for _, enemy in ipairs(ENEMIES) do
+		if enemy.tier == enemyTier and not isBlocked(enemy, blockedEnemyIds) then
+			table.insert(candidates, enemy)
+		end
+	end
+
+	return candidates
+end
+
+function EnemyDatabase.getEnemiesAllowedForTier(tierName, options)
+	local enemyTier = enemyTierFor(tierName)
+	local tierRank = TIER_ORDER[enemyTier]
+	local candidates = {}
+	local blockedEnemyIds = options and options.blockedEnemyIds
+
+	if not tierRank then
+		return EnemyDatabase.getEnemiesForTier(tierName, options)
+	end
+
+	for _, enemy in ipairs(ENEMIES) do
+		local enemyRank = TIER_ORDER[enemy.tier]
+		if enemyRank and enemyRank <= tierRank and not isBlocked(enemy, blockedEnemyIds) then
+			table.insert(candidates, enemy)
+		end
+	end
+
+	return candidates
+end
+
+function EnemyDatabase.getEnemyForTier(tierName, options)
+	local candidates = EnemyDatabase.getEnemiesForTier(tierName, options)
+
+	if #candidates == 0 then
+		return nil
+	end
+
+	return weightedPick(candidates)
+end
+
+function EnemyDatabase.getEnemyAllowedForTier(tierName, options)
+	local candidates = EnemyDatabase.getEnemiesAllowedForTier(tierName, options)
+
+	if #candidates == 0 then
+		return nil
+	end
+
+	return weightedPick(candidates)
 end
 
 function EnemyDatabase.getEnemyById(id)
