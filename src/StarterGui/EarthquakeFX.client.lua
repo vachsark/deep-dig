@@ -156,7 +156,25 @@ local hapticSupported = false
 local hapticMotorSupport = {}
 local hapticSequence = 0
 
+local function normalizeEventKey(value)
+	if type(value) ~= "string" then
+		return ""
+	end
+
+	return string.gsub(string.lower(value), "[^%w]", "")
+end
+
 local function isEarthquakeTrigger(eventName, message, effectId)
+	local effectKey = normalizeEventKey(effectId)
+	if effectKey == "earthquake" or effectKey == "instantdig" then
+		return true
+	end
+
+	local nameKey = normalizeEventKey(eventName)
+	if nameKey == "earthquake" or nameKey == "instantdig" then
+		return true
+	end
+
 	local function matches(text)
 		if type(text) ~= "string" then
 			return false
