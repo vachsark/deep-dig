@@ -3708,6 +3708,7 @@ findFlashLayer.Size = UDim2.new(1, 0, 1, 0)
 findFlashLayer.Position = UDim2.new(0, 0, 0, 0)
 findFlashLayer.BackgroundTransparency = 1
 findFlashLayer.BorderSizePixel = 0
+findFlashLayer.Active = false
 findFlashLayer.ZIndex = 90
 findFlashLayer.Parent = screenGui
 
@@ -3717,6 +3718,7 @@ findFlashOverlay.Size = UDim2.new(1, 0, 1, 0)
 findFlashOverlay.BackgroundColor3 = Color3.fromRGB(255, 210, 80)
 findFlashOverlay.BackgroundTransparency = 1
 findFlashOverlay.BorderSizePixel = 0
+findFlashOverlay.Active = false
 findFlashOverlay.ZIndex = 90
 findFlashOverlay.Parent = findFlashLayer
 
@@ -9261,41 +9263,47 @@ do
 	end
 end
 
-Remotes.ItemFound.OnClientEvent:Connect(function(item)
-	if not DeepDigIsValidItemFoundPayload(item) then
-		return
-	end
-
-	local function playItemFoundFlow()
-		local shouldPlayRareReveal = DeepDigShouldPlayRareRevealForRarity(item.rarity)
-
-		if shouldPlayRareReveal then
-			playLegendaryFindFlash(item.rarity, item)
-			DeepDigPlayRareRevealSound()
-			if LEGENDARY_FIND_FLASH_RARITIES[item.rarity] then
-				LEGENDARY_FIND_FLASH_RARITIES._cameraBump.play(item.rarity)
+do
+	local itemFoundEvent = Remotes:FindFirstChild("ItemFound")
+	if itemFoundEvent and itemFoundEvent:IsA("RemoteEvent") then
+		itemFoundEvent.OnClientEvent:Connect(function(item)
+			if not DeepDigIsValidItemFoundPayload(item) then
+				return
 			end
-		else
-			DeepDigPlayItemFoundSound(item)
-		end
 
-		if LIGHTING_PULSE_PROFILES[item.rarity] then
-			playLightingPulse(item.rarity)
-		end
+			local function playItemFoundFlow()
+				local shouldPlayRareReveal = DeepDigShouldPlayRareRevealForRarity(item.rarity)
+				local shouldPlayFullScreenFlash = LEGENDARY_FIND_FLASH_RARITIES[item.rarity] ~= nil
 
-		if item.seasonalExclusive == true or item.seasonId ~= nil then
-			DeepDigPlaySeasonalExclusiveReveal(item)
-		end
+				if shouldPlayRareReveal then
+					if shouldPlayFullScreenFlash then
+						playLegendaryFindFlash(item.rarity, item)
+						LEGENDARY_FIND_FLASH_RARITIES._cameraBump.play(item.rarity)
+					end
+					DeepDigPlayRareRevealSound()
+				else
+					DeepDigPlayItemFoundSound(item)
+				end
 
-		showNotification("Found: " .. item.name .. " (+" .. tostring(item.sellValue or 0) .. " coins)", item.rarity)
+				if LIGHTING_PULSE_PROFILES[item.rarity] then
+					playLightingPulse(item.rarity)
+				end
+
+				if item.seasonalExclusive == true or item.seasonId ~= nil then
+					DeepDigPlaySeasonalExclusiveReveal(item)
+				end
+
+				showNotification("Found: " .. item.name .. " (+" .. tostring(item.sellValue or 0) .. " coins)", item.rarity)
+			end
+
+			if LEGENDARY_FIND_FLASH_RARITIES.PlayAnchoredGlint(item) then
+				task.delay(0.12, playItemFoundFlow)
+			else
+				playItemFoundFlow()
+			end
+		end)
 	end
-
-	if LEGENDARY_FIND_FLASH_RARITIES.PlayAnchoredGlint(item) then
-		task.delay(0.12, playItemFoundFlow)
-	else
-		playItemFoundFlow()
-	end
-end)
+end
 
 Remotes.EventTriggered.OnClientEvent:Connect(function(eventName, message, duration, effectId)
 	updateSeasonBadge(effectId)
