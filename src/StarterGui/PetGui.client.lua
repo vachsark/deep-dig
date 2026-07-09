@@ -44,6 +44,7 @@ end
 -- Mode toggle button is hidden so the rest of the UI stays usable.
 local FeedPetEvent = Remotes:WaitForChild("FeedPet", 5)
 local PetFeedResultEvent = Remotes:WaitForChild("PetFeedResult", 5)
+local ItemFoundEvent = Remotes:FindFirstChild("ItemFound")
 
 local LOCAL_PLAY_SOUND_NAME = "DeepDigLocalPlaySound"
 local LocalPlaySound = SoundService:FindFirstChild(LOCAL_PLAY_SOUND_NAME)
@@ -1031,6 +1032,147 @@ local function getLocalPetCompanion()
 	return nil
 end
 
+local petFindCelebrationSequence = 0
+local activePetFindCelebrationCleanup = nil
+
+local function clearPetFindCelebration()
+	if activePetFindCelebrationCleanup then
+		activePetFindCelebrationCleanup()
+		activePetFindCelebrationCleanup = nil
+	end
+end
+
+local function playPetRareFindCelebration(item)
+	if type(item) ~= "table" then
+		return
+	end
+
+	local rarity = tostring(item.rarity or "")
+	if rarity ~= "Legendary" and rarity ~= "Mythic" then
+		return
+	end
+
+	local companion = getLocalPetCompanion()
+	if not companion then
+		return
+	end
+
+	petFindCelebrationSequence = petFindCelebrationSequence + 1
+	local sequence = petFindCelebrationSequence
+	clearPetFindCelebration()
+
+	local rarityColor = RarityColors[rarity] or RarityColors.Legendary
+	local burstCount = rarity == "Mythic" and 54 or 38
+
+	local ringBillboard = Instance.new("BillboardGui")
+	ringBillboard.Name = "PetRareFindRing"
+	ringBillboard.Adornee = companion
+	ringBillboard.AlwaysOnTop = true
+	ringBillboard.LightInfluence = 0
+	ringBillboard.MaxDistance = 150
+	ringBillboard.Size = UDim2.fromOffset(18, 18)
+	ringBillboard.StudsOffset = Vector3.new(0, 0.15, 0)
+	ringBillboard.Parent = playerGui
+	Debris:AddItem(ringBillboard, 0.9)
+
+	local ring = Instance.new("Frame")
+	ring.Name = "Ring"
+	ring.AnchorPoint = Vector2.new(0.5, 0.5)
+	ring.BackgroundColor3 = rarityColor
+	ring.BackgroundTransparency = 0.88
+	ring.BorderSizePixel = 0
+	ring.Position = UDim2.fromScale(0.5, 0.5)
+	ring.Size = UDim2.fromScale(1, 1)
+	ring.Parent = ringBillboard
+
+	local ringCorner = Instance.new("UICorner")
+	ringCorner.CornerRadius = UDim.new(1, 0)
+	ringCorner.Parent = ring
+
+	local ringStroke = Instance.new("UIStroke")
+	ringStroke.Color = rarityColor
+	ringStroke.Thickness = rarity == "Mythic" and 4 or 3
+	ringStroke.Transparency = 0.05
+	ringStroke.Parent = ring
+
+	local sparkle = Instance.new("ParticleEmitter")
+	sparkle.Name = "PetRareFindSparkle"
+	sparkle.Color = ColorSequence.new(rarityColor)
+	sparkle.LightEmission = 1
+	sparkle.LightInfluence = 0
+	sparkle.Lifetime = NumberRange.new(0.35, 0.8)
+	sparkle.Speed = NumberRange.new(4, rarity == "Mythic" and 9 or 7)
+	sparkle.SpreadAngle = Vector2.new(360, 360)
+	sparkle.Size = NumberSequence.new({
+		NumberSequenceKeypoint.new(0, rarity == "Mythic" and 0.28 or 0.22),
+		NumberSequenceKeypoint.new(0.7, 0.12),
+		NumberSequenceKeypoint.new(1, 0),
+	})
+	sparkle.Transparency = NumberSequence.new({
+		NumberSequenceKeypoint.new(0, 0.05),
+		NumberSequenceKeypoint.new(0.75, 0.35),
+		NumberSequenceKeypoint.new(1, 1),
+	})
+	sparkle.Rotation = NumberRange.new(0, 360)
+	sparkle.RotSpeed = NumberRange.new(-140, 140)
+	sparkle.Drag = 2.5
+	sparkle.Rate = 0
+	sparkle.Texture = "rbxasset://textures/particles/sparkles_main.dds"
+	sparkle.Parent = companion
+	Debris:AddItem(sparkle, 1.1)
+	sparkle:Emit(burstCount)
+
+	local flash = Instance.new("PointLight")
+	flash.Name = "PetRareFindFlash"
+	flash.Color = rarityColor
+	flash.Brightness = rarity == "Mythic" and 3 or 2.4
+	flash.Range = rarity == "Mythic" and 11 or 9
+	flash.Shadows = false
+	flash.Parent = companion
+	Debris:AddItem(flash, 0.55)
+
+	activePetFindCelebrationCleanup = function()
+		if ringBillboard.Parent then
+			ringBillboard:Destroy()
+		end
+		if sparkle.Parent then
+			sparkle:Destroy()
+		end
+		if flash.Parent then
+			flash:Destroy()
+		end
+	end
+
+	TweenService:Create(
+		ringBillboard,
+		TweenInfo.new(0.42, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+		{ Size = UDim2.fromOffset(rarity == "Mythic" and 104 or 82, rarity == "Mythic" and 104 or 82) }
+	):Play()
+	TweenService:Create(
+		ring,
+		TweenInfo.new(0.42, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+		{ BackgroundTransparency = 1 }
+	):Play()
+	TweenService:Create(
+		ringStroke,
+		TweenInfo.new(0.42, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+		{ Transparency = 1, Thickness = 1 }
+	):Play()
+	TweenService:Create(
+		flash,
+		TweenInfo.new(0.45, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+		{ Brightness = 0, Range = 3 }
+	):Play()
+
+	task.delay(0.95, function()
+		if sequence ~= petFindCelebrationSequence then
+			return
+		end
+
+		clearPetFindCelebration()
+	end)
+end
+
 local function playEquippedPetLevelUpBurst(result)
 	if type(result) ~= "table" or result.leveledUp ~= true then
 		return
@@ -1792,6 +1934,10 @@ NotifyEvent.OnClientEvent:Connect(function(text, rarity)
 	hatcheryStatus.Text = text
 	hatcheryStatus.TextColor3 = RarityColors[rarity] or TEXT_MUTED
 end)
+
+if ItemFoundEvent and ItemFoundEvent:IsA("RemoteEvent") then
+	ItemFoundEvent.OnClientEvent:Connect(playPetRareFindCelebration)
+end
 
 UpdateHUDEvent.OnClientEvent:Connect(function(payload)
 	if type(payload) ~= "table" then return end
