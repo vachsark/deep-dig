@@ -149,6 +149,13 @@ local SOUNDS = {
 		playbackSpeed = 1.7,
 		pitchRange = { 1.04, 1.1 },
 	},
+	enemy_attack_denied = {
+		id = "rbxassetid://9114013169", -- quiet denied tap for invalid enemy swings
+		volume = 0.16,
+		playbackSpeed = 2.05,
+		pitchRange = { 1.04, 1.12 },
+		dedupeWindow = 0.1,
+	},
 	enemy_attack_warning = {
 		id = "rbxassetid://5982968246", -- compact attack windup warning
 		volume = 0.36,

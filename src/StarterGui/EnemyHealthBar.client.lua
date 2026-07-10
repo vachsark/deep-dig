@@ -5596,7 +5596,7 @@ EnemyCombatFeedback.OnClientEvent:Connect(function(payload)
 	if feedbackType == "rejected_attack" then
 		activeFeedback.showRejectedAttackCue(payload.model, payload.reason, payload.retryAfter)
 		if LocalPlaySound and LocalPlaySound:IsA("BindableEvent") then
-			LocalPlaySound:Fire("enemy_blocked")
+			LocalPlaySound:Fire("enemy_attack_denied")
 		end
 		return
 	end
