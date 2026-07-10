@@ -48,6 +48,7 @@ local DEFAULT_SPAWN_INTERVAL = 30
 local MAX_ENEMIES_PER_PLAYER = 5
 local ATTACK_RANGE = 8
 local ATTACK_COOLDOWN = 0.5
+local DENIED_ATTACK_FEEDBACK_COOLDOWN = 0.22
 local STAGGER_DURATION = 0.18
 local STAGGER_WALKSPEED_MULTIPLIER = 0.25
 local STAGGER_KNOCKBACK_SPEED = 18
@@ -73,6 +74,7 @@ local MINIBOSS_ENRAGE_DAMAGE_MULTIPLIER = 1.3
 local liveEnemies = {}
 local enemiesByPlayer = {}
 local nextAttackAtByUserId = {}
+local nextDeniedAttackFeedbackAtByUserId = {}
 local killStreaksByUserId = {}
 local deathConnectionsByUserId = {}
 local hollowKingCooldownsByUserId = {}
@@ -431,6 +433,26 @@ local function fireEnemyCombatFeedback(player, feedbackType, model, damage, rewa
 		end
 		EnemyCombatFeedback:FireClient(player, payload)
 	end
+end
+
+local function fireDeniedAttackFeedback(player, record, reason, extraPayload)
+	local now = os.clock()
+	local userId = player.UserId
+	if now < (nextDeniedAttackFeedbackAtByUserId[userId] or 0) then
+		return
+	end
+
+	nextDeniedAttackFeedbackAtByUserId[userId] = now + DENIED_ATTACK_FEEDBACK_COOLDOWN
+	local payload = {
+		reason = reason,
+	}
+	if extraPayload then
+		for key, value in pairs(extraPayload) do
+			payload[key] = value
+		end
+	end
+
+	fireEnemyCombatFeedback(player, "rejected_attack", record.model, nil, nil, payload)
 end
 
 local function notifyMinibossSpawn(player, enemy, model)
@@ -1318,6 +1340,9 @@ EnemyHitEvent.OnServerEvent:Connect(function(player, enemyModel)
 	local now = os.clock()
 	local nextAttackAt = nextAttackAtByUserId[player.UserId] or 0
 	if now < nextAttackAt then
+		fireDeniedAttackFeedback(player, record, "cooldown", {
+			retryAfter = math.max(0, nextAttackAt - now),
+		})
 		return
 	end
 
@@ -1327,7 +1352,12 @@ EnemyHitEvent.OnServerEvent:Connect(function(player, enemyModel)
 		return
 	end
 
-	if (playerRoot.Position - enemyRoot.Position).Magnitude > ATTACK_RANGE then
+	local attackDistance = (playerRoot.Position - enemyRoot.Position).Magnitude
+	if attackDistance > ATTACK_RANGE then
+		fireDeniedAttackFeedback(player, record, "range", {
+			distance = attackDistance,
+			range = ATTACK_RANGE,
+		})
 		return
 	end
 
@@ -1364,6 +1394,7 @@ end
 
 Players.PlayerRemoving:Connect(function(player)
 	nextAttackAtByUserId[player.UserId] = nil
+	nextDeniedAttackFeedbackAtByUserId[player.UserId] = nil
 	hollowKingCooldownsByUserId[player.UserId] = nil
 	clearEnemyKillStreak(player)
 	local deathConnection = deathConnectionsByUserId[player.UserId]

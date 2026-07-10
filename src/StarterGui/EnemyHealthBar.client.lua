@@ -257,6 +257,13 @@ activeFeedback.digBlockedCue = {
 	cueFadeDuration = 0.16,
 	blocks = {},
 }
+activeFeedback.rejectedAttackCue = {
+	guiName = "DeepDigEnemyRejectedAttackCue",
+	cueDuration = 0.46,
+	cueFadeDuration = 0.14,
+	cooldownColor = Color3.fromRGB(255, 175, 45),
+	rangeColor = Color3.fromRGB(255, 70, 45),
+}
 activeFeedback.minibossSpawnOverlay = {
 	guiName = "DeepDigMinibossSpawnOverlay",
 	displayOrder = 94,
@@ -2114,6 +2121,109 @@ function activeFeedback.showDigBlockedCue(model, block)
 		Enum.EasingDirection.Out
 	), {
 		Scale = 1.06,
+	}):Play()
+
+	task.delay(config.cueDuration, function()
+		if not billboard.Parent then
+			return
+		end
+
+		TweenService:Create(frame, TweenInfo.new(config.cueFadeDuration), {
+			BackgroundTransparency = 1,
+		}):Play()
+		TweenService:Create(stroke, TweenInfo.new(config.cueFadeDuration), {
+			Transparency = 1,
+		}):Play()
+		TweenService:Create(label, TweenInfo.new(config.cueFadeDuration), {
+			TextTransparency = 1,
+			TextStrokeTransparency = 1,
+		}):Play()
+
+		task.delay(config.cueFadeDuration + 0.04, function()
+			if billboard.Parent then
+				billboard:Destroy()
+			end
+		end)
+	end)
+end
+
+function activeFeedback.showRejectedAttackCue(model, reason, retryAfter)
+	if not model or not model:IsA("Model") or not model:IsDescendantOf(workspace) then
+		return
+	end
+
+	local root = model:FindFirstChild("HumanoidRootPart")
+	if not root or not root:IsA("BasePart") then
+		return
+	end
+
+	local config = activeFeedback.rejectedAttackCue
+	local existing = root:FindFirstChild(config.guiName)
+	if existing then
+		existing:Destroy()
+	end
+
+	local text = "TOO FAR"
+	local accentColor = config.rangeColor
+	if reason == "cooldown" then
+		accentColor = config.cooldownColor
+		if typeof(retryAfter) == "number" and retryAfter > 0.05 then
+			text = "READY " .. string.format("%.1fs", math.max(0.1, retryAfter))
+		else
+			text = "READY SOON"
+		end
+	end
+
+	local billboard = Instance.new("BillboardGui")
+	billboard.Name = config.guiName
+	billboard.Adornee = root
+	billboard.AlwaysOnTop = true
+	billboard.MaxDistance = MAX_DISTANCE
+	billboard.Size = UDim2.fromOffset(106, 28)
+	billboard.StudsOffset = Vector3.new(0, 4.05, 0)
+	billboard.Parent = root
+
+	local frame = Instance.new("Frame")
+	frame.Name = "Cue"
+	frame.Size = UDim2.fromScale(1, 1)
+	frame.BackgroundColor3 = Color3.fromRGB(26, 22, 20)
+	frame.BackgroundTransparency = 0.08
+	frame.BorderSizePixel = 0
+	frame.Parent = billboard
+
+	local corner = Instance.new("UICorner")
+	corner.CornerRadius = UDim.new(0, 6)
+	corner.Parent = frame
+
+	local stroke = Instance.new("UIStroke")
+	stroke.Color = accentColor
+	stroke.Transparency = 0.04
+	stroke.Thickness = 2
+	stroke.Parent = frame
+
+	local label = Instance.new("TextLabel")
+	label.Name = "Label"
+	label.Size = UDim2.fromScale(1, 1)
+	label.BackgroundTransparency = 1
+	label.Text = text
+	label.TextColor3 = Color3.fromRGB(255, 246, 232)
+	label.TextStrokeTransparency = 0.4
+	label.TextSize = 12
+	label.Font = Enum.Font.GothamBlack
+	label.TextXAlignment = Enum.TextXAlignment.Center
+	label.TextYAlignment = Enum.TextYAlignment.Center
+	label.Parent = frame
+
+	local scale = Instance.new("UIScale")
+	scale.Scale = 0.88
+	scale.Parent = frame
+
+	TweenService:Create(scale, TweenInfo.new(
+		0.08,
+		Enum.EasingStyle.Back,
+		Enum.EasingDirection.Out
+	), {
+		Scale = 1,
 	}):Play()
 
 	task.delay(config.cueDuration, function()
@@ -5481,6 +5591,13 @@ EnemyCombatFeedback.OnClientEvent:Connect(function(payload)
 			LocalPlaySound:Fire("enemy_spawn_warning")
 		end
 		playHapticBump(0.05, 0.06, 0.08)
+		return
+	end
+	if feedbackType == "rejected_attack" then
+		activeFeedback.showRejectedAttackCue(payload.model, payload.reason, payload.retryAfter)
+		if LocalPlaySound and LocalPlaySound:IsA("BindableEvent") then
+			LocalPlaySound:Fire("enemy_blocked")
+		end
 		return
 	end
 
