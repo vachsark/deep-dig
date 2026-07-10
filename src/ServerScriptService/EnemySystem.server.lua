@@ -1134,6 +1134,7 @@ local function spawnEnemyForPlayer(player)
 		position = spawnPosition,
 		duration = SPAWN_WARNING_DURATION,
 		enemyName = enemyName,
+		tierName = tierName,
 		isMiniboss = enemy.isMiniboss == true,
 	})
 	task.wait(SPAWN_WARNING_DURATION)

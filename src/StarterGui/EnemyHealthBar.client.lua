@@ -2884,12 +2884,35 @@ function activeFeedback.showEnemySpawnWarning(payload)
 	activeFeedback.cancelEnemySpawnWarningTweens()
 	activeFeedback.hideEnemySpawnWarning()
 
+	local enemyName = nil
+	local tierName = nil
+	if typeof(payload) == "table" then
+		if typeof(payload.enemyName) == "string" and payload.enemyName ~= "" then
+			enemyName = payload.enemyName
+		end
+		if typeof(payload.tierName) == "string" and payload.tierName ~= "" then
+			tierName = payload.tierName
+		end
+	end
+
 	if typeof(payload) == "table" and payload.isMiniboss == true then
 		config.titleLabel.Text = "MASSIVE MOVEMENT"
-		config.detailLabel.Text = "A miniboss is breaking through nearby"
+		if enemyName then
+			config.detailLabel.Text = enemyName .. " is breaking through nearby"
+		else
+			config.detailLabel.Text = "A miniboss is breaking through nearby"
+		end
 	else
-		config.titleLabel.Text = "BURROWING UP"
-		config.detailLabel.Text = "Something is about to surface nearby"
+		if enemyName then
+			config.titleLabel.Text = enemyName .. " surfacing"
+		else
+			config.titleLabel.Text = "BURROWING UP"
+		end
+		if tierName then
+			config.detailLabel.Text = tierName .. " tier threat nearby"
+		else
+			config.detailLabel.Text = "Something is about to surface nearby"
+		end
 	end
 	if typeof(payload) == "table" and typeof(payload.position) == "Vector3" then
 		activeFeedback.showEnemySpawnMarker(payload.position, duration, payload.isMiniboss == true)
