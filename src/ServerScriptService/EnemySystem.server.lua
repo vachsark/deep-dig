@@ -70,18 +70,6 @@ local HOLLOW_KING_ID = "hollow_king"
 local HOLLOW_KING_COOLDOWN = 5 * 60
 local MINIBOSS_ENRAGE_WALKSPEED_MULTIPLIER = 1.35
 local MINIBOSS_ENRAGE_DAMAGE_MULTIPLIER = 1.3
-local SPAWN_INTERVAL_BY_TIER = {
-	Stone = 30,
-	Bronze = 30,
-	Iron = 25,
-	Modern = 30,
-	Industrial = 30,
-	Medieval = 26,
-	Ancient = 24,
-	Prehistoric = 23,
-	Unknown = 21,
-}
-
 local liveEnemies = {}
 local enemiesByPlayer = {}
 local nextAttackAtByUserId = {}
@@ -825,8 +813,7 @@ local function getSpawnIntervalForData(data)
 		return DEFAULT_SPAWN_INTERVAL
 	end
 
-	local tierName = ItemDatabase.getTierForDepth(depth)
-	return SPAWN_INTERVAL_BY_TIER[tierName] or DEFAULT_SPAWN_INTERVAL
+	return DEFAULT_SPAWN_INTERVAL
 end
 
 local function getPlayerRoot(player)
@@ -1107,7 +1094,7 @@ local function spawnEnemyForPlayer(player)
 	end
 
 	local tierName = ItemDatabase.getTierForDepth(data.deepestBlock or 0)
-	local enemy = EnemyDatabase.getEnemyForTier(tierName, {
+	local enemy = EnemyDatabase.getEnemyAllowedForTier(tierName, {
 		blockedEnemyIds = getBlockedEnemyIds(player),
 	})
 	if not enemy then
@@ -1398,38 +1385,47 @@ task.spawn(function()
 	while true do
 		task.wait(1)
 		for _, record in pairs(liveEnemies) do
-			if not record.dead and record.model.Parent and record.humanoid.Health > 0 then
-				local ownerRoot = record.owner and getPlayerRoot(record.owner)
-				if ownerRoot and record.root and record.root.Parent then
-					if isEnemyEmerging(record) then
-						record.inAggroRange = false
-						record.humanoid.WalkSpeed = 0
-					else
-						local enemyPosition = record.root.Position
-						local distanceToOwner = (ownerRoot.Position - enemyPosition).Magnitude
-						local aggroRange = record.enemy.aggroRange or 16
-						local targetPosition = nil
-						local inAggroRange = distanceToOwner <= aggroRange
+			local ownerValid = record.owner and record.owner.Parent == Players
+			local modelValid = record.model and record.model.Parent
+			local humanoidValid = record.humanoid and record.humanoid.Parent and record.humanoid.Health > 0
+			local rootValid = record.root and record.root.Parent
 
-						if inAggroRange then
-							if not record.inAggroRange then
-								fireEnemyCombatFeedback(record.owner, "aggro", record.model)
-							end
-							record.inAggroRange = true
-							targetPosition = ownerRoot.Position
-						elseif os.clock() >= (record.nextWanderAt or 0) then
+			if not record.dead then
+				if not ownerValid or not modelValid or not humanoidValid or not rootValid then
+					destroyEnemy(record)
+				else
+					local ownerRoot = record.owner and getPlayerRoot(record.owner)
+					if ownerRoot then
+						if isEnemyEmerging(record) then
 							record.inAggroRange = false
-							targetPosition = getWanderPosition(record.homePosition or enemyPosition)
-							record.nextWanderAt = os.clock() + IDLE_WANDER_INTERVAL
+							record.humanoid.WalkSpeed = 0
 						else
-							record.inAggroRange = false
-						end
+							local enemyPosition = record.root.Position
+							local distanceToOwner = (ownerRoot.Position - enemyPosition).Magnitude
+							local aggroRange = record.enemy.aggroRange or 16
+							local targetPosition = nil
+							local inAggroRange = distanceToOwner <= aggroRange
 
-						if not record.staggeredUntil or os.clock() >= record.staggeredUntil then
-							record.humanoid.WalkSpeed = getEnemyWalkSpeed(record)
-						end
-						if targetPosition then
-							record.humanoid:MoveTo(targetPosition)
+							if inAggroRange then
+								if not record.inAggroRange then
+									fireEnemyCombatFeedback(record.owner, "aggro", record.model)
+								end
+								record.inAggroRange = true
+								targetPosition = ownerRoot.Position
+							elseif os.clock() >= (record.nextWanderAt or 0) then
+								record.inAggroRange = false
+								targetPosition = getWanderPosition(record.homePosition or enemyPosition)
+								record.nextWanderAt = os.clock() + IDLE_WANDER_INTERVAL
+							else
+								record.inAggroRange = false
+							end
+
+							if not record.staggeredUntil or os.clock() >= record.staggeredUntil then
+								record.humanoid.WalkSpeed = getEnemyWalkSpeed(record)
+							end
+							if targetPosition then
+								record.humanoid:MoveTo(targetPosition)
+							end
 						end
 					end
 				end
