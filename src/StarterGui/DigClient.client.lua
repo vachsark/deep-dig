@@ -66,6 +66,45 @@ targetHighlight.OutlineTransparency = 0.12
 targetHighlight.DepthMode = Enum.HighlightDepthMode.Occluded
 targetHighlight.Parent = workspace
 
+local attackRangeRingPart = Instance.new("Part")
+attackRangeRingPart.Name = "DeepDigEnemyAttackRangeRing"
+attackRangeRingPart.Anchored = true
+attackRangeRingPart.CanCollide = false
+attackRangeRingPart.CanQuery = false
+attackRangeRingPart.CanTouch = false
+attackRangeRingPart.CastShadow = false
+attackRangeRingPart.Transparency = 1
+attackRangeRingPart.Size = Vector3.new(CLIENT_ATTACK_RANGE * 2, 0.05, CLIENT_ATTACK_RANGE * 2)
+attackRangeRingPart.Parent = workspace
+
+local attackRangeRingGui = Instance.new("SurfaceGui")
+attackRangeRingGui.Name = "RangeRingGui"
+attackRangeRingGui.AlwaysOnTop = true
+attackRangeRingGui.CanvasSize = Vector2.new(256, 256)
+attackRangeRingGui.Enabled = false
+attackRangeRingGui.Face = Enum.NormalId.Top
+attackRangeRingGui.LightInfluence = 0
+attackRangeRingGui.Parent = attackRangeRingPart
+
+local attackRangeRingFrame = Instance.new("Frame")
+attackRangeRingFrame.Name = "Ring"
+attackRangeRingFrame.AnchorPoint = Vector2.new(0.5, 0.5)
+attackRangeRingFrame.BackgroundTransparency = 1
+attackRangeRingFrame.BorderSizePixel = 0
+attackRangeRingFrame.Position = UDim2.fromScale(0.5, 0.5)
+attackRangeRingFrame.Size = UDim2.fromScale(0.94, 0.94)
+attackRangeRingFrame.Parent = attackRangeRingGui
+
+local attackRangeRingCorner = Instance.new("UICorner")
+attackRangeRingCorner.CornerRadius = UDim.new(1, 0)
+attackRangeRingCorner.Parent = attackRangeRingFrame
+
+local attackRangeRingStroke = Instance.new("UIStroke")
+attackRangeRingStroke.Color = Color3.fromRGB(255, 118, 46)
+attackRangeRingStroke.Thickness = 5
+attackRangeRingStroke.Transparency = 0.36
+attackRangeRingStroke.Parent = attackRangeRingFrame
+
 local moveCloserCue = Instance.new("BillboardGui")
 moveCloserCue.Name = "DeepDigMoveCloserCue"
 moveCloserCue.Enabled = false
@@ -103,10 +142,15 @@ local function clearMoveCloserCue()
 	moveCloserLabel.TextStrokeColor3 = Color3.fromRGB(45, 25, 20)
 end
 
+local function clearAttackRangeRing()
+	attackRangeRingGui.Enabled = false
+end
+
 local function clearTargetHighlight()
 	targetHighlight.Enabled = false
 	targetHighlight.Adornee = nil
 	clearMoveCloserCue()
+	clearAttackRangeRing()
 end
 
 local function canUseHaptics()
@@ -301,6 +345,21 @@ local function isEnemyInClientAttackRange(enemyModel)
 	end
 
 	return (playerRoot.Position - enemyRoot.Position).Magnitude <= CLIENT_ATTACK_RANGE, enemyRoot
+end
+
+local function showAttackRangeRing(enemyModel, enemyRoot)
+	if not enemyModel or not enemyRoot then
+		clearAttackRangeRing()
+		return
+	end
+
+	local modelCFrame, modelSize = enemyModel:GetBoundingBox()
+	local baseY = modelCFrame.Position.Y - (modelSize.Y * 0.5) + 0.08
+	local ringDiameter = CLIENT_ATTACK_RANGE * 2
+
+	attackRangeRingPart.Size = Vector3.new(ringDiameter, 0.05, ringDiameter)
+	attackRangeRingPart.CFrame = CFrame.new(enemyRoot.Position.X, baseY, enemyRoot.Position.Z)
+	attackRangeRingGui.Enabled = true
 end
 
 local function showMoveCloserCue(enemyModel)
@@ -584,9 +643,10 @@ local function updateTargetHighlight()
 
 	local targetType, targetInstance = classifyTarget(mouse.Target)
 	if targetType == TARGET_ENEMY then
-		local isInRange = isEnemyInClientAttackRange(targetInstance)
+		local isInRange, enemyRoot = isEnemyInClientAttackRange(targetInstance)
 		targetHighlight.Adornee = targetInstance
 		if isInRange then
+			clearAttackRangeRing()
 			if os.clock() < combatState.recoveryCueUntil then
 				targetHighlight.FillColor = Color3.fromRGB(255, 172, 70)
 				targetHighlight.OutlineColor = Color3.fromRGB(255, 222, 110)
@@ -606,6 +666,7 @@ local function updateTargetHighlight()
 			targetHighlight.FillTransparency = 0.92
 			targetHighlight.OutlineTransparency = 0.35
 			showMoveCloserCue(targetInstance)
+			showAttackRangeRing(targetInstance, enemyRoot)
 		end
 		targetHighlight.Enabled = true
 	elseif targetType == TARGET_DIG_BLOCK then
@@ -616,6 +677,7 @@ local function updateTargetHighlight()
 		targetHighlight.OutlineTransparency = 0.12
 		targetHighlight.Enabled = true
 		clearMoveCloserCue()
+		clearAttackRangeRing()
 	else
 		clearTargetHighlight()
 	end
