@@ -296,6 +296,7 @@ activeFeedback.enemySpawnWarning = {
 	detailLabel = nil,
 	stroke = nil,
 	scale = nil,
+	arrow = nil,
 	edges = {},
 	tweens = {},
 	sequence = 0,
@@ -2659,6 +2660,23 @@ function activeFeedback.ensureEnemySpawnWarning()
 	config.detailLabel.ZIndex = 4
 	config.detailLabel.Parent = config.panel
 
+	config.arrow = Instance.new("TextLabel")
+	config.arrow.Name = "SpawnDirectionArrow"
+	config.arrow.AnchorPoint = Vector2.new(0.5, 0.5)
+	config.arrow.Size = UDim2.fromOffset(46, 46)
+	config.arrow.BackgroundTransparency = 1
+	config.arrow.Active = false
+	config.arrow.Visible = false
+	config.arrow.Text = ">"
+	config.arrow.TextColor3 = Color3.fromRGB(255, 92, 42)
+	config.arrow.TextStrokeColor3 = Color3.fromRGB(42, 8, 4)
+	config.arrow.TextStrokeTransparency = 1
+	config.arrow.TextTransparency = 1
+	config.arrow.TextSize = 42
+	config.arrow.Font = Enum.Font.GothamBlack
+	config.arrow.ZIndex = 5
+	config.arrow.Parent = config.gui
+
 	return config
 end
 
@@ -2700,6 +2718,66 @@ function activeFeedback.hideEnemySpawnWarning()
 		config.detailLabel.TextTransparency = 1
 		config.detailLabel.TextStrokeTransparency = 1
 	end
+	if config.arrow and config.arrow.Parent then
+		config.arrow.Visible = false
+		config.arrow.TextTransparency = 1
+		config.arrow.TextStrokeTransparency = 1
+	end
+end
+
+function activeFeedback.showEnemySpawnWarningArrow(spawnPosition, duration, sequence, isMiniboss)
+	local config = activeFeedback.enemySpawnWarning
+	if not config.arrow or not config.arrow.Parent then
+		return
+	end
+
+	local camera = workspace.CurrentCamera
+	if not camera then
+		return
+	end
+
+	local viewportSize = camera.ViewportSize
+	if viewportSize.X <= 0 or viewportSize.Y <= 0 then
+		return
+	end
+
+	local viewportPoint, onScreen = camera:WorldToViewportPoint(spawnPosition)
+	if isViewportPointVisible(viewportPoint, onScreen, viewportSize) then
+		return
+	end
+
+	local direction = getOffscreenDirection(camera, spawnPosition, viewportPoint, viewportSize)
+	local edgePosition = getEdgePosition(direction, viewportSize)
+	local arrow = config.arrow
+	arrow.Position = UDim2.fromOffset(edgePosition.X, edgePosition.Y)
+	arrow.Rotation = getDirectionAngle(direction)
+	arrow.TextColor3 = isMiniboss and MINIBOSS_COLOR or Color3.fromRGB(255, 92, 42)
+	arrow.TextStrokeColor3 = isMiniboss and Color3.fromRGB(28, 8, 42) or Color3.fromRGB(42, 8, 4)
+	arrow.TextTransparency = 0
+	arrow.TextStrokeTransparency = 0.12
+	arrow.Visible = true
+
+	local arrowTween = TweenService:Create(arrow, TweenInfo.new(
+		duration,
+		Enum.EasingStyle.Quad,
+		Enum.EasingDirection.Out
+	), {
+		TextTransparency = 1,
+		TextStrokeTransparency = 1,
+	})
+	config.tweens.arrow = arrowTween
+	arrowTween:Play()
+	arrowTween.Completed:Once(function(playbackState)
+		if sequence ~= config.sequence or config.tweens.arrow ~= arrowTween then
+			return
+		end
+
+		if playbackState == Enum.PlaybackState.Completed then
+			arrow.Visible = false
+		end
+
+		config.tweens.arrow = nil
+	end)
 end
 
 function activeFeedback.clearEnemySpawnMarker(recordToClear)
@@ -2916,6 +2994,7 @@ function activeFeedback.showEnemySpawnWarning(payload)
 	end
 	if typeof(payload) == "table" and typeof(payload.position) == "Vector3" then
 		activeFeedback.showEnemySpawnMarker(payload.position, duration, payload.isMiniboss == true)
+		activeFeedback.showEnemySpawnWarningArrow(payload.position, duration, sequence, payload.isMiniboss == true)
 	else
 		activeFeedback.clearEnemySpawnMarker()
 	end
