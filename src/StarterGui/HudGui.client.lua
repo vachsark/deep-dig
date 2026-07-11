@@ -1543,7 +1543,24 @@ do
 		end)
 	end
 
-	function activeEventHud.show(eventName, message, duration, effectId)
+	local function formatSeasonalTimerText(seasonEndTimestamp)
+		local endTimestamp = tonumber(seasonEndTimestamp)
+		if not endTimestamp then
+			return "All month"
+		end
+
+		local secondsLeft = endTimestamp - os.time()
+		if secondsLeft <= 0 then
+			return "All month"
+		end
+		if secondsLeft < 86400 then
+			return "<1d left"
+		end
+
+		return tostring(math.ceil(secondsLeft / 86400)) .. "d left"
+	end
+
+	function activeEventHud.show(eventName, message, duration, effectId, seasonEndTimestamp)
 		activeEventHud.token = activeEventHud.token + 1
 		local token = activeEventHud.token
 		local style = activeEventHud.getStyle(effectId)
@@ -1572,12 +1589,20 @@ do
 		activeEventHud.title.Text = tostring(eventName or style.title)
 		activeEventHud.detail.Text = style.detail or tostring(message or "Temporary buff")
 		activeEventHud.timer.TextSize = isSeasonalEffect and 12 or 16
-		activeEventHud.timer.Text = isSeasonalEffect and "All month" or tostring(remainingSeconds) .. "s"
+		activeEventHud.timer.Text = isSeasonalEffect and formatSeasonalTimerText(seasonEndTimestamp) or tostring(remainingSeconds) .. "s"
 		activeEventHud.progressFill.Size = UDim2.new(1, 0, 1, 0)
 		activeEventHud.progressTrack.Visible = not isSeasonalEffect
 		activeEventHud.frame.Visible = true
 
 		if isSeasonalEffect then
+			task.spawn(function()
+				while token == activeEventHud.token and activeEventHud.frame.Visible do
+					task.wait(60)
+					if token == activeEventHud.token and activeEventHud.frame.Visible then
+						activeEventHud.timer.Text = formatSeasonalTimerText(seasonEndTimestamp)
+					end
+				end
+			end)
 			return
 		end
 
@@ -9422,7 +9447,7 @@ do
 	end
 end
 
-Remotes.EventTriggered.OnClientEvent:Connect(function(eventName, message, duration, effectId)
+Remotes.EventTriggered.OnClientEvent:Connect(function(eventName, message, duration, effectId, seasonEndTimestamp)
 	updateSeasonBadge(effectId)
 	local isEarthquake = isEarthquakeEvent(eventName, message, effectId)
 	local isVolcanoVent = DeepDigIsVolcanoVentEvent(eventName, effectId)
@@ -9435,7 +9460,7 @@ Remotes.EventTriggered.OnClientEvent:Connect(function(eventName, message, durati
 			LocalPlaySound:Fire("volcano_vent_rumble")
 		end
 	end
-	DeepDigActiveEventHud.show(eventName, message, duration, effectId)
+	DeepDigActiveEventHud.show(eventName, message, duration, effectId, seasonEndTimestamp)
 	DeepDigEventStartFlash.play(eventName, message, duration, effectId)
 	if isVolcanoVent then
 		DeepDigVolcanoVentPulse.play()

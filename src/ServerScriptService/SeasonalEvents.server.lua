@@ -67,13 +67,63 @@ local function getActiveSeason()
 	return nil
 end
 
+local function getSeasonEndTimestamp(season)
+	if not season or type(season.months) ~= "table" then
+		return nil
+	end
+
+	local now = os.date("*t", os.time())
+	local currentMonth = now.month
+	local currentIndex = nil
+	for index, month in ipairs(season.months) do
+		if month == currentMonth then
+			currentIndex = index
+			break
+		end
+	end
+
+	if not currentIndex then
+		return nil
+	end
+
+	local endYear = now.year
+	local lastMonth = currentMonth
+	local previousMonth = currentMonth
+	for index = currentIndex + 1, #season.months do
+		local month = season.months[index]
+		if month ~= (previousMonth % 12) + 1 then
+			break
+		end
+		if previousMonth == 12 and month == 1 then
+			endYear = endYear + 1
+		end
+		lastMonth = month
+		previousMonth = month
+	end
+
+	local nextMonth = (lastMonth % 12) + 1
+	if lastMonth == 12 then
+		endYear = endYear + 1
+	end
+
+	return os.time({
+		year = endYear,
+		month = nextMonth,
+		day = 1,
+		hour = 0,
+		min = 0,
+		sec = 0,
+	})
+end
+
 local function broadcastSeasonalEvent(season, player)
 	if not season then return end
 
+	local seasonEndTimestamp = getSeasonEndTimestamp(season)
 	if player then
-		EventTriggeredEvent:FireClient(player, season.name, season.message, 9999, season.effect)
+		EventTriggeredEvent:FireClient(player, season.name, season.message, 9999, season.effect, seasonEndTimestamp)
 	else
-		EventTriggeredEvent:FireAllClients(season.name, season.message, 9999, season.effect)
+		EventTriggeredEvent:FireAllClients(season.name, season.message, 9999, season.effect, seasonEndTimestamp)
 	end
 end
 
