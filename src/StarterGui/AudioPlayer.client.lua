@@ -38,6 +38,13 @@ local SOUNDS = {
 		volume = 0.6,
 		pitchRange = { 0.92, 1.08 },
 	},
+	tool_swing = {
+		id = "rbxassetid://9114013169", -- compact local shovel swing tick
+		volume = 0.24,
+		playbackSpeed = 1.56,
+		pitchRange = { 1.02, 1.1 },
+		dedupeWindow = 0.08,
+	},
 	chain_expiring = {
 		id = "rbxassetid://9114013169", -- compact warning tick as the combo decay closes
 		volume = 0.24,

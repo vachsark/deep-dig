@@ -4,6 +4,7 @@
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
+local SoundService = game:GetService("SoundService")
 local TweenService = game:GetService("TweenService")
 local Debris = game:GetService("Debris")
 local HapticService = nil
@@ -27,8 +28,10 @@ local BlockBreakFeedback = Remotes:WaitForChild("BlockBreakFeedback", 10)
 
 local TARGET_DIG_BLOCK = "DigBlock"
 local TARGET_ENEMY = "Enemy"
+local LOCAL_PLAY_SOUND_NAME = "DeepDigLocalPlaySound"
 local CLIENT_ATTACK_RANGE = 8
 local DEBUG_DIG_CLIENT = false
+local SWING_ARC_LIFETIME = 0.16
 local IMPACT_LIFETIME = 0.2
 local ENEMY_SPARK_LIFETIME = 0.28
 local BLOCK_BREAK_KICK_BIND_NAME = "DeepDigBlockBreakCameraKick"
@@ -42,6 +45,7 @@ local HAPTIC_LARGE_MOTOR = Enum.VibrationMotor.Large
 local character = player.Character or player.CharacterAdded:Wait()
 local equippedExcavator = nil
 local playerGui = player:WaitForChild("PlayerGui")
+local LocalPlaySound = SoundService:FindFirstChild(LOCAL_PLAY_SOUND_NAME)
 local moveCloserCueToken = 0
 local combatState = {
 	attackCooldown = 0.5,
@@ -57,6 +61,12 @@ local blockBreakKickState = nil
 local blockBreakKickBound = false
 local lastBlockBreakKickCFrame = CFrame.new()
 local lastBlockBreakKickActive = false
+
+if not LocalPlaySound then
+	LocalPlaySound = Instance.new("BindableEvent")
+	LocalPlaySound.Name = LOCAL_PLAY_SOUND_NAME
+	LocalPlaySound.Parent = SoundService
+end
 
 local targetHighlight = Instance.new("Highlight")
 targetHighlight.Name = "DeepDigTargetHighlight"
@@ -469,6 +479,142 @@ local function getClickWorldPosition(targetPart)
 	return targetPart.Position
 end
 
+local function playToolSwingSound()
+	if LocalPlaySound and LocalPlaySound:IsA("BindableEvent") then
+		LocalPlaySound:Fire("tool_swing")
+	end
+end
+
+local function getTierFallbackColor(tier)
+	if typeof(tier) == "number" then
+		return Color3.fromHSV((0.08 + tier * 0.11) % 1, 0.72, 1)
+	end
+
+	if typeof(tier) == "string" and #tier > 0 then
+		local hash = 0
+		for index = 1, #tier do
+			hash = hash + string.byte(tier, index) * index
+		end
+
+		return Color3.fromHSV((hash % 100) / 100, 0.68, 1)
+	end
+
+	return Color3.fromRGB(255, 185, 65)
+end
+
+local function getToolSwingColor()
+	if equippedExcavator then
+		local handle = equippedExcavator:FindFirstChild("Handle")
+		if handle and handle:IsA("BasePart") then
+			return handle.Color
+		end
+
+		return getTierFallbackColor(equippedExcavator:GetAttribute("ToolTier"))
+	end
+
+	return Color3.fromRGB(255, 185, 65)
+end
+
+local function showToolSwingArc(targetPart)
+	if not targetPart or not targetPart:IsA("BasePart") then
+		return
+	end
+
+	local color = getToolSwingColor()
+	local arc = Instance.new("BillboardGui")
+	arc.Name = "DeepDigToolSwingArc"
+	arc.AlwaysOnTop = true
+	arc.LightInfluence = 0
+	arc.MaxDistance = 120
+	arc.Size = UDim2.fromOffset(24, 24)
+	arc.Adornee = targetPart
+	arc.StudsOffsetWorldSpace = getClickWorldPosition(targetPart) - targetPart.Position
+	arc.Parent = playerGui
+
+	local slash = Instance.new("Frame")
+	slash.Name = "Slash"
+	slash.AnchorPoint = Vector2.new(0.5, 0.5)
+	slash.BackgroundColor3 = color
+	slash.BackgroundTransparency = 0.05
+	slash.BorderSizePixel = 0
+	slash.Position = UDim2.fromScale(0.48, 0.54)
+	slash.Rotation = -34
+	slash.Size = UDim2.fromOffset(4, 28)
+	slash.Parent = arc
+
+	local slashCorner = Instance.new("UICorner")
+	slashCorner.CornerRadius = UDim.new(1, 0)
+	slashCorner.Parent = slash
+
+	local slashStroke = Instance.new("UIStroke")
+	slashStroke.Color = Color3.new(1, 1, 1)
+	slashStroke.Thickness = 1
+	slashStroke.Transparency = 0.28
+	slashStroke.Parent = slash
+
+	local trail = Instance.new("Frame")
+	trail.Name = "Trail"
+	trail.AnchorPoint = Vector2.new(0.5, 0.5)
+	trail.BackgroundColor3 = color
+	trail.BackgroundTransparency = 0.48
+	trail.BorderSizePixel = 0
+	trail.Position = UDim2.fromScale(0.59, 0.46)
+	trail.Rotation = -34
+	trail.Size = UDim2.fromOffset(3, 18)
+	trail.Parent = arc
+
+	local trailCorner = Instance.new("UICorner")
+	trailCorner.CornerRadius = UDim.new(1, 0)
+	trailCorner.Parent = trail
+
+	local arcTween = TweenService:Create(arc, TweenInfo.new(
+		SWING_ARC_LIFETIME,
+		Enum.EasingStyle.Quad,
+		Enum.EasingDirection.Out
+	), {
+		Size = UDim2.fromOffset(42, 42),
+	})
+	local slashTween = TweenService:Create(slash, TweenInfo.new(
+		SWING_ARC_LIFETIME,
+		Enum.EasingStyle.Quad,
+		Enum.EasingDirection.Out
+	), {
+		BackgroundTransparency = 1,
+		Rotation = -58,
+	})
+	local trailTween = TweenService:Create(trail, TweenInfo.new(
+		SWING_ARC_LIFETIME,
+		Enum.EasingStyle.Quad,
+		Enum.EasingDirection.Out
+	), {
+		BackgroundTransparency = 1,
+		Rotation = -54,
+	})
+	local strokeTween = TweenService:Create(slashStroke, TweenInfo.new(
+		SWING_ARC_LIFETIME,
+		Enum.EasingStyle.Quad,
+		Enum.EasingDirection.Out
+	), {
+		Transparency = 1,
+	})
+
+	arcTween:Play()
+	slashTween:Play()
+	trailTween:Play()
+	strokeTween:Play()
+	arcTween.Completed:Connect(function()
+		if arc then
+			arc:Destroy()
+		end
+	end)
+	Debris:AddItem(arc, SWING_ARC_LIFETIME + 0.08)
+end
+
+local function playToolSwingFeedback(targetPart)
+	showToolSwingArc(targetPart)
+	playToolSwingSound()
+end
+
 local function showImpactPulse(targetPart, color, isSlash)
 	if not targetPart or not targetPart:IsA("BasePart") then
 		return
@@ -710,6 +856,7 @@ local function onToolActivated()
 		debugLog("[DeepDig dig] enemy hit:", targetInstance.Name)
 		local _, enemyRoot = isEnemyInClientAttackRange(targetInstance)
 		combatState.nextAttackAt = now + combatState.attackCooldown
+		playToolSwingFeedback(enemyRoot)
 		showImpactPulse(enemyRoot, Color3.fromRGB(255, 70, 70), true)
 		showEnemySparkBurst(enemyRoot)
 		EnemyHitEvent:FireServer(targetInstance)
@@ -723,6 +870,7 @@ local function onToolActivated()
 
 	-- Send the block reference to the server
 	debugLog(("[DeepDig dig] firing DigRequest for %s (depth=%s)"):format(targetInstance.Name, tostring(targetInstance:GetAttribute("Depth"))))
+	playToolSwingFeedback(targetInstance)
 	showImpactPulse(targetInstance, Color3.fromRGB(255, 185, 65), false)
 	DigRequest:FireServer(targetInstance)
 end
