@@ -138,6 +138,13 @@ local SOUNDS = {
 		pitchRange = { 1.05, 1.16 },
 		dedupeWindow = 0.08,
 	},
+	enemy_hit_confirm = {
+		id = "rbxassetid://9114013169", -- tighter valid-hit confirm
+		volume = 0.5,
+		playbackSpeed = 1.28,
+		pitchRange = { 1.02, 1.08 },
+		dedupeWindow = 0.05,
+	},
 	enemy_aggro = {
 		id = "rbxassetid://5982968246", -- short warning horn
 		volume = 0.45,

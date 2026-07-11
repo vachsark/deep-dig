@@ -5725,7 +5725,7 @@ EnemyCombatFeedback.OnClientEvent:Connect(function(payload)
 		elseif feedbackType == "miniboss_defeated" then
 			LocalPlaySound:Fire("enemy_miniboss_defeated")
 		else
-			LocalPlaySound:Fire(feedbackType == "defeated" and "enemy_defeated" or "enemy_hit")
+			LocalPlaySound:Fire(feedbackType == "defeated" and "enemy_defeated" or "enemy_hit_confirm")
 		end
 	end
 
