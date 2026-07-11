@@ -4603,8 +4603,8 @@ for _, configuredEvent in ipairs(Config.EVENTS or {}) do
 	end
 end
 
-local function shouldPlayEventCameraShake(duration)
-	return type(duration) ~= "number" or duration <= EVENT_SHAKE_MAX_RANDOM_DURATION
+local function shouldPlayEventCameraShake(eventName, message, duration, effectId)
+	return DeepDigEventStartFlash.shouldPlay(eventName, message, duration, effectId)
 end
 
 function DeepDigEventStartFlash.shouldPlay(eventName, message, duration, effectId)
@@ -9465,7 +9465,7 @@ Remotes.EventTriggered.OnClientEvent:Connect(function(eventName, message, durati
 	if isVolcanoVent then
 		DeepDigVolcanoVentPulse.play()
 	end
-	if not isEarthquake and shouldPlayEventCameraShake(duration) then
+	if shouldPlayEventCameraShake(eventName, message, duration, effectId) then
 		playEventCameraShake(eventName, effectId)
 	end
 
